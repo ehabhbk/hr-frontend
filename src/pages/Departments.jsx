@@ -20,6 +20,15 @@ export default function Departments() {
   const avatar = localStorage.getItem("avatar");
   const token = localStorage.getItem("token");
 
+  const fetchDepartments = useCallback(() => {
+    api
+      .get("/departments", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => setDepartments(res.data.data))
+      .catch((err) => console.error(err));
+  }, [token]);
+
   useEffect(() => {
     fetchDepartments();
 
@@ -31,15 +40,6 @@ export default function Departments() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [token, fetchDepartments]);
-
-  const fetchDepartments = useCallback(() => {
-    api
-      .get("/departments", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => setDepartments(res.data.data))
-      .catch((err) => console.error(err));
-  }, [token]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
