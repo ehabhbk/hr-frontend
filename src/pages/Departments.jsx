@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import {
@@ -30,16 +30,16 @@ export default function Departments() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [token]);
+  }, [token, fetchDepartments]);
 
-  const fetchDepartments = () => {
+  const fetchDepartments = useCallback(() => {
     api
       .get("/departments", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setDepartments(res.data.data))
       .catch((err) => console.error(err));
-  };
+  }, [token]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -77,12 +77,12 @@ export default function Departments() {
           <a href="/departments" className="flex items-center gap-2 px-3 py-2 rounded bg-indigo-700">
             <BuildingOfficeIcon className="h-5 w-5" /> الأقسام
           </a>
-          <a href="#" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700">
+          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-left">
             <Cog6ToothIcon className="h-5 w-5" /> الإعدادات
-          </a>
-          <a href="#" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700">
+          </button>
+          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-left">
             <ChartBarIcon className="h-5 w-5" /> التقارير
-          </a>
+          </button>
         </nav>
       </aside>
 
@@ -106,12 +106,12 @@ export default function Departments() {
 
             {openMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
-                <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                <button className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100">
                   الملف الشخصي
-                </a>
-                <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                </button>
+                <button className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100">
                   الإعدادات
-                </a>
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"

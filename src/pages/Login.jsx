@@ -22,9 +22,17 @@ export default function Login() {
       try {
         const response = await api.post("/login", { username, password });
 
-        if (response.data.status === "success") {
+        // التحقق من وجود التوكن
+        if (response.data.token) {
           // تخزين التوكن
           localStorage.setItem("token", response.data.token);
+
+          // تخزين بيانات المستخدم إذا كانت متوفرة
+          if (response.data.user) {
+            localStorage.setItem("username", response.data.user.username);
+            localStorage.setItem("avatar", response.data.user.avatar || "/default-avatar.png");
+          }
+
           // الانتقال للـ Dashboard
           navigate("/dashboard");
         } else {
