@@ -5,6 +5,9 @@ import {
   UserGroupIcon,
   BuildingOfficeIcon,
 } from "@heroicons/react/24/outline";
+import CountUp from "react-countup";
+import AOS from "aos";
+import "aos/dist/aos.css";
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
@@ -20,17 +23,13 @@ export default function Employees() {
 
   useEffect(() => {
     api.get("/employees", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
-        console.log("🚀 بيانات الموظفين:", res.data.data);
-        res.data.data.forEach(emp => {
-          console.log(`الموظف: ${emp.name} - الحالة: ${emp.status}`);
-        });
-        setEmployees(res.data.data);
-      })
+      .then((res) => setEmployees(res.data.data))
       .catch((err) => console.error(err));
   }, [token]);
 
   useEffect(() => {
+    AOS.init({ duration: 1000, once: true });
+
     function handleClickOutside(event) {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setOpenMenu(false);
@@ -50,10 +49,11 @@ export default function Employees() {
   // تحديد لون البطاقة حسب الحالة
   const getCardColor = (status) => {
     const normalized = (status || "").toLowerCase();
-    if (normalized.includes("active")) return "bg-blue-100";
-    if (normalized.includes("terminated")) return "bg-purple-100";
-    if (normalized.includes("warning")) return "bg-yellow-100";
-    return "bg-gray-100";
+    if (normalized.includes("active")) return "bg-blue-100";       // نشط
+    if (normalized.includes("terminated")) return "bg-purple-100"; // مفصول
+    if (normalized.includes("warning")) return "bg-yellow-100";    // إنذار
+    if (normalized.includes("vacation")) return "bg-teal-100";     // في إجازة (لون مختلف عن نشط)
+    return "bg-gray-100";                                          // افتراضي
   };
 
   // فلترة الموظفين حسب البحث والحالة
@@ -150,18 +150,20 @@ export default function Employees() {
               <option value="active">نشط</option>
               <option value="terminated">مفصول</option>
               <option value="warning">إنذار</option>
+              <option value="vacation">في إجازة</option> {/* الحالة الجديدة */}
             </select>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="text-indigo-800 font-bold text-lg">
-              عدد الموظفين: {filteredEmployees.length}
+            <span className="text-indigo-800 font-bold text-lg flex items-center gap-2">
+              👨‍💼 عدد الموظفين:{" "}
+              <CountUp start={0} end={filteredEmployees.length} duration={1.5} />
             </span>
             <button
               onClick={() => navigate("/add-employee")}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-semibold"
             >
-              ➕ إضافة موظف جديد
+              ➕ إضافة
             </button>
           </div>
         </div>
@@ -173,8 +175,9 @@ export default function Employees() {
             {filteredEmployees.map((emp) => (
               <div
                 key={emp.id}
+                data-aos="fade-up"
                 onClick={() => navigate(`/employee/${emp.id}`)}
-                className={`${getCardColor(emp.status)} shadow-md rounded-lg p-6 flex flex-col items-center text-center hover:shadow-lg transition cursor-pointer`}
+                className={`${getCardColor(emp.status)} shadow-md rounded-2xl p-6 flex flex-col items-center text-center hover:shadow-lg transform transition hover:scale-105 cursor-pointer`}
               >
                 <img
                   src={emp.profile_photo || "/default-avatar.png"}
@@ -190,6 +193,8 @@ export default function Employees() {
                     ? "مفصول"
                     : emp.status === "warning"
                     ? "إنذار"
+                    : emp.status === "vacation"
+                    ? "🌴 في إجازة"
                     : "نشط"}
                 </p>
               </div>

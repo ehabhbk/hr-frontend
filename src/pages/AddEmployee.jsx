@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { ToastContainer, toast } from "react-toastify";
@@ -8,6 +8,7 @@ export default function AddEmployee() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -22,6 +23,13 @@ export default function AddEmployee() {
     profile_photo: null,
     cv: null,
   });
+
+  useEffect(() => {
+    api
+      .get("/departments", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setDepartments(res.data.data))
+      .catch(() => toast.error("❌ فشل في جلب الأقسام"));
+  }, [token]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -38,12 +46,13 @@ export default function AddEmployee() {
       data.append(key, formData[key]);
     });
 
-    api.post("/employees", data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    })
+    api
+      .post("/employees", data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      })
       .then(() => {
         toast.success("✅ تم إضافة الموظف بنجاح");
         setTimeout(() => navigate("/employees"), 2000);
@@ -149,16 +158,23 @@ export default function AddEmployee() {
               />
             </div>
 
-            {/* القسم */}
+            {/* القسم كقائمة منسدلة */}
             <div>
               <label className="block text-lg font-semibold text-gray-700">القسم</label>
-              <input
-                type="text"
+              <select
                 name="department_id"
                 value={formData.department_id}
                 onChange={handleChange}
                 className="w-full border rounded-lg px-3 py-2 text-lg"
-              />
+                required
+              >
+                <option value="">اختر القسم</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* تاريخ التعيين */}
@@ -232,7 +248,7 @@ export default function AddEmployee() {
               />
             </div>
 
-            {/* أزرار */}
+                        {/* أزرار */}
             <div className="flex gap-4 mt-6">
               <button
                 type="submit"
