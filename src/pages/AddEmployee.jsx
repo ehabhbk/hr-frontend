@@ -211,18 +211,7 @@ export default function AddEmployee() {
                 className="w-full border rounded-lg px-3 py-2 text-lg"
               />
             </div>
-
-            {/* الملاحظات */}
-            <div>
-              <label className="block text-lg font-semibold text-gray-700">ملاحظات</label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2 text-lg"
-              />
-            </div>
-
+            
             {/* رفع صورة شخصية */}
             <div>
               <label className="block text-lg font-semibold text-gray-700">الصورة الشخصية</label>

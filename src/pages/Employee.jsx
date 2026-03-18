@@ -33,44 +33,36 @@ export default function Employee() {
   };
 
   const updateStatus = (newStatus, message, extraData = {}) => {
-    api
-      .put(
-        `/employees/${employee.id}`,
-        { status: newStatus, ...extraData },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      .then(() => {
-        if (newStatus === "vacation") {
-          toast.success(
-            `🌴 ${message} | النوع: ${
-              extraData.leave_type === "sick" ? "مرضية" : "رسمية"
-            } | المدة: ${extraData.leave_duration} يوم | ${
-              extraData.leave_paid ? "بمرتب" : "بدون مرتب"
-            }`
-          );
-        } else {
-          toast.success(message);
-        }
+  api
+    .put(
+      `/employees/${employee.id}`,
+      { status: newStatus, ...extraData },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    .then((res) => {
+      const updated = res.data.data;
 
-        setEmployee({
-          ...employee,
-          status: newStatus,
-          warnings:
-            newStatus === "warning" ? (employee.warnings || 0) + 1 : employee.warnings,
-          leave_count:
-            newStatus === "vacation" ? (employee.leave_count || 0) + 1 : employee.leave_count,
-          leave_type: extraData.leave_type || employee.leave_type,
-          leave_duration: extraData.leave_duration || employee.leave_duration,
-          leave_paid: extraData.leave_paid ?? employee.leave_paid,
-          updated_at: new Date().toISOString(),
-        });
+      // 🚨 إذا وصل عدد الإنذارات إلى 4 أو أكثر وتم الفصل
+      if (updated.warnings >= 4 && updated.status === "terminated") {
+        toast.error(`🚨 الموظف ${updated.name} تم فصله وتجميد مرتبه بعد 4 إنذارات`);
+      } else if (newStatus === "vacation") {
+        toast.success(
+          `🌴 ${message} | النوع: ${
+            extraData.leave_type === "sick" ? "مرضية" : "رسمية"
+          } | المدة: ${extraData.leave_duration} يوم | ${
+            extraData.leave_paid ? "بمرتب" : "بدون مرتب"
+          }`
+        );
+      } else {
+        toast.success(message);
+      }
 
-        setShowVacationModal(false);
-        // reset vacation form to defaults
-        setVacationData({ leave_type: "official", leave_duration: 1, leave_paid: true });
-      })
-      .catch(() => toast.error("❌ حدث خطأ أثناء تحديث الحالة"));
-  };
+      setEmployee(updated);
+      setShowVacationModal(false);
+      setVacationData({ leave_type: "official", leave_duration: 1, leave_paid: true });
+    })
+    .catch(() => toast.error("❌ حدث خطأ أثناء تحديث الحالة"));
+};
 
   if (!employee) {
     return <div className="p-6 text-lg font-semibold">⏳ جاري تحميل بيانات الموظف...</div>;
@@ -114,36 +106,48 @@ export default function Employee() {
         </header>
 
         {/* Toolbar */}
-        <div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
-          <span className="text-indigo-800 font-bold text-xl">الموظف: {employee.name}</span>
-          <div className="flex flex-col text-right">
-            <span className="text-gray-700 text-lg">
-              الحالة:{" "}
-              {employee.status === "terminated"
-                ? "مفصول"
-                : employee.status === "warning"
-                ? "إنذار"
-                : employee.status === "vacation"
-                ? "إجازة"
-                : "نشط"}
-            </span>
-            <span className="text-gray-600 text-sm">
-              آخر تحديث: {new Date(employee.updated_at).toLocaleString("ar-EG")}
-            </span>
-            {employee.warnings > 0 && (
-              <span className="text-orange-600 font-semibold text-sm">
-                عدد الإنذارات: {employee.warnings}
-              </span>
-            )}
-            {employee.leave_count > 0 && (
-              <span className="text-green-600 font-semibold text-sm">
-                عدد الإجازات: {employee.leave_count} | النوع:{" "}
-                {employee.leave_type === "sick" ? "مرضية" : "رسمية"} | المدة:{" "}
-                {employee.leave_duration} يوم | {employee.leave_paid ? "بمرتب" : "بدون مرتب"}
-              </span>
-            )}
-          </div>
-        </div>
+<div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
+  <span className="text-indigo-800 font-bold text-xl">الموظف: {employee.name}</span>
+  <div className="flex flex-col text-right">
+    <span className="text-lg font-semibold">
+      الحالة:{" "}
+      {employee.status === "terminated" ? (
+        <span className="text-red-600">مفصول</span>
+      ) : employee.status === "warning" ? (
+        <span className="text-yellow-500">إنذار</span>
+      ) : employee.status === "vacation" ? (
+        <span className="text-blue-600">إجازة</span>
+      ) : (
+        <span className="text-green-600">نشط</span>
+      )}
+
+      {/* Badge إضافي إذا كان الفصل بسبب الإنذارات */}
+      {employee.status === "terminated" && employee.warnings >= 4 && (
+        <span className="ml-2 px-2 py-1 text-xs font-bold bg-red-600 text-white rounded">
+          مفصول بسبب الإنذارات
+        </span>
+      )}
+    </span>
+
+    <span className="text-gray-600 text-sm">
+      آخر تحديث: {new Date(employee.updated_at).toLocaleString("ar-EG")}
+    </span>
+
+    {employee.warnings > 0 && (
+      <span className="text-orange-600 font-semibold text-sm">
+        عدد الإنذارات: {employee.warnings}
+      </span>
+    )}
+
+    {employee.leave_count > 0 && (
+      <span className="text-blue-600 font-semibold text-sm">
+        عدد الإجازات: {employee.leave_count} | النوع:{" "}
+        {employee.leave_type === "sick" ? "مرضية" : "رسمية"} | المدة:{" "}
+        {employee.leave_duration} يوم | {employee.leave_paid ? "بمرتب" : "بدون مرتب"}
+      </span>
+    )}
+  </div>
+</div>
 
         {/* محتوى الصفحة */}
         <main className="flex-1 p-6">
