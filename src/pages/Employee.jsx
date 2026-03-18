@@ -21,6 +21,7 @@ export default function Employee() {
     if (normalized.includes("active")) return "bg-blue-100";
     if (normalized.includes("terminated")) return "bg-purple-100";
     if (normalized.includes("warning")) return "bg-yellow-100";
+    if (normalized.includes("vacation")) return "bg-green-100"; // لون مميز للإجازة
     return "bg-gray-100";
   };
 
@@ -32,6 +33,7 @@ export default function Employee() {
           ...employee,
           status: newStatus,
           warnings: newStatus === "warning" ? (employee.warnings || 0) + 1 : employee.warnings,
+          vacations: newStatus === "vacation" ? (employee.vacations || 0) + 1 : employee.vacations,
           updated_at: new Date().toISOString(),
         });
       })
@@ -48,7 +50,7 @@ export default function Employee() {
       <aside className="w-64 bg-indigo-800 text-white flex flex-col sticky top-0 h-screen">
         <div className="p-6 text-center border-b border-indigo-700">
           <h2 className="text-2xl font-bold">Jawda HR</h2>
-          <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
+          <p className="text-sm text-gray-300">لإدراة الموارد البشرية</p>
         </div>
         <nav className="flex-1 p-4 space-y-3">
           <button
@@ -90,6 +92,8 @@ export default function Employee() {
                 ? "مفصول"
                 : employee.status === "warning"
                 ? "إنذار"
+                : employee.status === "vacation"
+                ? "إجازة"
                 : "نشط"}
             </span>
             <span className="text-gray-600 text-sm">
@@ -98,6 +102,11 @@ export default function Employee() {
             {employee.warnings > 0 && (
               <span className="text-orange-600 font-semibold text-sm">
                 عدد الإنذارات: {employee.warnings}
+              </span>
+            )}
+            {employee.vacations > 0 && (
+              <span className="text-green-600 font-semibold text-sm">
+                عدد الإجازات: {employee.vacations}
               </span>
             )}
           </div>
@@ -111,7 +120,12 @@ export default function Employee() {
             <img
               src={employee.profile_photo || "/default-avatar.png"}
               alt={employee.name}
-              className="w-40 h-40 rounded-full border-4 border-indigo-300 mb-6"
+              className="w-40 h-40 rounded-full border-4 border-indigo-300 mb-6 cursor-pointer"
+              onClick={() => {
+                if (employee.profile_photo) {
+                  window.open(employee.profile_photo, "_blank");
+                }
+              }}
             />
             <h2 className="text-3xl font-bold text-gray-900 mb-2">{employee.name}</h2>
             <p className="text-xl text-gray-700 mb-1">{employee.position}</p>
@@ -120,10 +134,19 @@ export default function Employee() {
             <p className="text-lg text-gray-600 mb-1">📅 تاريخ التعيين: {employee.hire_date}</p>
             <p className="text-lg text-gray-600 mb-1">📞 الهاتف: {employee.phone}</p>
             <p className="text-lg text-gray-600 mb-1">🏠 العنوان: {employee.address}</p>
-            <p className="text-lg text-gray-600 mb-1">📄 السيرة الذاتية: {employee.cv}</p>
+
+            {employee.cv && (
+              <button
+                onClick={() => window.open(employee.cv, "_blank")}
+                className="text-blue-600 underline text-lg mb-4"
+              >
+                📄 عرض السيرة الذاتية
+              </button>
+            )}
+
             <p className="text-lg text-gray-600 mb-4">📝 ملاحظات: {employee.notes || "لا توجد"}</p>
 
-            {/* أزرار تعديل + إنذار + فصل */}
+            {/* أزرار تعديل + إنذار + فصل + إجازة */}
             <div className="flex gap-4 mt-6">
               <button
                 onClick={() => {
@@ -145,6 +168,12 @@ export default function Employee() {
                 className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 text-lg"
               >
                 ⛔ فصل
+              </button>
+              <button
+                onClick={() => updateStatus("vacation", "🌴 تم وضع الموظف في إجازة")}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
+              >
+                🌴 إجازة
               </button>
             </div>
           </div>

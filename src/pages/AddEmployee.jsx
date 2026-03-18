@@ -20,8 +20,8 @@ export default function AddEmployee() {
     address: "",
     notes: "",
     status: "active",
-    profile_photo: null,
-    cv: null,
+    profile_photo: "",
+    cv: "",
   });
 
   useEffect(() => {
@@ -130,7 +130,6 @@ export default function AddEmployee() {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full border rounded-lg px-3 py-2 text-lg"
-                required
               />
             </div>
 
