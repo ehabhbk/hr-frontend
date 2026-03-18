@@ -8,10 +8,17 @@ export default function Employee() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [employee, setEmployee] = useState(null);
+  const [showVacationModal, setShowVacationModal] = useState(false);
+  const [vacationData, setVacationData] = useState({
+    leave_type: "official",
+    leave_duration: 1,
+    leave_paid: true,
+  });
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    api.get(`/employees/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+    api
+      .get(`/employees/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setEmployee(res.data.data))
       .catch((err) => console.error(err));
   }, [id, token]);
@@ -21,21 +28,46 @@ export default function Employee() {
     if (normalized.includes("active")) return "bg-blue-100";
     if (normalized.includes("terminated")) return "bg-purple-100";
     if (normalized.includes("warning")) return "bg-yellow-100";
-    if (normalized.includes("vacation")) return "bg-green-100"; // لون مميز للإجازة
+    if (normalized.includes("vacation")) return "bg-green-100";
     return "bg-gray-100";
   };
 
-  const updateStatus = (newStatus, message) => {
-    api.put(`/employees/${employee.id}`, { status: newStatus }, { headers: { Authorization: `Bearer ${token}` } })
+  const updateStatus = (newStatus, message, extraData = {}) => {
+    api
+      .put(
+        `/employees/${employee.id}`,
+        { status: newStatus, ...extraData },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
       .then(() => {
-        toast.success(message);
+        if (newStatus === "vacation") {
+          toast.success(
+            `🌴 ${message} | النوع: ${
+              extraData.leave_type === "sick" ? "مرضية" : "رسمية"
+            } | المدة: ${extraData.leave_duration} يوم | ${
+              extraData.leave_paid ? "بمرتب" : "بدون مرتب"
+            }`
+          );
+        } else {
+          toast.success(message);
+        }
+
         setEmployee({
           ...employee,
           status: newStatus,
-          warnings: newStatus === "warning" ? (employee.warnings || 0) + 1 : employee.warnings,
-          vacations: newStatus === "vacation" ? (employee.vacations || 0) + 1 : employee.vacations,
+          warnings:
+            newStatus === "warning" ? (employee.warnings || 0) + 1 : employee.warnings,
+          leave_count:
+            newStatus === "vacation" ? (employee.leave_count || 0) + 1 : employee.leave_count,
+          leave_type: extraData.leave_type || employee.leave_type,
+          leave_duration: extraData.leave_duration || employee.leave_duration,
+          leave_paid: extraData.leave_paid ?? employee.leave_paid,
           updated_at: new Date().toISOString(),
         });
+
+        setShowVacationModal(false);
+        // reset vacation form to defaults
+        setVacationData({ leave_type: "official", leave_duration: 1, leave_paid: true });
       })
       .catch(() => toast.error("❌ حدث خطأ أثناء تحديث الحالة"));
   };
@@ -46,7 +78,7 @@ export default function Employee() {
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
-      {/* Sidebar ثابت */}
+      {/* Sidebar */}
       <aside className="w-64 bg-indigo-800 text-white flex flex-col sticky top-0 h-screen">
         <div className="p-6 text-center border-b border-indigo-700">
           <h2 className="text-2xl font-bold">Jawda HR</h2>
@@ -70,7 +102,7 @@ export default function Employee() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Navbar ثابت */}
+        {/* Navbar */}
         <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
           <h1 className="text-2xl font-bold text-indigo-800">تفاصيل الموظف</h1>
           <button
@@ -81,14 +113,13 @@ export default function Employee() {
           </button>
         </header>
 
-        {/* Toolbar ثابت تحت الـ Navbar */}
+        {/* Toolbar */}
         <div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
-          <span className="text-indigo-800 font-bold text-xl">
-            الموظف: {employee.name}
-          </span>
+          <span className="text-indigo-800 font-bold text-xl">الموظف: {employee.name}</span>
           <div className="flex flex-col text-right">
             <span className="text-gray-700 text-lg">
-              الحالة: {employee.status === "terminated"
+              الحالة:{" "}
+              {employee.status === "terminated"
                 ? "مفصول"
                 : employee.status === "warning"
                 ? "إنذار"
@@ -104,9 +135,11 @@ export default function Employee() {
                 عدد الإنذارات: {employee.warnings}
               </span>
             )}
-            {employee.vacations > 0 && (
+            {employee.leave_count > 0 && (
               <span className="text-green-600 font-semibold text-sm">
-                عدد الإجازات: {employee.vacations}
+                عدد الإجازات: {employee.leave_count} | النوع:{" "}
+                {employee.leave_type === "sick" ? "مرضية" : "رسمية"} | المدة:{" "}
+                {employee.leave_duration} يوم | {employee.leave_paid ? "بمرتب" : "بدون مرتب"}
               </span>
             )}
           </div>
@@ -122,9 +155,7 @@ export default function Employee() {
               alt={employee.name}
               className="w-40 h-40 rounded-full border-4 border-indigo-300 mb-6 cursor-pointer"
               onClick={() => {
-                if (employee.profile_photo) {
-                  window.open(employee.profile_photo, "_blank");
-                }
+                if (employee.profile_photo) window.open(employee.profile_photo, "_blank");
               }}
             />
             <h2 className="text-3xl font-bold text-gray-900 mb-2">{employee.name}</h2>
@@ -136,17 +167,14 @@ export default function Employee() {
             <p className="text-lg text-gray-600 mb-1">🏠 العنوان: {employee.address}</p>
 
             {employee.cv && (
-              <button
-                onClick={() => window.open(employee.cv, "_blank")}
-                className="text-blue-600 underline text-lg mb-4"
-              >
+              <button onClick={() => window.open(employee.cv, "_blank")} className="text-blue-600 underline text-lg mb-4">
                 📄 عرض السيرة الذاتية
               </button>
             )}
 
             <p className="text-lg text-gray-600 mb-4">📝 ملاحظات: {employee.notes || "لا توجد"}</p>
 
-            {/* أزرار تعديل + إنذار + فصل + إجازة */}
+            {/* أزرار */}
             <div className="flex gap-4 mt-6">
               <button
                 onClick={() => {
@@ -157,20 +185,23 @@ export default function Employee() {
               >
                 ✏ تعديل
               </button>
+
               <button
                 onClick={() => updateStatus("warning", "⚠ تم إعطاء إنذار للموظف")}
                 className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 text-lg"
               >
                 ⚠ إنذار
               </button>
+
               <button
                 onClick={() => updateStatus("terminated", "❌ تم فصل الموظف")}
                 className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 text-lg"
               >
                 ⛔ فصل
               </button>
+
               <button
-                onClick={() => updateStatus("vacation", "🌴 تم وضع الموظف في إجازة")}
+                onClick={() => setShowVacationModal(true)}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
               >
                 🌴 إجازة
@@ -178,7 +209,92 @@ export default function Employee() {
             </div>
           </div>
 
-          {/* Toast Container */}
+          {/* مودل إدخال بيانات الإجازة */}
+          {showVacationModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+              <div className="bg-white rounded-lg shadow-lg p-6 w-96">
+                <h2 className="text-xl font-bold mb-4">📝 إدخال بيانات الإجازة</h2>
+
+                {/* نوع الإجازة */}
+                <label className="block mb-2">نوع الإجازة:</label>
+                <select
+                  value={vacationData.leave_type}
+                  onChange={(e) => setVacationData({ ...vacationData, leave_type: e.target.value })}
+                  className="w-full border rounded p-2 mb-4"
+                >
+                  <option value="official">رسمية</option>
+                  <option value="sick">مرضية</option>
+                </select>
+
+                {/* مدة الإجازة */}
+                <label className="block mb-2">مدة الإجازة (بالأيام):</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={vacationData.leave_duration}
+                  onChange={(e) =>
+                    setVacationData({
+                      ...vacationData,
+                      leave_duration: Math.max(1, parseInt(e.target.value || 1)),
+                    })
+                  }
+                  className="w-full border rounded p-2 mb-4"
+                />
+
+                {/* بمرتب أو بدون مرتب */}
+                <label className="block mb-2">هل الإجازة بمرتب؟</label>
+                <div className="flex gap-4 mb-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="leave_paid"
+                      checked={vacationData.leave_paid === true}
+                      onChange={() => setVacationData({ ...vacationData, leave_paid: true })}
+                    />
+                    بمرتب
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="leave_paid"
+                      checked={vacationData.leave_paid === false}
+                      onChange={() => setVacationData({ ...vacationData, leave_paid: false })}
+                    />
+                    بدون مرتب
+                  </label>
+                </div>
+
+                {/* أزرار التحكم */}
+                <div className="flex justify-between mt-6">
+                  <button
+                    onClick={() => {
+                      setShowVacationModal(false);
+                      // reset form if cancelled
+                      setVacationData({ leave_type: "official", leave_duration: 1, leave_paid: true });
+                    }}
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                  >
+                    إلغاء
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      // basic client-side validation
+                      if (!vacationData.leave_duration || vacationData.leave_duration < 1) {
+                        toast.error("الرجاء إدخال مدة صحيحة للإجازة (يوم واحد على الأقل).");
+                        return;
+                      }
+                      updateStatus("vacation", "تم وضع الموظف في إجازة", vacationData);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    حفظ الإجازة
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <ToastContainer position="top-right" autoClose={3000} />
         </main>
       </div>
