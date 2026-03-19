@@ -4,6 +4,8 @@ import api from "../services/api";
 import {
   UserGroupIcon,
   BuildingOfficeIcon,
+  Cog6ToothIcon,
+  ChartBarIcon
 } from "@heroicons/react/24/outline";
 import CountUp from "react-countup";
 import AOS from "aos";
@@ -86,6 +88,11 @@ export default function Employees() {
         </div>
         <nav className="flex-1 p-4 space-y-3">
           <button
+          onClick={() => navigate("/dashboard")}
+           className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+            <Cog6ToothIcon className="h-5 w-5" /> لوحة التحكم
+          </button>
+          <button
             onClick={() => navigate("/employees")}
             className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
           >
@@ -96,6 +103,12 @@ export default function Employees() {
             className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
           >
             <BuildingOfficeIcon className="h-5 w-5" /> الأقسام
+          </button>
+          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+            <Cog6ToothIcon className="h-5 w-5" /> الإعدادات
+          </button>
+          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+            <ChartBarIcon className="h-5 w-5" /> التقارير
           </button>
         </nav>
       </aside>

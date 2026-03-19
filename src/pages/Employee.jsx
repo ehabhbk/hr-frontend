@@ -3,7 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
+import {
+  Cog6ToothIcon,
+  ChartBarIcon,
+  UserGroupIcon,
+  BuildingOfficeIcon,
+} from "@heroicons/react/24/outline";
 export default function Employee() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -77,19 +82,30 @@ export default function Employee() {
           <p className="text-sm text-gray-300">لإدراة الموارد البشرية</p>
         </div>
         <nav className="flex-1 p-4 space-y-3">
-          <button
-            onClick={() => navigate("/employees")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            👥 الموظفين
-          </button>
-          <button
-            onClick={() => navigate("/departments")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            🏢 الأقسام
-          </button>
-        </nav>
+                  <button
+                  onClick={() => navigate("/dashboard")}
+                   className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+                    <Cog6ToothIcon className="h-5 w-5" /> لوحة التحكم
+                  </button>
+                  <button
+                    onClick={() => navigate("/employees")}
+                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
+                  >
+                    <UserGroupIcon className="h-5 w-5" /> الموظفين
+                  </button>
+                  <button
+                    onClick={() => navigate("/departments")}
+                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
+                  >
+                    <BuildingOfficeIcon className="h-5 w-5" /> الأقسام
+                  </button>
+                  <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+                    <Cog6ToothIcon className="h-5 w-5" /> الإعدادات
+                  </button>
+                  <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+                    <ChartBarIcon className="h-5 w-5" /> التقارير
+                  </button>
+                </nav>
       </aside>
 
       {/* Main Content */}

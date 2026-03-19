@@ -73,6 +73,11 @@ export default function Dashboard() {
         </div>
         <nav className="flex-1 p-4 space-y-3">
           <button
+          onClick={() => navigate("/dashboard")}
+           className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
+            <Cog6ToothIcon className="h-5 w-5" /> لوحة التحكم
+          </button>
+          <button
             onClick={() => navigate("/employees")}
             className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
           >
