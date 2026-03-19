@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -63,26 +64,7 @@ export default function AddEmployee() {
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       {/* Sidebar ثابت */}
-      <aside className="w-64 bg-indigo-800 text-white flex flex-col sticky top-0 h-screen">
-        <div className="p-6 text-center border-b border-indigo-700">
-          <h2 className="text-2xl font-bold">Jawda HR</h2>
-          <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-3">
-          <button
-            onClick={() => navigate("/employees")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            👥 الموظفين
-          </button>
-          <button
-            onClick={() => navigate("/departments")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            🏢 الأقسام
-          </button>
-        </nav>
-      </aside>
+      <Sidebar sticky />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">

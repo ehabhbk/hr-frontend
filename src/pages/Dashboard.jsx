@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import Sidebar from "../components/Sidebar";
 import {
   UserGroupIcon,
   BuildingOfficeIcon,
-  Cog6ToothIcon,
-  ChartBarIcon,
   ExclamationTriangleIcon,
   UserMinusIcon,
 } from "@heroicons/react/24/outline";
 import api from "../services/api";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { listDevices, syncDevice, syncAttendance } from "../services/fingerprintApi";
 
 export default function Dashboard() {
   const [openMenu, setOpenMenu] = useState(false);
@@ -21,8 +23,12 @@ export default function Dashboard() {
 
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
-  const [warningsCount, setWarningsCount] = useState(0);
+  const [employeesWithWarningsCount, setEmployeesWithWarningsCount] = useState(0);
   const [terminatedCount, setTerminatedCount] = useState(0);
+
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -41,8 +47,10 @@ export default function Dashboard() {
     })
     .then((res) => {
       setEmployeeCount(res.data.data.length);
-      const totalWarnings = res.data.data.reduce((sum, emp) => sum + (emp.warnings || 0), 0);
-      setWarningsCount(totalWarnings);
+      const employeesWithWarnings = res.data.data.filter(
+        (emp) => (emp.warnings || 0) > 0
+      ).length;
+      setEmployeesWithWarningsCount(employeesWithWarnings);
       const terminated = res.data.data.filter((emp) => emp.status === "terminated").length;
       setTerminatedCount(terminated);
     })
@@ -56,6 +64,27 @@ export default function Dashboard() {
     .catch((err) => console.error(err));
   }, [token]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listDevices();
+        const arr = Array.isArray(data) ? data : data?.data || [];
+        if (cancelled) return;
+        setDevices(arr);
+        if (!selectedDeviceId && arr?.[0]?.id) {
+          setSelectedDeviceId(String(arr[0].id));
+        }
+      } catch {
+        // ignore (devices feature optional)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
@@ -63,40 +92,27 @@ export default function Dashboard() {
     navigate("/login");
   };
 
+  const handleQuickSync = async () => {
+    setSyncing(true);
+    try {
+      if (selectedDeviceId) {
+        const res = await syncDevice(selectedDeviceId);
+        toast.success(res?.message || "تمت المزامنة ✅");
+      } else {
+        const res = await syncAttendance();
+        toast.success(res?.message || "تمت المزامنة ✅");
+      }
+    } catch (e) {
+      toast.error(e?.message || "فشل المزامنة");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       {/* Sidebar */}
-      <aside className="w-64 bg-indigo-800 text-white flex flex-col">
-        <div className="p-6 text-center border-b border-indigo-700">
-          <h2 className="text-xl font-bold">Jawda HR</h2>
-          <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-3">
-          <button
-          onClick={() => navigate("/dashboard")}
-           className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-            <Cog6ToothIcon className="h-5 w-5" /> لوحة التحكم
-          </button>
-          <button
-            onClick={() => navigate("/employees")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            <UserGroupIcon className="h-5 w-5" /> الموظفين
-          </button>
-          <button
-            onClick={() => navigate("/departments")}
-            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-          >
-            <BuildingOfficeIcon className="h-5 w-5" /> الأقسام
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-            <Cog6ToothIcon className="h-5 w-5" /> الإعدادات
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-            <ChartBarIcon className="h-5 w-5" /> التقارير
-          </button>
-        </nav>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
@@ -120,6 +136,10 @@ export default function Dashboard() {
               <div className="absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
                 <button
                   type="button"
+                  onClick={() => {
+                    setOpenMenu(false);
+                    navigate("/profilesettings");
+                  }}
                   className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
                 >
                   الملف الشخصي
@@ -152,6 +172,52 @@ export default function Dashboard() {
             <p className="text-gray-600 text-lg">
               مرحباً <span className="font-semibold">{username}</span> 👋، سعيدون بعودتك إلى نظام جودة لإدارة الموارد البشرية
             </p>
+          </div>
+
+          <div className="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="text-indigo-800 font-semibold">مزامنة جهاز البصمة</div>
+            <div className="flex flex-col md:flex-row gap-3 md:items-center">
+              <select
+                className="border rounded-lg px-3 py-2"
+                value={selectedDeviceId}
+                onChange={(e) => setSelectedDeviceId(e.target.value)}
+                disabled={!devices?.length || syncing}
+              >
+                {!devices?.length ? (
+                  <option value="">لا يوجد أجهزة</option>
+                ) : (
+                  devices.map((d) => (
+                    <option key={d.id} value={String(d.id)}>
+                      {d.name || `Device #${d.id}`}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                onClick={handleQuickSync}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold disabled:opacity-60"
+                type="button"
+                disabled={syncing}
+              >
+                {syncing ? "جارٍ المزامنة..." : "مزامنة الآن"}
+              </button>
+              <button
+                onClick={() => navigate("/fingerprint-devices")}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+                type="button"
+                disabled={syncing}
+              >
+                إدارة الأجهزة
+              </button>
+              <button
+                onClick={() => navigate("/attendance-logs")}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+                type="button"
+                disabled={syncing}
+              >
+                عرض السجلات
+              </button>
+            </div>
           </div>
 
           {/* بطاقات الملخص */}
@@ -189,12 +255,14 @@ export default function Dashboard() {
             <div className="bg-white shadow-md rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
                 <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
-                عدد الإنذارات الكلي
+                عدد الموظفين الحاصلين على إنذارات
               </h2>
-              <p className="text-2xl font-bold text-yellow-600 mt-2">{warningsCount}</p>
+              <p className="text-2xl font-bold text-yellow-600 mt-2">{employeesWithWarningsCount}</p>
             </div>
           </div>
         </main>
+
+        <ToastContainer position="top-right" autoClose={3000} />
       </div>
     </div>
   );

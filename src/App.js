@@ -6,6 +6,9 @@ import Employees from "./pages/Employees";
 import Departments from "./pages/Departments";
 import AddEmployee from "./pages/AddEmployee";
 import Employee from "./pages/Employee";
+import ProfileSettings from "./pages/profilesettings";
+import FingerprintDevices from "./pages/FingerprintDevices";
+import AttendanceLogs from "./pages/AttendanceLogs";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -61,6 +64,36 @@ function App() {
           element={
             <ProtectedRoute>
               <Departments />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* صفحة إعدادات الملف الشخصي */}
+        <Route
+          path="/profilesettings"
+          element={
+            <ProtectedRoute>
+              <ProfileSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* أجهزة البصمة */}
+        <Route
+          path="/fingerprint-devices"
+          element={
+            <ProtectedRoute>
+              <FingerprintDevices />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* سجل الحضور والانصراف */}
+        <Route
+          path="/attendance-logs"
+          element={
+            <ProtectedRoute>
+              <AttendanceLogs />
             </ProtectedRoute>
           }
         />

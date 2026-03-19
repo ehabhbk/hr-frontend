@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import {
-  BuildingOfficeIcon,
-  UserGroupIcon,
-  Cog6ToothIcon,
-  ChartBarIcon,
-} from "@heroicons/react/24/outline";
+import Sidebar from "../components/Sidebar";
+import { BuildingOfficeIcon } from "@heroicons/react/24/outline";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import CountUp from "react-countup";
@@ -111,37 +107,7 @@ export default function Departments() {
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       {/* Sidebar */}
-      <aside className="w-64 bg-indigo-800 text-white flex flex-col">
-        <div className="p-6 text-center border-b border-indigo-700">
-          <h2 className="text-xl font-bold">نظام جودة</h2>
-          <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-3">
-                  <button
-                  onClick={() => navigate("/dashboard")}
-                   className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-                    <Cog6ToothIcon className="h-5 w-5" /> لوحة التحكم
-                  </button>
-                  <button
-                    onClick={() => navigate("/employees")}
-                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-                  >
-                    <UserGroupIcon className="h-5 w-5" /> الموظفين
-                  </button>
-                  <button
-                    onClick={() => navigate("/departments")}
-                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right"
-                  >
-                    <BuildingOfficeIcon className="h-5 w-5" /> الأقسام
-                  </button>
-                  <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-                    <Cog6ToothIcon className="h-5 w-5" /> الإعدادات
-                  </button>
-                  <button className="flex items-center gap-2 px-3 py-2 rounded hover:bg-indigo-700 w-full text-right">
-                    <ChartBarIcon className="h-5 w-5" /> التقارير
-                  </button>
-                </nav>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
