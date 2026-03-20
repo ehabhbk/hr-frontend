@@ -16,7 +16,7 @@ function normalizeError(err) {
 
 export async function listDevices() {
   try {
-    return unwrap(await api.get("/attendance-device/settings"));
+    return unwrap(await api.get("/attendance-device"));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -24,7 +24,7 @@ export async function listDevices() {
 
 export async function createDevice(payload) {
   try {
-    return unwrap(await api.post("/attendance-device/settings", payload));
+    return unwrap(await api.post("/attendance-device/", payload));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -32,7 +32,7 @@ export async function createDevice(payload) {
 
 export async function updateDevice(id, payload) {
   try {
-    return unwrap(await api.put(`/attendance-device/settings/${id}`, payload));
+    return unwrap(await api.put(`/attendance-device/${id}`, payload));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -40,7 +40,7 @@ export async function updateDevice(id, payload) {
 
 export async function deleteDevice(id) {
   try {
-    return unwrap(await api.delete(`/attendance-device/settings/${id}`));
+    return unwrap(await api.delete(`/attendance-device/${id}`));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -48,7 +48,7 @@ export async function deleteDevice(id) {
 
 export async function testDevice(id) {
   try {
-    return unwrap(await api.post(`/attendance-device/settings/${id}/test`));
+    return unwrap(await api.post(`/attendance-device/${id}/test`));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -56,7 +56,7 @@ export async function testDevice(id) {
 
 export async function syncDevice(id) {
   try {
-    return unwrap(await api.post(`/attendance-device/settings/${id}/sync`));
+    return unwrap(await api.post(`/attendance-device/${id}/sync`));
   } catch (e) {
     throw normalizeError(e);
   }

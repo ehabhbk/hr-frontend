@@ -5,6 +5,8 @@ import {
   BuildingOfficeIcon,
   Cog6ToothIcon,
   ChartBarIcon,
+  Squares2X2Icon
+
 } from "@heroicons/react/24/outline";
 import { FingerPrintIcon, ClipboardDocumentListIcon } from "@heroicons/react/24/outline";
 
@@ -30,7 +32,7 @@ export default function Sidebar({ sticky = false }) {
 
   const items = useMemo(
     () => [
-      { label: "لوحة التحكم", icon: Cog6ToothIcon, path: "/dashboard" },
+      { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard" },
       { label: "الموظفين", icon: UserGroupIcon, path: "/employees" },
       { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments" },
       { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices" },

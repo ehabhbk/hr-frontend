@@ -99,6 +99,28 @@ export default function Employees() {
             {openMenu && (
               <div className="absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
                 <button
+                  type="button"
+                  onClick={() => {
+                    setOpenMenu(false);
+                    navigate("/profilesettings");
+                  }}
+                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
+                >
+                  الملف الشخصي
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
+                >
+                  التقارير
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
+                >
+                  الإعدادات
+                </button>
+                <button
                   onClick={handleLogout}
                   className="w-full text-right px-4 py-2 text-red-600 hover:bg-gray-100"
                 >
