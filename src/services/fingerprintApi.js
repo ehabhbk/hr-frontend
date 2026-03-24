@@ -64,7 +64,7 @@ export async function syncDevice(id) {
 
 export async function syncAttendance() {
   try {
-    return unwrap(await api.post("/attendance-device/sync"));
+    return unwrap(await api.post("/attendance-device/sync-all"));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -72,7 +72,23 @@ export async function syncAttendance() {
 
 export async function listAttendanceLogs(params = {}) {
   try {
-    return unwrap(await api.get("/attendance-device", { params }));
+    return unwrap(await api.get("/attendance-logs", { params }));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function registerUserOnDevice(deviceId, payload) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/register-user`, payload));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function removeUserFromDevice(deviceId, userId) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/remove-user`, { user_id: userId }));
   } catch (e) {
     throw normalizeError(e);
   }

@@ -52,7 +52,7 @@ export default function Dashboard() {
     .then((res) => {
       setEmployeeCount(res.data.data.length);
       const employeesWithWarnings = res.data.data.filter(
-        (emp) => (emp.warnings || 0) > 0
+        (emp) => (emp.warnings_count || 0) > 0
       ).length;
       setEmployeesWithWarningsCount(employeesWithWarnings);
       const terminated = res.data.data.filter((emp) => emp.status === "terminated").length;

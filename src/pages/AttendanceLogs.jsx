@@ -220,25 +220,18 @@ export default function AttendanceLogs() {
                   </thead>
                   <tbody>
                     {(logs || []).map((row, idx) => {
-                      const employeeLabel =
-                        row.employee_name ||
-                        row.employee?.name ||
-                        row.employee_id ||
-                        row.user_id ||
-                        "-";
-                      const deviceLabel =
-                        row.device_name ||
-                        deviceNameById.get(String(row.device_id)) ||
-                        row.device_id ||
-                        "-";
-                      const timeLabel = row.time || row.timestamp || row.created_at || "-";
-                      const typeLabel = row.type || row.event || row.status || "-";
+                      const employeeLabel = row.employee_name || row.device_user_id || "-";
+                      const deviceLabel = row.device_name || row.device_host || "-";
+                      const timeLabel = row.timestamp ? new Date(row.timestamp).toLocaleString("ar-EG") : "-";
+                      const typeLabel = row.type === "انصراف" ? "انصراف" : "حضور";
                       return (
                         <tr key={row.id || idx} className="border-t">
-                          <td className="p-3">{employeeLabel}</td>
+                          <td className="p-3 font-semibold">{employeeLabel}</td>
                           <td className="p-3">{deviceLabel}</td>
                           <td className="p-3">{timeLabel}</td>
-                          <td className="p-3">{typeLabel}</td>
+                          <td className={`p-3 font-semibold ${typeLabel === 'انصراف' ? 'text-red-600' : 'text-green-600'}`}>
+                            {typeLabel}
+                          </td>
                         </tr>
                       );
                     })}

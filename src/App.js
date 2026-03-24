@@ -10,6 +10,7 @@ import ProfileSettings from "./pages/profilesettings";
 import FingerprintDevices from "./pages/FingerprintDevices";
 import AttendanceLogs from "./pages/AttendanceLogs";
 import ProtectedRoute from "./components/ProtectedRoute";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   return (
@@ -34,6 +35,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Employees />
+            </ProtectedRoute>
+          }
+        />
+        {/* صفحة الاعدادات */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />
