@@ -5,10 +5,14 @@ import {
   BuildingOfficeIcon,
   Cog6ToothIcon,
   ChartBarIcon,
-  Squares2X2Icon
+  Squares2X2Icon,
+  ClipboardDocumentListIcon,
+  BellIcon,
+  BanknotesIcon
 
 } from "@heroicons/react/24/outline";
-import { FingerPrintIcon, ClipboardDocumentListIcon } from "@heroicons/react/24/outline";
+import { FingerPrintIcon } from "@heroicons/react/24/outline";
+import api from "../services/api";
 
 export default function Sidebar({ sticky = false }) {
   const navigate = useNavigate();
@@ -21,6 +25,22 @@ export default function Sidebar({ sticky = false }) {
       return false;
     }
   });
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get('/notifications/unread-count');
+        setUnreadCount(res.data.count);
+      } catch {
+        // ignore
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     try {
@@ -37,8 +57,9 @@ export default function Sidebar({ sticky = false }) {
       { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments" },
       { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices" },
       { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs" },
-      { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings" },
+      { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports" },
       { label: "التقارير", icon: ChartBarIcon, path: "/reports" },
+      { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings" },
     ],
     []
   );
@@ -53,19 +74,33 @@ export default function Sidebar({ sticky = false }) {
         sticky ? "sticky top-0 h-screen" : "",
       ].join(" ")}
     >
-      <div className="p-6 border-b border-indigo-700">
-        {!isCollapsed ? (
-          <div className="text-center">
-            <h2 className="text-xl font-bold">Jawda HR</h2>
-            <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center">
-            <span className="text-xl font-bold" title="Jawda HR">
-              JH
+      <div className="p-6 border-b border-indigo-700 flex items-center justify-between">
+        <div className="flex-1">
+          {!isCollapsed ? (
+            <div className="text-center">
+              <h2 className="text-xl font-bold">Jawda HR</h2>
+              <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center">
+              <span className="text-xl font-bold" title="Jawda HR">
+                JH
+              </span>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => navigate("/notifications")}
+          className="relative p-2 rounded-full hover:bg-indigo-700 transition"
+          title="الإشعارات"
+        >
+          <BellIcon className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
-          </div>
-        )}
+          )}
+        </button>
       </div>
 
       <nav className="flex-1 p-4 space-y-3">

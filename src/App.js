@@ -11,6 +11,9 @@ import FingerprintDevices from "./pages/FingerprintDevices";
 import AttendanceLogs from "./pages/AttendanceLogs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SettingsPage from "./pages/SettingsPage";
+import ReportsPage from "./pages/ReportsPage";
+import BankExportPage from "./pages/BankExportPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 function App() {
   return (
@@ -35,15 +38,6 @@ function App() {
           element={
             <ProtectedRoute>
               <Employees />
-            </ProtectedRoute>
-          }
-        />
-        {/* صفحة الاعدادات */}
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <SettingsPage />
             </ProtectedRoute>
           }
         />
@@ -78,12 +72,42 @@ function App() {
           }
         />
 
-        {/* صفحة إعدادات الملف الشخصي */}
+        {/* الإعدادات */}
         <Route
-          path="/profilesettings"
+          path="/settings"
           element={
             <ProtectedRoute>
-              <ProfileSettings />
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* التقارير */}
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <ReportsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* التصدير البنكي */}
+        <Route
+          path="/bank-exports"
+          element={
+            <ProtectedRoute>
+              <BankExportPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* الإشعارات */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />
@@ -98,7 +122,7 @@ function App() {
           }
         />
 
-        {/* سجل الحضور والانصراف */}
+        {/* سجل الحضور */}
         <Route
           path="/attendance-logs"
           element={
@@ -108,8 +132,18 @@ function App() {
           }
         />
 
+        {/* الملف الشخصي */}
+        <Route
+          path="/profilesettings"
+          element={
+            <ProtectedRoute>
+              <ProfileSettings />
+            </ProtectedRoute>
+          }
+        />
+
         {/* إعادة التوجيه الافتراضية */}
-        <Route path="*" element={<Login />} />
+        <Route path="*" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

@@ -1,577 +1,1122 @@
-// src/pages/SettingsPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import Sidebar from "../components/Sidebar";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-/* ConfirmDialog component */
-function ConfirmDialog({ open, title = "تأكيد", message = "هل أنت متأكد؟", onConfirm, onCancel }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" dir="rtl">
-      <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-4">
-        <h3 className="font-semibold text-lg mb-2">{title}</h3>
-        <p className="text-sm text-gray-700 mb-4">{message}</p>
-        <div className="flex justify-start gap-2">
-          <button onClick={onCancel} className="px-4 py-2 rounded bg-gray-200">إلغاء</button>
-          <button onClick={onConfirm} className="px-4 py-2 rounded bg-red-600 text-white">نعم</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const TABS = [
+  { key: "organization", label: "معلومات المؤسسة", icon: "🏢" },
+  { key: "attendance", label: "الحضور والإنذارات", icon: "⏰" },
+  { key: "leaves", label: "الإجازات", icon: "🏖️" },
+  { key: "advances", label: "السلفيات", icon: "💰" },
+  { key: "shifts", label: "الورديات", icon: "👥" },
+  { key: "financials", label: "المالية", icon: "💵" },
+  { key: "whatsapp", label: "واتساب", icon: "📱" },
+  { key: "roles", label: "الصلاحيات", icon: "🔐" },
+];
 
-/* ---------- Main Settings Page (RTL) ---------- */
-export default function SettingsPage() {
+function SettingsPage() {
   const [activeTab, setActiveTab] = useState("organization");
-  const [settings, setSettings] = useState([]);
-  const [org, setOrg] = useState({});
-  const [shifts, setShifts] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [audits, setAudits] = useState([]);
-  const [advancesRequests, setAdvancesRequests] = useState([]);
-  const [warnings, setWarnings] = useState([]);
-  const [leavesRequests, setLeavesRequests] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [holidays, setHolidays] = useState([]);
-  const [incentives, setIncentives] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => { loadAll(); loadHolidays(); loadIncentives(); }, []);
+  const [org, setOrg] = useState({});
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [advanceRequests, setAdvanceRequests] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [warnings, setWarnings] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [shiftAssignments, setShiftAssignments] = useState({});
+
+  const [orgForm, setOrgForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
+  const [logoFile, setLogoFile] = useState(null);
+  const [stampFile, setStampFile] = useState(null);
+
+  const [attendance, setAttendance] = useState({
+    shift_ids: [],
+    allowed_delay_minutes: 5,
+    delay_before_warning: 2,
+    delay_before_deduction: 5,
+    late_deduction_percent: 1.5,
+    absence_after_minutes: 60,
+  });
+
+  const [leaveSettings, setLeaveSettings] = useState({
+    annual_days: 21,
+    sick_days: 10,
+    maternity_days: 90,
+    notice_days: 3,
+    by_grade: {},
+  });
+
+  const [advanceSettings, setAdvanceSettings] = useState({
+    enabled: true,
+    max_percent: 50,
+    repayment_months: 3,
+    min_service_months: 6,
+  });
+
+  const [taxBrackets, setTaxBrackets] = useState([
+    { min: 0, max: 6000, rate: 0 },
+    { min: 6000, max: 12000, rate: 5 },
+    { min: 12000, max: 24000, rate: 10 },
+    { min: 24000, max: 999999999, rate: 15 },
+  ]);
+
+  const [salaryIncrease, setSalaryIncrease] = useState({
+    default_percent: 10,
+    per_job_title: {},
+  });
+
+  const [whatsapp, setWhatsapp] = useState({
+    enabled: false,
+    api_url: "",
+    api_key: "",
+    phone_number: "",
+    notify_on_warning: true,
+    notify_on_leave: true,
+    notify_on_advance: true,
+    notify_on_late: true,
+  });
+
+  const [shiftForm, setShiftForm] = useState({
+    name: "",
+    start_time: "08:00",
+    end_time: "16:00",
+  });
+
+  useEffect(() => {
+    loadAll();
+  }, []);
 
   async function loadAll() {
+    setLoading(true);
     try {
-      const [
-        sRes,
-        orgRes,
-        shiftsRes,
-        empsRes,
-        auditsRes,
-        advRes,
-        warnRes,
-        leavesRes
-      ] = await Promise.all([
-        api.get("/settings"),
+      const [orgRes, leavesRes, advancesRes, rolesRes, warningsRes, empsRes, shiftsRes, attendanceRes, leaveSettingsRes, advanceSettingsRes, taxRes, salaryIncRes, whatsappRes, shiftAssignRes] = await Promise.all([
         api.get("/organization"),
-        api.get("/work-shifts"),
-        api.get("/employees"),
-        api.get("/setting-audits"),
-        api.get("/advances/requests"),
-        api.get("/discipline/warnings"),
         api.get("/leaves/requests"),
+        api.get("/advances/requests"),
+        api.get("/roles"),
+        api.get("/discipline/warnings"),
+        api.get("/employees"),
+        api.get("/work-shifts"),
+        api.get("/settings/attendance"),
+        api.get("/settings/leaves"),
+        api.get("/settings/advances"),
+        api.get("/settings/tax-brackets"),
+        api.get("/settings/salary-increase"),
+        api.get("/settings/whatsapp"),
+        api.get("/shift-assignments?permanent=1"),
       ]);
 
-      setSettings(sRes.data?.data || {});
-      setOrg(orgRes.data?.data || {});
-      setShifts(shiftsRes.data?.data || []);
+      if (orgRes.data?.data) {
+        setOrg(orgRes.data.data);
+        setOrgForm({
+          name: orgRes.data.data.name || "",
+          phone: orgRes.data.data.phone || "",
+          email: orgRes.data.data.email || "",
+          address: orgRes.data.data.address || "",
+        });
+      }
+
+      setLeaveRequests(leavesRes.data?.data || []);
+      setAdvanceRequests(advancesRes.data?.data || []);
+      setRoles(rolesRes.data?.data || []);
+      setWarnings(warningsRes.data?.data || []);
       setEmployees(empsRes.data?.data || []);
-      setAudits(auditsRes.data?.data || auditsRes.data || []);
-      setAdvancesRequests(advRes.data?.data || []);
-      setWarnings(warnRes.data?.data || []);
-      setLeavesRequests(leavesRes.data?.data || []);
+      setShifts(shiftsRes.data?.data || []);
+      
+      if (attendanceRes.data?.data) {
+        const attData = attendanceRes.data.data;
+        if (attData.shift_ids && attData.shift_ids.length > 0) {
+          setAttendance(attData);
+        } else {
+          setAttendance({ ...attData, shift_ids: shiftsRes.data?.data?.map(s => s.id) || [] });
+        }
+      } else {
+        setAttendance({ ...attendance, shift_ids: shiftsRes.data?.data?.map(s => s.id) || [] });
+      }
+      if (leaveSettingsRes.data?.data) setLeaveSettings(leaveSettingsRes.data.data);
+      if (advanceSettingsRes.data?.data) setAdvanceSettings(advanceSettingsRes.data.data);
+      if (taxRes.data?.data) setTaxBrackets(taxRes.data.data);
+      if (salaryIncRes.data?.data) setSalaryIncrease(salaryIncRes.data.data);
+      if (whatsappRes.data?.data) setWhatsapp(whatsappRes.data.data);
+      
+      if (shiftAssignRes.data?.data) {
+        const assignments = {};
+        (shiftAssignRes.data.data).forEach(a => {
+          assignments[a.id] = {
+            employee_id: a.employee_id,
+            shift_id: a.work_shift_id
+          };
+        });
+        setShiftAssignments(assignments);
+      }
     } catch (err) {
-      toast.error("فشل في جلب البيانات");
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   }
 
-  const getGroup = (key) => settings[key] || {};
-
-  const saveSetting = async (key, value) => {
+  async function saveOrg() {
     try {
-      await api.put(`/settings/${key}`, value);
-      toast.success("تم حفظ الإعدادات");
-      loadAll();
+      const fd = new FormData();
+      fd.append("name", orgForm.name);
+      fd.append("phone", orgForm.phone);
+      fd.append("email", orgForm.email);
+      fd.append("address", orgForm.address);
+      if (logoFile) fd.append("logo", logoFile);
+      if (stampFile) fd.append("stamp", stampFile);
+      const res = await api.post("/organization", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setOrg(res.data?.data || {});
+      toast.success("تم حفظ بيانات الشركة بنجاح");
+    } catch (err) {
+      toast.error("فشل حفظ البيانات");
+    }
+  }
+
+  async function saveAttendance() {
+    try {
+      await api.put("/settings/attendance", attendance);
+      toast.success("تم حفظ إعدادات الحضور");
     } catch (err) {
       toast.error("فشل الحفظ");
-      console.error(err);
     }
-  };
-
-  /* Assignments helpers */
-  async function loadAssignments(from, to, employee_id) {
-    try {
-      const res = await api.get('/shift-assignments', { params: { from, to, employee_id } });
-      setAssignments(res.data?.data || []);
-    } catch (err) { toast.error('فشل جلب التعيينات'); console.error(err); }
   }
 
-  async function createAssignment(payload) {
+  async function saveLeaveSettings() {
     try {
-      await api.post('/shift-assignments', payload);
-      toast.success('تم إضافة التعيين');
-    } catch (err) { toast.error('فشل الإضافة'); console.error(err); }
-  }
-
-  async function deleteAssignment(id) {
-    try {
-      await api.delete(`/shift-assignments/${id}`);
-      toast.success('تم حذف التعيين');
-      setAssignments(prev => prev.filter(a => a.id !== id));
-    } catch (err) { toast.error('فشل الحذف'); console.error(err); }
-  }
-
-  /* Holidays (public holidays) */
-  async function loadHolidays() {
-    try {
-      const res = await api.get('/holidays');
-      setHolidays(res.data?.data || []);
+      await api.put("/settings/leaves", leaveSettings);
+      toast.success("تم حفظ إعدادات الإجازات");
     } catch (err) {
-      setHolidays([]);
+      toast.error("فشل الحفظ");
     }
   }
 
-  async function createHoliday(payload) {
+  async function handleLeaveStatus(id, status) {
     try {
-      const res = await api.post('/holidays', payload);
-      setHolidays(prev => [res.data?.data || payload, ...prev]);
-      toast.success('تم إضافة العطلة الرسمية');
+      await api.post(`/leaves/requests/${id}/status`, { status });
+      toast.success(`تم ${status === "approved" ? "الموافقة" : "رفض"} الإجازة`);
+      loadAll();
     } catch (err) {
-      setHolidays(prev => [{ id: Date.now(), ...payload }, ...prev]);
-      toast.success('تم إضافة العطلة محلياً');
+      toast.error("فشل تحديث الحالة");
     }
   }
 
-  async function deleteHoliday(id) {
+  async function saveAdvanceSettings() {
     try {
-      await api.delete(`/holidays/${id}`);
-      setHolidays(prev => prev.filter(h => h.id !== id));
-      toast.success('تم حذف العطلة');
+      await api.put("/settings/advances", advanceSettings);
+      toast.success("تم حفظ إعدادات السلفيات");
     } catch (err) {
-      setHolidays(prev => prev.filter(h => h.id !== id));
-      toast.success('تم حذف العطلة محلياً');
+      toast.error("فشل الحفظ");
     }
   }
 
-  /* Incentives */
-  async function loadIncentives() {
+  async function handleAdvanceStatus(id, action) {
     try {
-      const res = await api.get('/incentives');
-      setIncentives(res.data?.data || []);
+      await api.post(`/advances/requests/${id}/${action}`);
+      toast.success(`تم ${action === "approve" ? "الموافقة" : "رفض"} السلفة`);
+      loadAll();
     } catch (err) {
-      setIncentives([]);
+      toast.error("فشل تحديث الحالة");
     }
   }
 
-  async function createIncentive(payload) {
+  async function saveTax() {
     try {
-      const res = await api.post('/incentives', payload);
-      setIncentives(prev => [res.data?.data || payload, ...prev]);
-      toast.success('تم إضافة الحافز');
+      await api.put("/settings/tax-brackets", { brackets: taxBrackets });
+      toast.success("تم حفظ شرائح الضريبة");
     } catch (err) {
-      setIncentives(prev => [{ id: Date.now(), ...payload }, ...prev]);
-      toast.success('تم إضافة الحافز محلياً');
+      toast.error("فشل الحفظ");
     }
   }
 
-  async function deleteIncentive(id) {
+  function addTaxBracket() {
+    setTaxBrackets([...taxBrackets, { min: 0, max: 0, rate: 0 }]);
+  }
+
+  function removeTaxBracket(index) {
+    setTaxBrackets(taxBrackets.filter((_, i) => i !== index));
+  }
+
+  function updateTaxBracket(index, field, value) {
+    const updated = [...taxBrackets];
+    updated[index][field] = parseFloat(value) || 0;
+    setTaxBrackets(updated);
+  }
+
+  async function saveSalaryIncrease() {
     try {
-      await api.delete(`/incentives/${id}`);
-      setIncentives(prev => prev.filter(i => i.id !== id));
-      toast.success('تم حذف الحافز');
+      await api.put("/settings/salary-increase", salaryIncrease);
+      toast.success("تم حفظ إعدادات الزيادة السنوية");
     } catch (err) {
-      setIncentives(prev => prev.filter(i => i.id !== id));
-      toast.success('تم حذف الحافز محلياً');
+      toast.error("فشل الحفظ");
     }
+  }
+
+  async function saveWhatsApp() {
+    try {
+      await api.put("/settings/whatsapp", whatsapp);
+      toast.success("تم حفظ إعدادات واتساب");
+    } catch (err) {
+      toast.error("فشل الحفظ");
+    }
+  }
+
+  async function testWhatsApp() {
+    try {
+      await api.post("/settings/whatsapp/test", {
+        phone: whatsapp.phone_number,
+        message: "اختبار من نظام Jawda HR",
+      });
+      toast.success("تم إرسال رسالة الاختبار");
+    } catch (err) {
+      toast.error("فشل إرسال الاختبار");
+    }
+  }
+
+  async function saveShift() {
+    try {
+      await api.post("/work-shifts", shiftForm);
+      toast.success("تم إنشاء الوردية");
+      const res = await api.get("/work-shifts");
+      setShifts(res.data?.data || []);
+      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00" });
+    } catch (err) {
+      toast.error("فشل إنشاء الوردية");
+    }
+  }
+
+  async function deleteShift(id) {
+    try {
+      await api.delete(`/work-shifts/${id}`);
+      toast.success("تم حذف الوردية");
+      setShifts(shifts.filter((s) => s.id !== id));
+    } catch (err) {
+      toast.error("فشل حذف الوردية");
+    }
+  }
+
+  async function assignEmployee(employeeId, shiftId) {
+    try {
+      await api.post("/shift-assignments", {
+        employee_id: employeeId,
+        work_shift_id: shiftId,
+      });
+      toast.success("تم تعيين الموظف في الوردية");
+      setShiftAssignments({ ...shiftAssignments, [employeeId]: shiftId });
+    } catch (err) {
+      toast.error("فشل تعيين الموظف");
+    }
+  }
+
+  async function unassignEmployee(assignmentId) {
+    try {
+      await api.delete(`/shift-assignments/${assignmentId}`);
+      const newAssignments = { ...shiftAssignments };
+      Object.keys(newAssignments).forEach(key => {
+        if (newAssignments[key] === assignmentId) {
+          delete newAssignments[key];
+        }
+      });
+      setShiftAssignments(newAssignments);
+      toast.success("تم إزالة الموظف من الوردية");
+    } catch (err) {
+      toast.error("فشل إزالة الموظف");
+    }
+  }
+
+  const [gradeKey, setGradeKey] = useState("");
+  const [gradeDays, setGradeDays] = useState(0);
+
+  function addGradeLeave() {
+    if (!gradeKey) return;
+    setLeaveSettings({
+      ...leaveSettings,
+      by_grade: { ...leaveSettings.by_grade, [gradeKey]: gradeDays },
+    });
+    setGradeKey("");
+    setGradeDays(0);
+  }
+
+  function removeGradeLeave(key) {
+    const newByGrade = { ...leaveSettings.by_grade };
+    delete newByGrade[key];
+    setLeaveSettings({ ...leaveSettings, by_grade: newByGrade });
+  }
+
+  const [jobTitleSelect, setJobTitleSelect] = useState("");
+  const [jobIncrease, setJobIncrease] = useState(0);
+
+  function addJobIncrease() {
+    if (!jobTitleSelect) return;
+    setSalaryIncrease({
+      ...salaryIncrease,
+      per_job_title: { ...salaryIncrease.per_job_title, [jobTitleSelect]: jobIncrease },
+    });
+    setJobTitleSelect("");
+    setJobIncrease(0);
+  }
+
+  function removeJobIncrease(key) {
+    const newPerJob = { ...salaryIncrease.per_job_title };
+    delete newPerJob[key];
+    setSalaryIncrease({ ...salaryIncrease, per_job_title: newPerJob });
+  }
+
+  function getStatusBadge(status) {
+    const styles = {
+      pending: "bg-yellow-100 text-yellow-800",
+      approved: "bg-green-100 text-green-800",
+      rejected: "bg-red-100 text-red-800",
+    };
+    const labels = { pending: "قيد الانتظار", approved: "موافق", rejected: "مرفوض" };
+    return (
+      <span className={`px-2 py-1 rounded text-xs ${styles[status] || styles.pending}`}>
+        {labels[status] || status}
+      </span>
+    );
   }
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
-      <Sidebar sticky />
+      <Sidebar />
+      <main className="flex-1 p-6 pl-8">
+        <div>
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-lg mb-6">
+            <h1 className="text-3xl font-bold">⚙️ لوحة الإعدادات</h1>
+            <p className="text-blue-200 mt-2">إدارة جميع إعدادات النظام من مكان واحد</p>
+          </div>
 
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-2xl font-bold text-indigo-800">لوحة إعدادات النظام</h1>
-        </header>
+          <div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === tab.key ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-700"
+                }`}
+              >
+                {tab.label}
+                <span className="mr-2">{tab.icon}</span>
+              </button>
+            ))}
+          </div>
 
-        <div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
-          <span className="text-indigo-800 font-bold text-xl">الإعدادات</span>
+          <div className="bg-white rounded-lg shadow p-6">
+            {activeTab === "organization" && (
+              <OrganizationTab
+                org={org}
+                orgForm={orgForm}
+                setOrgForm={setOrgForm}
+                logoFile={logoFile}
+                setLogoFile={setLogoFile}
+                stampFile={stampFile}
+                setStampFile={setStampFile}
+                saveOrg={saveOrg}
+              />
+            )}
+            {activeTab === "attendance" && (
+              <AttendanceTab
+                attendance={attendance}
+                setAttendance={setAttendance}
+                warnings={warnings}
+                saveAttendance={saveAttendance}
+                shifts={shifts}
+              />
+            )}
+            {activeTab === "leaves" && (
+              <LeavesTab
+                leaveSettings={leaveSettings}
+                setLeaveSettings={setLeaveSettings}
+                leaveRequests={leaveRequests}
+                gradeKey={gradeKey}
+                setGradeKey={setGradeKey}
+                gradeDays={gradeDays}
+                setGradeDays={setGradeDays}
+                addGradeLeave={addGradeLeave}
+                removeGradeLeave={removeGradeLeave}
+                saveLeaveSettings={saveLeaveSettings}
+                handleLeaveStatus={handleLeaveStatus}
+                getStatusBadge={getStatusBadge}
+              />
+            )}
+            {activeTab === "advances" && (
+              <AdvancesTab
+                advanceSettings={advanceSettings}
+                setAdvanceSettings={setAdvanceSettings}
+                advanceRequests={advanceRequests}
+                saveAdvanceSettings={saveAdvanceSettings}
+                handleAdvanceStatus={handleAdvanceStatus}
+                getStatusBadge={getStatusBadge}
+              />
+            )}
+            {activeTab === "shifts" && (
+              <ShiftsTab
+                shifts={shifts}
+                shiftForm={shiftForm}
+                setShiftForm={setShiftForm}
+                saveShift={saveShift}
+                deleteShift={deleteShift}
+                employees={employees}
+                shiftAssignments={shiftAssignments}
+                assignEmployee={assignEmployee}
+                unassignEmployee={unassignEmployee}
+              />
+            )}
+            {activeTab === "financials" && (
+              <FinancialsTab
+                taxBrackets={taxBrackets}
+                setTaxBrackets={setTaxBrackets}
+                salaryIncrease={salaryIncrease}
+                setSalaryIncrease={setSalaryIncrease}
+                employees={employees}
+                jobTitleSelect={jobTitleSelect}
+                setJobTitleSelect={setJobTitleSelect}
+                jobIncrease={jobIncrease}
+                setJobIncrease={setJobIncrease}
+                addJobIncrease={addJobIncrease}
+                removeJobIncrease={removeJobIncrease}
+                saveTax={saveTax}
+                saveSalaryIncrease={saveSalaryIncrease}
+                addTaxBracket={addTaxBracket}
+                removeTaxBracket={removeTaxBracket}
+                updateTaxBracket={updateTaxBracket}
+              />
+            )}
+            {activeTab === "whatsapp" && (
+              <WhatsAppTab
+                whatsapp={whatsapp}
+                setWhatsapp={setWhatsapp}
+                saveWhatsApp={saveWhatsApp}
+                testWhatsApp={testWhatsApp}
+              />
+            )}
+            {activeTab === "roles" && <RolesTab roles={roles} />}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg }) {
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">🏢 معلومات المؤسسة</h2>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block font-medium mb-2 text-right">اسم الشركة</label>
+            <input
+              type="text"
+              value={orgForm.name}
+              onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+              className="w-full border rounded-lg px-4 py-2 text-right"
+              placeholder="أدخل اسم الشركة"
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-2 text-right">رقم الهاتف</label>
+            <input
+              type="text"
+              value={orgForm.phone}
+              onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
+              className="w-full border rounded-lg px-4 py-2 text-right"
+              placeholder="أدخل رقم الهاتف"
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-2 text-right">البريد الإلكتروني</label>
+            <input
+              type="email"
+              value={orgForm.email}
+              onChange={(e) => setOrgForm({ ...orgForm, email: e.target.value })}
+              className="w-full border rounded-lg px-4 py-2 text-right"
+              placeholder="أدخل البريد الإلكتروني"
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-2 text-right">العنوان</label>
+            <input
+              type="text"
+              value={orgForm.address}
+              onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
+              className="w-full border rounded-lg px-4 py-2 text-right"
+              placeholder="أدخل العنوان"
+            />
+          </div>
+          <button onClick={saveOrg} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+            حفظ التغييرات
+          </button>
         </div>
 
-        <main className="flex-1 p-6" dir="rtl">
-          <div className="bg-white rounded-lg shadow" dir="rtl">
-            <Tabs active={activeTab} onChange={setActiveTab} />
-            <div className="p-4 border-t">
-              {activeTab === "organization" && <OrganizationTab org={org} onSaved={loadAll} />}
-              {activeTab === "advances" && <AdvancesTab group={getGroup('advances')} onSave={(v)=>saveSetting('advances', v)} requests={advancesRequests} refresh={loadAll} />}
-              {activeTab === "attendance" && <AttendanceTab group={getGroup('attendance')} onSave={(v)=>saveSetting('attendance', v)} warnings={warnings} refresh={loadAll} />}
-              {activeTab === "leaves" && <LeavesTab group={getGroup('leaves')} onSave={(v)=>saveSetting('leaves', v)} requests={leavesRequests} employees={employees} refresh={loadAll} />}
-              {activeTab === "shifts" && <ShiftsTab shifts={shifts} employees={employees} refresh={loadAll} />}
-              {activeTab === "assignments" && <AssignmentsTab assignments={assignments} employees={employees} shifts={shifts} refreshAssignments={(from,to,emp)=>loadAssignments(from,to,emp)} onCreate={createAssignment} onDelete={deleteAssignment} />}
-              {activeTab === "holidays" && <HolidaysTab holidays={holidays} employees={employees} onCreate={createHoliday} onDelete={deleteHoliday} />}
-              {activeTab === "incentives" && <IncentivesTab incentives={incentives} employees={employees} onCreate={createIncentive} onDelete={deleteIncentive} />}
-              {activeTab === "financials" && <FinancialsTab group={getGroup('financials')} onSave={(v)=>saveSetting('financials', v)} employees={employees} />}
-              {activeTab === "audit" && <AuditTab audits={audits} />}
-            </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block font-medium mb-2 text-right">شعار الشركة</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setLogoFile(e.target.files[0])}
+              className="w-full border rounded-lg px-4 py-2"
+            />
+            {org.logo_url && <img src={org.logo_url} alt="Logo" className="mt-2 h-20" />}
           </div>
-        </main>
+          <div>
+            <label className="block font-medium mb-2 text-right">ختم الشركة</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setStampFile(e.target.files[0])}
+              className="w-full border rounded-lg px-4 py-2"
+            />
+            {org.stamp_url && <img src={org.stamp_url} alt="Stamp" className="mt-2 h-20" />}
+          </div>
+        </div>
       </div>
-
-      <ToastContainer position="top-right" autoClose={3000} />
     </div>
   );
 }
 
-/* ---------- Tabs component (RTL) ---------- */
-function Tabs({ active, onChange }) {
-  const tabs = [
-    { key: 'organization', label: 'المؤسسة' },
-    { key: 'advances', label: 'السلفيات' },
-    { key: 'attendance', label: 'الحضور والإنذارات' },
-    { key: 'leaves', label: 'الإجازات' },
-    { key: 'shifts', label: 'الورديات' },
-    { key: 'assignments', label: 'جدول التعيينات' },
-    { key: 'holidays', label: 'العطلات الرسمية' },
-    { key: 'incentives', label: 'الحوافز' },
-    { key: 'financials', label: 'الإعدادات المالية' },
-    { key: 'audit', label: 'سجل التغييرات' },
-  ];
-  return (
-    <div className="flex border-b flex-row-reverse justify-end" dir="rtl">
-      {tabs.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`px-4 py-3 -mb-px ${active===t.key ? 'border-b-2 border-blue-600 text-blue-600 font-semibold' : 'text-gray-600 hover:text-gray-800'}`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ---------- Organization Tab (RTL) ---------- */
-function OrganizationTab({ org, onSaved }) {
-  const [form, setForm] = useState(org || {});
-  const [logoFile, setLogoFile] = useState(null);
-  const [stampFile, setStampFile] = useState(null);
-
-  useEffect(()=>{ setForm(org || {}); },[org]);
-
-  const submit = async () => {
-    try {
-      const fd = new FormData();
-      fd.append('name', form.name || '');
-      fd.append('address', form.address || '');
-      fd.append('phone', form.phone || '');
-      fd.append('email', form.email || '');
-      if (logoFile) fd.append('logo', logoFile);
-      if (stampFile) fd.append('stamp', stampFile);
-      await api.put('/organization', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      toast.success('تم حفظ بيانات المؤسسة');
-      if (onSaved) onSaved();
-    } catch (err) {
-      toast.error('فشل الحفظ');
-      console.error(err);
-    }
+function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, shifts }) {
+  const toggleShift = (shiftId) => {
+    const currentIds = attendance.shift_ids || [];
+    const newIds = currentIds.includes(shiftId)
+      ? currentIds.filter(id => id !== shiftId)
+      : [...currentIds, shiftId];
+    setAttendance({ ...attendance, shift_ids: newIds });
   };
 
   return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
-        <input value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})} placeholder="اسم المؤسسة" className="border p-2 text-right" />
-        <input value={form.address||''} onChange={e=>setForm({...form,address:e.target.value})} placeholder="العنوان" className="border p-2 text-right" />
-        <input value={form.phone||''} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="هاتف" className="border p-2 text-right" />
-        <input value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} placeholder="بريد إلكتروني" className="border p-2 text-right" />
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">⏰ إعدادات الحضور والإنذارات</h2>
+
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="bg-blue-50 p-4 rounded-lg col-span-3">
+          <h3 className="font-bold mb-4 text-right">أوقات العمل حسب الورديات</h3>
+          {shifts.length === 0 ? (
+            <p className="text-center text-gray-500 py-4">لا توجد ورديات. أضف وردية جديدة من تبويب الورديات.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-white">
+                    <th className="border p-3 text-right">الوردية</th>
+                    <th className="border p-3 text-right">زمن الحضور</th>
+                    <th className="border p-3 text-right">زمن الانصراف</th>
+                    <th className="border p-3 text-center">الحالة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shifts.map((shift) => (
+                    <tr key={shift.id} className="bg-white hover:bg-blue-50 transition">
+                      <td className="border p-3 font-medium">{shift.name}</td>
+                      <td className="border p-3">
+                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold">
+                          {shift.start_time}
+                        </span>
+                      </td>
+                      <td className="border p-3">
+                        <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full font-bold">
+                          {shift.end_time}
+                        </span>
+                      </td>
+                      <td className="border p-3 text-center">
+                        <span className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-bold">
+                          ✓ مفعّل
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">قواعد التأخير</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1 text-right">زمن التأخير المسموح (دقيقة)</label>
+              <input
+                type="number"
+                value={attendance.allowed_delay_minutes || 5}
+                onChange={(e) => setAttendance({ ...attendance, allowed_delay_minutes: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">عدد التأخيرات قبل الإنذار</label>
+              <input
+                type="number"
+                value={attendance.delay_before_warning || 2}
+                onChange={(e) => setAttendance({ ...attendance, delay_before_warning: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">عدد التأخيرات قبل الخصم</label>
+              <input
+                type="number"
+                value={attendance.delay_before_deduction || 5}
+                onChange={(e) => setAttendance({ ...attendance, delay_before_deduction: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">نسبة الخصم لكل تأخير (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={attendance.late_deduction_percent}
+                onChange={(e) => setAttendance({ ...attendance, late_deduction_percent: parseFloat(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-red-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">قواعد الغياب</h3>
+          <div>
+            <label className="block text-sm mb-1 text-right">احتساب الغياب بعد (دقيقة)</label>
+            <input
+              type="number"
+              value={attendance.absence_after_minutes || 60}
+              onChange={(e) => setAttendance({ ...attendance, absence_after_minutes: parseInt(e.target.value) })}
+              className="w-full border rounded px-3 py-2 text-right"
+            />
+          </div>
+          <p className="text-xs text-red-600 mt-2 text-right">يتم احتساب الموظف غائب بعد هذا التأخير</p>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-        <label className="block text-right">
-          شعار المؤسسة
-          <input type="file" accept="image/*" onChange={e=>setLogoFile(e.target.files[0])} className="mt-1" />
-        </label>
-        <label className="block text-right">
-          ختم المؤسسة
-          <input type="file" accept="image/*" onChange={e=>setStampFile(e.target.files[0])} className="mt-1" />
-        </label>
-      </div>
+      <button onClick={saveAttendance} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 mb-6">
+        حفظ الإعدادات
+      </button>
 
-      <div className="mt-3 text-right">
-        <button onClick={submit} className="px-3 py-2 bg-blue-600 text-white rounded">حفظ بيانات المؤسسة</button>
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="font-bold mb-4 text-right">📋 سجل الإنذارات ({warnings.length})</h3>
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-white">
+              <th className="border p-2 text-right">#</th>
+              <th className="border p-2 text-right">الموظف</th>
+              <th className="border p-2 text-right">الإنذار</th>
+              <th className="border p-2 text-right">التاريخ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {warnings.slice(0, 10).map((w, i) => (
+              <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <td className="border p-2">{i + 1}</td>
+                <td className="border p-2">{w.employee?.name || w.employee_id}</td>
+                <td className="border p-2">{w.note}</td>
+                <td className="border p-2">{w.created_at?.split("T")[0]}</td>
+              </tr>
+            ))}
+            {warnings.length === 0 && (
+              <tr>
+                <td colSpan="4" className="border p-4 text-center text-gray-500">لا توجد إنذارات</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-/* ---------- Advances Tab (RTL) ---------- */
-function AdvancesTab({ group, onSave, requests = [], refresh }) {
-  const [cfg, setCfg] = useState(group.value || {});
-
-  useEffect(()=>{ setCfg(group.value || {}); },[group]);
-
-  const save = () => onSave(cfg);
-
+function LeavesTab({
+  leaveSettings,
+  setLeaveSettings,
+  leaveRequests,
+  gradeKey,
+  setGradeKey,
+  gradeDays,
+  setGradeDays,
+  addGradeLeave,
+  removeGradeLeave,
+  saveLeaveSettings,
+  handleLeaveStatus,
+  getStatusBadge,
+}) {
   return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">إعدادات السلفيات</h4>
-          <label className="block mb-2">
-            تفعيل السلفيات
-            <input type="checkbox" checked={!!cfg.enabled} onChange={e=>setCfg({...cfg, enabled:e.target.checked})} className="mr-2" />
-          </label>
-          <label className="block mb-2 text-right">
-            الحد كنسبة من الراتب (%)
-            <input type="number" value={cfg.max_allowed_percent_of_salary||0} onChange={e=>setCfg({...cfg, max_allowed_percent_of_salary: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-          <label className="block mb-2 text-right">
-            نوع السلفة
-            <select value={cfg.type||'single'} onChange={e=>setCfg({...cfg, type:e.target.value})} className="border p-1 w-full text-right">
-              <option value="single">من مرتب واحد</option>
-              <option value="long">سلفة طويلة</option>
-            </select>
-          </label>
-          <label className="block mb-2 text-right">
-            فترة السداد بالأشهر
-            <input type="number" value={cfg.repayment_period_months||3} onChange={e=>setCfg({...cfg, repayment_period_months: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-          <label className="block mb-2 text-right">
-            الحد الأدنى للأهلية بالشهور
-            <input type="number" value={cfg.min_service_months||0} onChange={e=>setCfg({...cfg, min_service_months: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-          <div className="mt-2 text-right">
-            <button onClick={save} className="px-3 py-1 bg-green-600 text-white rounded">حفظ</button>
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">🏖️ إعدادات الإجازات</h2>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="bg-purple-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">أيام الإجازات</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1 text-right">الإجازة السنوية</label>
+              <input
+                type="number"
+                value={leaveSettings.annual_days}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, annual_days: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">الإجازة المرضية</label>
+              <input
+                type="number"
+                value={leaveSettings.sick_days}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, sick_days: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">إجازة الأمومة</label>
+              <input
+                type="number"
+                value={leaveSettings.maternity_days}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, maternity_days: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">إشعار قبل الإجازة (أيام)</label>
+              <input
+                type="number"
+                value={leaveSettings.notice_days}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, notice_days: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
           </div>
+          <button
+            onClick={saveLeaveSettings}
+            className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 mt-4"
+          >
+            حفظ الإعدادات
+          </button>
         </div>
 
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">طلبات السلفيات</h4>
-          {requests.length === 0 ? <div className="text-gray-500">لا توجد طلبات</div> : requests.map(r => (
-            <div key={r.id} className="border p-2 rounded mb-2 flex justify-between items-center">
-              <div className="text-right">
-                <div className="font-semibold">{r.employee?.name || r.employee_id} — {r.amount}</div>
-                <div className="text-xs text-gray-500">{r.created_at}</div>
+        <div className="bg-indigo-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">الإجازات بالدرجة الوظيفية</h3>
+          <div className="flex gap-2 mb-3">
+            <button onClick={addGradeLeave} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">+</button>
+            <input
+              type="number"
+              placeholder="أيام"
+              value={gradeDays}
+              onChange={(e) => setGradeDays(parseInt(e.target.value))}
+              className="w-20 border rounded px-3 py-2 text-right"
+            />
+            <input
+              placeholder="الدرجة (مثل: junior)"
+              value={gradeKey}
+              onChange={(e) => setGradeKey(e.target.value)}
+              className="flex-1 border rounded px-3 py-2 text-right"
+            />
+          </div>
+          <div className="space-y-2 max-h-40 overflow-auto">
+            {Object.entries(leaveSettings.by_grade || {}).map(([key, days]) => (
+              <div key={key} className="flex justify-between items-center bg-white p-2 rounded">
+                <button onClick={() => removeGradeLeave(key)} className="text-red-600 font-bold">×</button>
+                <span className="font-medium">
+                  {key}: {days} يوم
+                </span>
               </div>
-              <div className="flex gap-2">
-                {r.status === 'pending' && <ApproveButton id={r.id} onDone={refresh} />}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
+
+      <h3 className="font-bold mb-4 text-right">📋 طلبات الإجازات ({leaveRequests.length})</h3>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2 text-right">#</th>
+            <th className="border p-2 text-right">الموظف</th>
+            <th className="border p-2 text-right">النوع</th>
+            <th className="border p-2 text-right">من</th>
+            <th className="border p-2 text-right">إلى</th>
+            <th className="border p-2 text-right">الحالة</th>
+            <th className="border p-2 text-center">إجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leaveRequests.length === 0 ? (
+            <tr>
+              <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+            </tr>
+          ) : (
+            leaveRequests.map((r, i) => (
+              <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <td className="border p-2">{i + 1}</td>
+                <td className="border p-2 font-medium">{r.employee?.name || r.employee_id}</td>
+                <td className="border p-2">{r.type}</td>
+                <td className="border p-2">{r.from_date}</td>
+                <td className="border p-2">{r.to_date}</td>
+                <td className="border p-2">{getStatusBadge(r.status)}</td>
+                <td className="border p-2 text-center">
+                  {r.status === "pending" && (
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleLeaveStatus(r.id, "rejected")}
+                        className="px-3 py-1 bg-red-600 text-white rounded text-xs"
+                      >
+                        رفض
+                      </button>
+                      <button
+                        onClick={() => handleLeaveStatus(r.id, "approved")}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-xs"
+                      >
+                        موافقة
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function ApproveButton({ id, onDone }) {
-  const [loading, setLoading] = useState(false);
-  const approve = async () => {
-    setLoading(true);
-    try {
-      await api.post(`/advances/requests/${id}/approve`);
-      toast.success('تمت الموافقة');
-      if (onDone) onDone();
-    } catch (err) { toast.error('فشل الموافقة'); console.error(err); }
-    setLoading(false);
-  };
-  return <button onClick={approve} disabled={loading} className="px-2 py-1 bg-green-600 text-white rounded">{loading ? '...' : 'موافقة'}</button>;
-}
-
-/* ---------- Attendance Tab (RTL) ---------- */
-function AttendanceTab({ group, onSave, warnings = [], refresh }) {
-  const [cfg, setCfg] = useState(group.value || {});
-
-  useEffect(()=>{ setCfg(group.value || {}); },[group]);
-
-  const safeTime = (v, def = "08:00") => v ?? def;
-
+function AdvancesTab({
+  advanceSettings,
+  setAdvanceSettings,
+  advanceRequests,
+  saveAdvanceSettings,
+  handleAdvanceStatus,
+  getStatusBadge,
+}) {
   return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">إعدادات الحضور والورديات</h4>
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">💰 إعدادات السلفيات</h2>
 
-          <label className="block mb-2 text-right">
-            زمن التأخير المسموح به بالثواني
-            <input
-              type="number"
-              value={cfg.allowed_delay_seconds ?? cfg.grace_period_seconds ?? 600}
-              onChange={e => setCfg({ ...cfg, allowed_delay_seconds: Number(e.target.value) })}
-              className="border p-1 w-full text-right"
-            />
-          </label>
-
-          <div className="mb-2">
-            <div className="font-semibold text-right mb-1">الوردية الصباحية</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={safeTime(cfg.morning_start_time, "07:00")} onChange={e=>setCfg({...cfg, morning_start_time: e.target.value})} className="border p-1 text-right" />
-              <input type="time" value={safeTime(cfg.morning_end_time, "12:00")} onChange={e=>setCfg({...cfg, morning_end_time: e.target.value})} className="border p-1 text-right" />
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">الإعدادات</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded">
+              <span className="font-medium">تفعيل نظام السلفيات</span>
+              <input
+                type="checkbox"
+                checked={advanceSettings.enabled}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, enabled: e.target.checked })}
+                className="w-5 h-5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">الحد الأقصى (%)</label>
+              <input
+                type="number"
+                value={advanceSettings.max_percent}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, max_percent: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">فترة السداد (أشهر)</label>
+              <input
+                type="number"
+                value={advanceSettings.repayment_months}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, repayment_months: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">حد الأهلية (أشهر خدمة)</label>
+              <input
+                type="number"
+                value={advanceSettings.min_service_months}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, min_service_months: parseInt(e.target.value) })}
+                className="w-full border rounded px-3 py-2 text-right"
+              />
             </div>
           </div>
-
-          <div className="mb-2">
-            <div className="font-semibold text-right mb-1">الوردية المسائية</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={safeTime(cfg.evening_start_time, "13:00")} onChange={e=>setCfg({...cfg, evening_start_time: e.target.value})} className="border p-1 text-right" />
-              <input type="time" value={safeTime(cfg.evening_end_time, "18:00")} onChange={e=>setCfg({...cfg, evening_end_time: e.target.value})} className="border p-1 text-right" />
-            </div>
-          </div>
-
-          <div className="mb-2">
-            <div className="font-semibold text-right mb-1">الدوام الكامل</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={safeTime(cfg.full_day_start_time, "08:00")} onChange={e=>setCfg({...cfg, full_day_start_time: e.target.value})} className="border p-1 text-right" />
-              <input type="time" value={safeTime(cfg.full_day_end_time, "17:00")} onChange={e=>setCfg({...cfg, full_day_end_time: e.target.value})} className="border p-1 text-right" />
-            </div>
-          </div>
-
-          <label className="block mb-2 text-right">
-            زمن احتساب الغياب بالثواني
-            <input
-              type="number"
-              value={cfg.absence_count_after_seconds ?? 14400}
-              onChange={e => setCfg({ ...cfg, absence_count_after_seconds: Number(e.target.value) })}
-              className="border p-1 w-full text-right"
-            />
-          </label>
-
-          <label className="block mb-2 text-right">
-            عدد التأخيرات قبل الإنذار
-            <input
-              type="number"
-              value={cfg.late_warning_threshold ?? 3}
-              onChange={e => setCfg({ ...cfg, late_warning_threshold: Number(e.target.value) })}
-              className="border p-1 w-full text-right"
-            />
-          </label>
-
-          <label className="block mb-2 text-right">
-            بعد كم تأخير يبدأ الخصم
-            <input
-              type="number"
-              value={cfg.late_deduction_start_after ?? 5}
-              onChange={e => setCfg({ ...cfg, late_deduction_start_after: Number(e.target.value) })}
-              className="border p-1 w-full text-right"
-            />
-          </label>
-
-          <label className="block mb-2 text-right">
-            نسبة الخصم لكل تأخر بعد البداية (%)
-            <input
-              type="number"
-              step="0.1"
-              value={cfg.late_deduction_percent_each ?? 1.5}
-              onChange={e => setCfg({ ...cfg, late_deduction_percent_each: Number(e.target.value) })}
-              className="border p-1 w-full text-right"
-            />
-          </label>
-
-          <div className="mt-2 text-right">
-            <button onClick={()=>onSave(cfg)} className="px-3 py-1 bg-green-600 text-white rounded">حفظ</button>
-          </div>
+          <button
+            onClick={saveAdvanceSettings}
+            className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 mt-4"
+          >
+            حفظ الإعدادات
+          </button>
         </div>
 
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">سجل الإنذارات</h4>
-          {warnings.length === 0 ? <div className="text-gray-500">لا توجد إنذارات</div> : warnings.map(w => (
-            <div key={w.id} className="border p-2 rounded mb-2">
-              <div className="font-semibold">{w.employee?.name || w.employee_id}</div>
-              <div className="text-xs text-gray-500">{w.note} · {w.created_at}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Leaves Tab (RTL) ---------- */
-function LeavesTab({ group, onSave, requests = [], employees = [], refresh }) {
-  const [cfg, setCfg] = useState(group.value || {});
-  const [gradeKey, setGradeKey] = useState("");
-  const [gradeDays, setGradeDays] = useState(0);
-
-  useEffect(()=>{ setCfg(group.value || {}); },[group]);
-
-  const handleStatus = async (id, status) => {
-    try {
-      await api.post(`/leaves/requests/${id}/status`, { status });
-      toast.success(`تم ${status === 'approved' ? 'الموافقة' : 'رفض'} الإجازة`);
-      if (refresh) refresh();
-    } catch (err) { toast.error('فشل تحديث الحالة'); }
-  };
-
-  const addOrUpdateGrade = () => {
-    if (!gradeKey) return;
-    const newByGrade = { ...(cfg.by_grade || {}) };
-    newByGrade[gradeKey] = Number(gradeDays || 0);
-    setCfg({ ...cfg, by_grade: newByGrade });
-    setGradeKey("");
-    setGradeDays(0);
-  };
-
-  const removeGrade = (k) => {
-    const newByGrade = { ...(cfg.by_grade || {}) };
-    delete newByGrade[k];
-    setCfg({ ...cfg, by_grade: newByGrade });
-  };
-
-  const save = () => onSave(cfg);
-
-  return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">إعدادات الإجازات العامة</h4>
-
-          <label className="block mb-2 text-right">
-            عدد أيام الإجازة السنوية الافتراضي
-            <input type="number" value={cfg.annual_days ?? 21} onChange={e=>setCfg({...cfg, annual_days: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            عدد أيام الإجازة المرضية (سنة)
-            <input type="number" value={cfg.sick_days ?? 10} onChange={e=>setCfg({...cfg, sick_days: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            عدد أيام إجازة الأمومة
-            <input type="number" value={cfg.maternity_days ?? 90} onChange={e=>setCfg({...cfg, maternity_days: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            احتساب الأقدمية
-            <select value={cfg.count_service ? "1" : "0"} onChange={e=>setCfg({...cfg, count_service: e.target.value === "1"})} className="border p-1 w-full text-right">
-              <option value="1">نعم</option>
-              <option value="0">لا</option>
-            </select>
-          </label>
-
-          <label className="block mb-2 text-right">
-            إشعار قبل الإجازة (أيام)
-            <input type="number" value={cfg.notice_days ?? 3} onChange={e=>setCfg({...cfg, notice_days: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-
-          <div className="mt-2 text-right">
-            <button onClick={save} className="px-3 py-1 bg-green-600 text-white rounded">حفظ</button>
-          </div>
-        </div>
-
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">الإجازات بحسب الدرجة الوظيفية</h4>
-
-          <div className="mb-3">
-            <div className="flex gap-2">
-              <input placeholder="الدرجة الوظيفية (مثال: junior)" value={gradeKey} onChange={e=>setGradeKey(e.target.value)} className="border p-1 flex-1 text-right" />
-              <input type="number" placeholder="أيام الإجازة" value={gradeDays} onChange={e=>setGradeDays(Number(e.target.value))} className="border p-1 w-32 text-right" />
-              <button onClick={addOrUpdateGrade} className="px-3 py-1 bg-blue-600 text-white rounded">إضافة / تحديث</button>
-            </div>
-          </div>
-
+        <div className="bg-amber-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">ملخص الإعدادات</h3>
           <div className="space-y-2">
-            {Object.keys(cfg.by_grade || {}).length === 0 ? (
-              <div className="text-gray-500">لم تُحدد درجات وظيفية بعد</div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className={`font-bold ${advanceSettings.enabled ? "text-green-600" : "text-red-600"}`}>
+                {advanceSettings.enabled ? "مفعل" : "معطل"}
+              </span>
+              <span>الحالة:</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold">{advanceSettings.max_percent}%</span>
+              <span>الحد الأقصى:</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold">{advanceSettings.repayment_months} شهر</span>
+              <span>السداد:</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold">{advanceSettings.min_service_months} شهر</span>
+              <span>الأهلية:</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="font-bold mb-4 text-right">📋 طلبات السلفيات ({advanceRequests.length})</h3>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2 text-right">#</th>
+            <th className="border p-2 text-right">الموظف</th>
+            <th className="border p-2 text-right">المبلغ</th>
+            <th className="border p-2 text-right">التاريخ</th>
+            <th className="border p-2 text-right">الحالة</th>
+            <th className="border p-2 text-center">إجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {advanceRequests.length === 0 ? (
+            <tr>
+              <td colSpan="6" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+            </tr>
+          ) : (
+            advanceRequests.map((r, i) => (
+              <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                <td className="border p-2">{i + 1}</td>
+                <td className="border p-2 font-medium">{r.employee?.name || r.employee_id}</td>
+                <td className="border p-2">{parseFloat(r.amount).toLocaleString()} ج.س</td>
+                <td className="border p-2">{r.created_at?.split("T")[0]}</td>
+                <td className="border p-2">{getStatusBadge(r.status)}</td>
+                <td className="border p-2 text-center">
+                  {r.status === "pending" && (
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleAdvanceStatus(r.id, "reject")}
+                        className="px-3 py-1 bg-red-600 text-white rounded text-xs"
+                      >
+                        رفض
+                      </button>
+                      <button
+                        onClick={() => handleAdvanceStatus(r.id, "approve")}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-xs"
+                      >
+                        موافقة
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
+  const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
+
+  const getShiftEmployees = (shiftId) => {
+    const result = [];
+    Object.entries(shiftAssignments).forEach(([assignId, data]) => {
+      if (data.shift_id == shiftId) {
+        const emp = employees.find(e => e.id == data.employee_id);
+        if (emp) {
+          result.push({ ...emp, assignmentId: parseInt(assignId) });
+        }
+      }
+    });
+    return result;
+  };
+
+  const getUnassignedEmployees = (shiftId) => {
+    const assignedEmployeeIds = Object.values(shiftAssignments)
+      .filter(data => data.shift_id == shiftId)
+      .map(data => data.employee_id);
+    return employees.filter(emp => !assignedEmployeeIds.includes(emp.id));
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">👥 إعدادات الورديات</h2>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="bg-cyan-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">إنشاء وردية جديدة</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1 text-right">اسم الوردية</label>
+              <input
+                type="text"
+                value={shiftForm.name}
+                onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right"
+                placeholder="مثال: وردية صباحية"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm mb-1 text-right">وقت البدء</label>
+                <input
+                  type="time"
+                  value={shiftForm.start_time}
+                  onChange={(e) => setShiftForm({ ...shiftForm, start_time: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-right">وقت الانتهاء</label>
+                <input
+                  type="time"
+                  value={shiftForm.end_time}
+                  onChange={(e) => setShiftForm({ ...shiftForm, end_time: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-right"
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={saveShift}
+            className="w-full bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 mt-4"
+          >
+            إنشاء الوردية
+          </button>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">الورديات الحالية ({shifts.length})</h3>
+          <div className="space-y-2 max-h-40 overflow-auto">
+            {shifts.length === 0 ? (
+              <p className="text-gray-500 text-center">لا توجد ورديات</p>
             ) : (
-              Object.entries(cfg.by_grade || {}).map(([k,v]) => (
-                <div key={k} className="flex justify-between items-center border p-2 rounded">
-                  <div className="text-right">
-                    <div className="font-semibold">{k}</div>
-                    <div className="text-xs text-gray-500">{v} يوم/سنة</div>
-                  </div>
+              shifts.map((s) => (
+                <div key={s.id} className="flex justify-between items-center bg-white p-3 rounded">
                   <div>
-                    <button onClick={()=>removeGrade(k)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-sm text-gray-500 mr-2">
+                      {s.start_time} - {s.end_time}
+                    </span>
                   </div>
+                  <button
+                    onClick={() => deleteShift(s.id)}
+                    className="text-red-600 font-bold"
+                  >
+                    ×
+                  </button>
                 </div>
               ))
             )}
@@ -579,336 +1124,256 @@ function LeavesTab({ group, onSave, requests = [], employees = [], refresh }) {
         </div>
       </div>
 
-      <div className="mt-4 border p-3 rounded text-right">
-        <h4 className="font-semibold mb-2">طلبات الإجازات الواردة</h4>
-        {requests.length === 0 ? <div className="text-gray-500">لا توجد طلبات</div> : requests.map(r => (
-          <div key={r.id} className="border p-2 rounded mb-2 flex justify-between items-center">
-            <div>
-              <div className="font-semibold">{r.employee?.name || r.employee_id} — {r.type}</div>
-              <div className="text-xs text-gray-500">{r.from_date} → {r.to_date} · {r.status === 'pending' ? 'قيد الانتظار' : r.status === 'approved' ? 'موافق عليها' : 'مرفوضة'}</div>
+      <div className="bg-indigo-50 p-4 rounded-lg">
+        <h3 className="font-bold mb-4 text-right">تعيين الموظفين في الورديات</h3>
+        
+        <div className="mb-4">
+          <label className="block text-sm mb-2 text-right">اختر الوردية</label>
+          <select
+            value={selectedShift}
+            onChange={(e) => setSelectedShift(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-right"
+          >
+            <option value="">اختر الوردية</option>
+            {shifts.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.start_time} - {s.end_time})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedShift && (
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-white p-4 rounded-lg">
+              <h4 className="font-bold mb-3 text-right">الموظفين المعينين ({getShiftEmployees(selectedShift).length})</h4>
+              <div className="space-y-2 max-h-48 overflow-auto">
+                {getShiftEmployees(selectedShift).length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">لا يوجد موظفين معيين</p>
+                ) : (
+                  getShiftEmployees(selectedShift).map((emp) => (
+                    <div key={emp.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                      <span className="text-sm">{emp.name}</span>
+                      <button
+                        onClick={() => unassignEmployee(emp.assignmentId)}
+                        className="text-red-600 hover:bg-red-100 px-2 py-1 rounded text-xs"
+                      >
+                        إزالة
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            {r.status === 'pending' && (
+
+            <div className="bg-white p-4 rounded-lg">
+              <h4 className="font-bold mb-3 text-right">تعيين موظف جديد</h4>
               <div className="flex gap-2">
-                <button onClick={() => handleStatus(r.id, 'approved')} className="px-2 py-1 bg-green-600 text-white rounded text-sm">موافقة</button>
-                <button onClick={() => handleStatus(r.id, 'rejected')} className="px-2 py-1 bg-red-600 text-white rounded text-sm">رفض</button>
+                <select
+                  id="emp-select"
+                  className="flex-1 border rounded px-3 py-2 text-right"
+                >
+                  <option value="">اختر الموظف</option>
+                  {getUnassignedEmployees(selectedShift).map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    const select = document.getElementById('emp-select');
+                    if (select.value) {
+                      assignEmployee(parseInt(select.value), parseInt(selectedShift));
+                      select.value = "";
+                    }
+                  }}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+                >
+                  تعيين
+                </button>
               </div>
-            )}
+            </div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
 }
 
-/* ---------- Holidays Tab (RTL) ---------- */
-function HolidaysTab({ holidays = [], employees = [], onCreate, onDelete }) {
-  const [list, setList] = useState(holidays || []);
-  const [form, setForm] = useState({ name: "", date: "", duration_days: 1, employee_ids: [] });
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState(null);
-
-  useEffect(()=>{ setList(holidays || []); },[holidays]);
-
-  const toggleEmployee = (id) => {
-    const arr = form.employee_ids || [];
-    if (arr.includes(id)) setForm({ ...form, employee_ids: arr.filter(x=>x!==id) });
-    else setForm({ ...form, employee_ids: [...arr, id] });
-  };
-
-  const submit = async () => {
-    if (!form.name || !form.date) { toast.error('أكمل اسم وتاريخ العطلة'); return; }
-    const payload = { ...form };
-    await onCreate(payload);
-    setForm({ name: "", date: "", duration_days: 1, employee_ids: [] });
-  };
-
-  const confirmRemove = (id) => { setToDeleteId(id); setConfirmOpen(true); };
-  const doRemove = async () => {
-    if (!toDeleteId) return;
-    await onDelete(toDeleteId);
-    setList(prev => prev.filter(h => h.id !== toDeleteId));
-    setConfirmOpen(false);
-    setToDeleteId(null);
-  };
+function FinancialsTab({
+  taxBrackets,
+  salaryIncrease,
+  setSalaryIncrease,
+  employees,
+  jobTitleSelect,
+  setJobTitleSelect,
+  jobIncrease,
+  setJobIncrease,
+  addJobIncrease,
+  removeJobIncrease,
+  saveTax,
+  saveSalaryIncrease,
+  addTaxBracket,
+  removeTaxBracket,
+  updateTaxBracket,
+}) {
+  const jobTitles = [...new Set(employees.map((emp) => emp.job_title).filter(Boolean))];
 
   return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">إضافة عطلة رسمية</h4>
-          <input placeholder="اسم العطلة" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="border p-2 w-full mb-2 text-right" />
-          <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="border p-2 w-full mb-2 text-right" />
-          <input type="number" min="1" value={form.duration_days} onChange={e=>setForm({...form,duration_days: Number(e.target.value)})} className="border p-2 w-full mb-2 text-right" />
-          <div className="mb-2 text-right">
-            <div className="text-sm mb-1">تطبيق على موظفين محددين (اختياري)</div>
-            <div className="max-h-40 overflow-auto border p-2 rounded">
-              {employees.length === 0 ? <div className="text-gray-500">لا يوجد موظفين</div> : employees.map(emp => (
-                <label key={emp.id} className="flex items-center gap-2 mb-1">
-                  <input type="checkbox" checked={(form.employee_ids||[]).includes(emp.id)} onChange={()=>toggleEmployee(emp.id)} />
-                  <span className="text-sm">{emp.name}</span>
-                </label>
+    <div>
+      <h2 className="text-xl font-bold mb-6 text-right">💵 الإعدادات المالية</h2>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        {/* الزيادة السنوية */}
+        <div className="bg-green-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4 text-right">📈 الزيادة السنوية للمرتب</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1 text-right">النسبة الافتراضية للزيادة (%)</label>
+              <input
+                type="number"
+                value={salaryIncrease.default_percent}
+                onChange={(e) =>
+                  setSalaryIncrease({ ...salaryIncrease, default_percent: parseFloat(e.target.value) })
+                }
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div className="border-t pt-3 mt-3">
+              <h4 className="font-medium mb-2 text-right">زيادة مخصصة حسب الوظيفة</h4>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={addJobIncrease}
+                  className="bg-green-600 text-white px-4 py-2 rounded"
+                >
+                  +
+                </button>
+                <input
+                  type="number"
+                  placeholder="%"
+                  value={jobIncrease}
+                  onChange={(e) => setJobIncrease(parseFloat(e.target.value))}
+                  className="w-20 border rounded px-3 py-2 text-right"
+                />
+                <select
+                  value={jobTitleSelect}
+                  onChange={(e) => setJobTitleSelect(e.target.value)}
+                  className="flex-1 border rounded px-3 py-2 text-right"
+                >
+                  <option value="">اختر الوظيفة</option>
+                  {jobTitles.map((title) => (
+                    <option key={title} value={title}>
+                      {title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-auto">
+                {Object.entries(salaryIncrease.per_job_title || {}).map(([title, percent]) => (
+                  <div key={title} className="flex justify-between items-center bg-white p-2 rounded">
+                    <button onClick={() => removeJobIncrease(title)} className="text-red-600 font-bold">
+                      ×
+                    </button>
+                    <span className="text-sm">
+                      {title}: {percent}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={saveSalaryIncrease}
+            className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 mt-4"
+          >
+            حفظ الزيادة السنوية
+          </button>
+        </div>
+
+        {/* ضريبة الدخل */}
+        <div className="bg-orange-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4">📊 ضريبة الدخل الشخصي</h3>
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-sm">شرائح الضريبة (SDG شهري)</span>
+            <button
+              onClick={addTaxBracket}
+              className="bg-orange-600 text-white px-3 py-1 rounded text-sm"
+            >
+              + إضافة
+            </button>
+          </div>
+          <table className="w-full border-collapse text-sm mb-3">
+            <thead>
+              <tr className="bg-white">
+                <th className="border p-2 text-left">من</th>
+                <th className="border p-2 text-left">إلى</th>
+                <th className="border p-2 text-left">%</th>
+                <th className="border p-2 text-center">حذف</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taxBrackets.map((b, i) => (
+                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="border p-1">
+                    <input
+                      type="number"
+                      value={b.min}
+                      onChange={(e) => updateTaxBracket(i, "min", e.target.value)}
+                      className="w-full border rounded px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-1">
+                    <input
+                      type="number"
+                      value={b.max === 999999999 ? "" : b.max}
+                      onChange={(e) => updateTaxBracket(i, "max", e.target.value || 999999999)}
+                      className="w-full border rounded px-2 py-1"
+                      placeholder="بدون حد"
+                    />
+                  </td>
+                  <td className="border p-1">
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={b.rate}
+                      onChange={(e) => updateTaxBracket(i, "rate", e.target.value)}
+                      className="w-full border rounded px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-1 text-center">
+                    <button onClick={() => removeTaxBracket(i)} className="text-red-600 font-bold">
+                      ×
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
-          <div className="text-right">
-            <button onClick={submit} className="px-3 py-1 bg-green-600 text-white rounded">إضافة العطلة</button>
-          </div>
-        </div>
-
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">قائمة العطلات الرسمية</h4>
-          {list.length === 0 ? <div className="text-gray-500">لا توجد عطلات</div> : list.map(h => (
-            <div key={h.id} className="border p-2 rounded mb-2 flex justify-between items-center">
-              <div className="text-right">
-                <div className="font-semibold">{h.name}</div>
-                <div className="text-xs text-gray-500">{h.date} · مدة {h.duration_days || 1} يوم</div>
-                {h.employee_ids && h.employee_ids.length > 0 && <div className="text-xs text-gray-600">محددة لعدد {h.employee_ids.length} موظف</div>}
-              </div>
-              <div>
-                <button onClick={()=>confirmRemove(h.id)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
-              </div>
-            </div>
-          ))}
+            </tbody>
+          </table>
+          <button
+            onClick={saveTax}
+            className="w-full bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+          >
+            حفظ الشرائح
+          </button>
         </div>
       </div>
 
-      <ConfirmDialog open={confirmOpen} title="تأكيد حذف العطلة" message="هل تريد حذف هذه العطلة؟" onConfirm={doRemove} onCancel={()=>{ setConfirmOpen(false); setToDeleteId(null); }} />
-    </div>
-  );
-}
-
-/* ---------- Incentives Tab (RTL) ---------- */
-function IncentivesTab({ incentives = [], employees = [], onCreate, onDelete }) {
-  const [list, setList] = useState(incentives || []);
-  const [form, setForm] = useState({ type: "bonus", value: 0, employee_id: "" });
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState(null);
-
-  useEffect(()=>{ setList(incentives || []); },[incentives]);
-
-  const submit = async () => {
-    if (!form.type || !form.value || !form.employee_id) { toast.error('أكمل نوع الحافز، قيمته، والموظف'); return; }
-    await onCreate(form);
-    setForm({ type: "bonus", value: 0, employee_id: "" });
-  };
-
-  const confirmRemove = (id) => { setToDeleteId(id); setConfirmOpen(true); };
-  const doRemove = async () => {
-    if (!toDeleteId) return;
-    await onDelete(toDeleteId);
-    setList(prev => prev.filter(i => i.id !== toDeleteId));
-    setConfirmOpen(false);
-    setToDeleteId(null);
-  };
-
-  return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">إضافة حافز</h4>
-
-          <label className="block mb-2 text-right">
-            نوع الحافز
-            <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border p-1 w-full text-right">
-              <option value="bonus">مكافأة</option>
-              <option value="allowance">بدل</option>
-              <option value="commission">عمولة</option>
-              <option value="other">أخرى</option>
-            </select>
-          </label>
-
-          <label className="block mb-2 text-right">
-            قيمة الحافز
-            <input type="number" value={form.value} onChange={e=>setForm({...form,value: Number(e.target.value)})} className="border p-1 w-full text-right" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            الموظف المستحق
-            <select value={form.employee_id} onChange={e=>setForm({...form,employee_id:e.target.value})} className="border p-1 w-full text-right">
-              <option value="">اختر موظف</option>
-              {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-            </select>
-          </label>
-
-          <div className="text-right">
-            <button onClick={submit} className="px-3 py-1 bg-green-600 text-white rounded">إضافة الحافز</button>
+      {/* مثال على حساب الضريبة */}
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h3 className="font-bold mb-4">مثال على حساب الضريبة</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white p-3 rounded">
+            <p className="font-medium mb-2">مرتب 8,000 SDG</p>
+            <p className="text-sm text-gray-600">0 - 6,000: معفى</p>
+            <p className="text-sm text-gray-600">6,000 - 8,000: 2,000 × 5% = 100 SDG</p>
+            <p className="font-bold text-orange-600 mt-2">الضريبة: 100 SDG</p>
           </div>
-        </div>
-
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">قائمة الحوافز</h4>
-          {list.length === 0 ? <div className="text-gray-500">لا توجد حوافز</div> : list.map(i => (
-            <div key={i.id} className="border p-2 rounded mb-2 flex justify-between items-center">
-              <div className="text-right">
-                <div className="font-semibold">{i.type} — {i.value}</div>
-                <div className="text-xs text-gray-500">{employees.find(e=>e.id===i.employee_id)?.name || i.employee_id}</div>
-              </div>
-              <div>
-                <button onClick={()=>confirmRemove(i.id)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <ConfirmDialog open={confirmOpen} title="تأكيد حذف الحافز" message="هل تريد حذف هذا الحافز؟" onConfirm={doRemove} onCancel={()=>{ setConfirmOpen(false); setToDeleteId(null); }} />
-    </div>
-  );
-}
-
-/* ---------- Financials Tab (RTL) ----------
-   - annual_increases: combined by job_type and grade in one entry
-   - personal_income_tax: enabled, percent, threshold (optional)
-*/
-function FinancialsTab({ group, onSave, employees = [] }) {
-  const [cfg, setCfg] = useState(group.value || {
-    annual_increases: { combined: [], per_employee: {} },
-    personal_income_tax: { enabled: false, percent: 0, threshold: 0 }
-  });
-
-  const [empSelect, setEmpSelect] = useState("");
-  const [empIncrease, setEmpIncrease] = useState(0);
-  const [combinedJobType, setCombinedJobType] = useState("");
-  const [combinedGrade, setCombinedGrade] = useState("");
-  const [combinedPercent, setCombinedPercent] = useState(0);
-
-  useEffect(()=>{ setCfg(group.value || {
-    annual_increases: { combined: [], per_employee: {} },
-    personal_income_tax: { enabled: false, percent: 0, threshold: 0 }
-  }); },[group]);
-
-  const save = () => onSave(cfg);
-
-  const addCombined = () => {
-    if (!combinedJobType && !combinedGrade) return;
-    const newCombined = [...(cfg.annual_increases?.combined || [])];
-    newCombined.push({
-      job_type: combinedJobType,
-      grade: combinedGrade,
-      percent: Number(combinedPercent || 0)
-    });
-    setCfg({ ...cfg, annual_increases: { ...(cfg.annual_increases || {}), combined: newCombined } });
-    setCombinedJobType(""); setCombinedGrade(""); setCombinedPercent(0);
-  };
-
-  const removeCombined = (index) => {
-    const newCombined = [...(cfg.annual_increases?.combined || [])];
-    newCombined.splice(index, 1);
-    setCfg({ ...cfg, annual_increases: { ...(cfg.annual_increases || {}), combined: newCombined } });
-  };
-
-  const addPerEmployee = () => {
-    if (!empSelect) return;
-    const perEmp = { ...(cfg.annual_increases?.per_employee || {}) };
-    perEmp[empSelect] = Number(empIncrease || 0);
-    setCfg({ ...cfg, annual_increases: { ...(cfg.annual_increases || {}), per_employee: perEmp } });
-    setEmpSelect(""); setEmpIncrease(0);
-  };
-
-  const removePerEmployee = (id) => {
-    const perEmp = { ...(cfg.annual_increases?.per_employee || {}) };
-    delete perEmp[id];
-    setCfg({ ...cfg, annual_increases: { ...(cfg.annual_increases || {}), per_employee: perEmp } });
-  };
-
-  return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">الزيادة السنوية للمرتب</h4>
-
-          <div className="mb-3">
-            <div className="text-sm font-semibold mb-1">حسب الوظيفة والدرجة (إضافة واحدة)</div>
-            <div className="flex gap-2 mb-2">
-              <input 
-                placeholder="نوع الوظيفة (اختياري)" 
-                value={combinedJobType} 
-                onChange={e=>setCombinedJobType(e.target.value)} 
-                className="border p-1 flex-1 text-right" 
-              />
-              <input 
-                placeholder="الدرجة الوظيفية (اختياري)" 
-                value={combinedGrade} 
-                onChange={e=>setCombinedGrade(e.target.value)} 
-                className="border p-1 flex-1 text-right" 
-              />
-              <input 
-                type="number" 
-                placeholder="%" 
-                value={combinedPercent} 
-                onChange={e=>setCombinedPercent(Number(e.target.value))} 
-                className="border p-1 w-20 text-right" 
-              />
-            </div>
-            <button onClick={addCombined} className="px-3 py-1 bg-blue-600 text-white rounded w-full">إضافة</button>
-          </div>
-
-          <div className="space-y-2 mb-4">
-            {(cfg.annual_increases?.combined || []).map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center border p-2 rounded">
-                <div className="text-right">
-                  <div className="font-semibold">
-                    {item.job_type || '—'} {item.job_type && item.grade ? '/' : ''} {item.grade || '—'}
-                  </div>
-                  <div className="text-xs text-gray-500">{item.percent}%</div>
-                </div>
-                <div>
-                  <button onClick={()=>removeCombined(idx)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mb-3">
-            <div className="text-sm font-semibold mb-1">زيادة مخصصة لموظف</div>
-            <div className="flex gap-2 mb-2">
-              <select value={empSelect} onChange={e=>setEmpSelect(e.target.value)} className="border p-1 flex-1 text-right">
-                <option value="">اختر موظف</option>
-                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-              </select>
-              <input type="number" placeholder="%" value={empIncrease} onChange={e=>setEmpIncrease(Number(e.target.value))} className="border p-1 w-28 text-right" />
-              <button onClick={addPerEmployee} className="px-3 py-1 bg-blue-600 text-white rounded">إضافة</button>
-            </div>
-            <div className="space-y-2">
-              {Object.entries(cfg.annual_increases?.per_employee || {}).map(([id,v]) => (
-                <div key={id} className="flex justify-between items-center border p-2 rounded">
-                  <div className="text-right">
-                    <div className="font-semibold">{employees.find(e=>e.id===id)?.name || id}</div>
-                    <div className="text-xs text-gray-500">{v}%</div>
-                  </div>
-                  <div>
-                    <button onClick={()=>removePerEmployee(id)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-2 text-right">
-            <button onClick={save} className="px-3 py-1 bg-green-600 text-white rounded">حفظ الإعدادات المالية</button>
-          </div>
-        </div>
-
-        <div className="border p-3 rounded text-right">
-          <h4 className="font-semibold mb-2">ضريبة الدخل الشخصي</h4>
-
-          <label className="block mb-2 text-right">
-            تفعيل ضريبة الدخل
-            <input type="checkbox" checked={!!(cfg.personal_income_tax?.enabled)} onChange={e=>setCfg({...cfg, personal_income_tax: {...(cfg.personal_income_tax||{}), enabled: e.target.checked}})} className="mr-2" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            نسبة الضريبة من الراتب الأساسي (%)
-            <input type="number" value={cfg.personal_income_tax?.percent ?? 0} onChange={e=>setCfg({...cfg, personal_income_tax: {...(cfg.personal_income_tax||{}), percent: Number(e.target.value)}})} className="border p-1 w-full text-right" />
-          </label>
-
-          <label className="block mb-2 text-right">
-            حد الإعفاء أو العتبة (الراتب الأساسي) - اختياري
-            <input type="number" value={cfg.personal_income_tax?.threshold ?? 0} onChange={e=>setCfg({...cfg, personal_income_tax: {...(cfg.personal_income_tax||{}), threshold: Number(e.target.value)}})} className="border p-1 w-full text-right" />
-          </label>
-
-          <div className="text-sm text-gray-600 mb-2">
-            يمكن تطبيق الضريبة على الراتب الأساسي بعد تجاوز العتبة إن وُجدت.
+          <div className="bg-white p-3 rounded">
+            <p className="font-medium mb-2">مرتب 20,000 SDG</p>
+            <p className="text-sm text-gray-600">6,000 × 5% = 300</p>
+            <p className="text-sm text-gray-600">8,000 × 10% = 800</p>
+            <p className="font-bold text-orange-600 mt-2">الضريبة: 1,100 SDG</p>
           </div>
         </div>
       </div>
@@ -916,186 +1381,136 @@ function FinancialsTab({ group, onSave, employees = [] }) {
   );
 }
 
-/* ---------- Shifts Tab (RTL) ---------- */
-function ShiftsTab({ shifts = [], employees = [], refresh }) {
-  const [list, setList] = useState(shifts || []);
-  const [form, setForm] = useState({ name:'', start_time:'08:00', end_time:'16:00', week_days:[], weekend_days:[], daily_hours:8, notes:'', active:true });
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDelete, setToDelete] = useState(null);
-
-  useEffect(()=>{ setList(shifts || []); },[shifts]);
-
-  const days = ['mon','tue','wed','thu','fri','sat','sun'];
-  const toggleDay = (arr, d) => arr.includes(d) ? arr.filter(x=>x!==d) : [...arr, d];
-
-  const save = async () => {
-    try {
-      await api.post('/work-shifts', form);
-      toast.success('تم إنشاء الوردية');
-      const res = await api.get('/work-shifts');
-      setList(res.data?.data || []);
-      setForm({ name:'', start_time:'08:00', end_time:'16:00', week_days:[], weekend_days:[], daily_hours:8, notes:'', active:true });
-      if (refresh) refresh();
-    } catch (err) { toast.error('فشل الإنشاء'); console.error(err); }
-  };
-
-  const confirmRemove = (id) => { setToDelete(id); setConfirmOpen(true); };
-  const doRemove = async () => {
-    try {
-      await api.delete(`/work-shifts/${toDelete}`);
-      toast.success('تم الحذف');
-      setList(prev => prev.filter(s => s.id !== toDelete));
-      setConfirmOpen(false);
-      setToDelete(null);
-      if (refresh) refresh();
-    } catch (err) { toast.error('فشل الحذف'); console.error(err); }
-  };
-
+function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp }) {
   return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-        {list.map(s => (
-          <div key={s.id} className="border p-2 rounded flex justify-between items-center">
-            <div className="text-right">
-              <div className="font-semibold">{s.name}</div>
-              <div className="text-xs text-gray-500">{s.start_time || '—'} — {s.end_time || '—'}</div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={()=>confirmRemove(s.id)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div>
+      <h2 className="text-xl font-bold mb-6">📱 إعدادات واتساب</h2>
 
-      <div className="border p-3 rounded text-right">
-        <h4 className="font-semibold mb-2">إنشاء وردية</h4>
-        <input placeholder="اسم الوردية" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="border p-2 w-full mb-2 text-right" />
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <input type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})} className="border p-2" />
-          <input type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})} className="border p-2" />
-        </div>
-
-        <div className="mb-2 text-right">
-          <div className="text-sm mb-1">أيام العمل</div>
-          <div className="flex gap-2 flex-wrap">
-            {days.map(d => (
-              <label key={d} className={`px-2 py-1 border rounded cursor-pointer ${form.week_days.includes(d)?'bg-blue-100':''}`}>
-                <input type="checkbox" checked={form.week_days.includes(d)} onChange={()=>setForm({...form, week_days: toggleDay(form.week_days,d)})} className="ml-1" />
-                {d}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-emerald-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4">الإعدادات</h3>
+          <div className="space-y-3">
+            <div className="p-3 bg-emerald-100 rounded">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={whatsapp.enabled}
+                  onChange={(e) => setWhatsapp({ ...whatsapp, enabled: e.target.checked })}
+                  className="w-5 h-5 rounded"
+                />
+                <span className="font-bold text-emerald-800">تفعيل إشعارات واتساب</span>
               </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-2 text-right">
-          <div className="text-sm mb-1">أيام العطلة الأسبوعية</div>
-          <div className="flex gap-2 flex-wrap">
-            {days.map(d => (
-              <label key={d} className={`px-2 py-1 border rounded cursor-pointer ${form.weekend_days.includes(d)?'bg-yellow-100':''}`}>
-                <input type="checkbox" checked={form.weekend_days.includes(d)} onChange={()=>setForm({...form, weekend_days: toggleDay(form.weekend_days,d)})} className="ml-1" />
-                {d}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-2 text-right">
-          <label>ساعات العمل اليومية
-            <input type="number" value={form.daily_hours} onChange={e=>setForm({...form,daily_hours: Number(e.target.value)})} className="border p-1 mr-2" />
-          </label>
-        </div>
-
-        <textarea placeholder="ملاحظات" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} className="border p-2 w-full mb-2 text-right" />
-
-        <div className="text-right">
-          <button onClick={save} className="px-3 py-1 bg-green-600 text-white rounded">إنشاء</button>
-        </div>
-      </div>
-
-      <ConfirmDialog open={confirmOpen} title="تأكيد حذف الوردية" message="هل تريد حذف هذه الوردية؟" onConfirm={doRemove} onCancel={()=>{ setConfirmOpen(false); setToDelete(null); }} />
-    </div>
-  );
-}
-
-/* ---------- Assignments Tab (RTL) ---------- */
-function AssignmentsTab({ assignments = [], employees = [], shifts = [], refreshAssignments, onCreate, onDelete }) {
-  const [filter, setFilter] = useState({ from:'', to:'', employee_id:'' });
-  const [form, setForm] = useState({ employee_id:'', work_shift_id:'', date:'' });
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState(null);
-
-  const confirmDelete = (id) => { setToDeleteId(id); setConfirmOpen(true); };
-  const doDelete = async () => {
-    if (!toDeleteId) return;
-    try {
-      await onDelete(toDeleteId);
-      setConfirmOpen(false);
-      setToDeleteId(null);
-    } catch (err) {
-      setConfirmOpen(false);
-      setToDeleteId(null);
-    }
-  };
-
-  return (
-    <div dir="rtl">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
-        <input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} className="border p-2 text-right" />
-        <input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} className="border p-2 text-right" />
-        <select value={filter.employee_id} onChange={e=>setFilter({...filter,employee_id:e.target.value})} className="border p-2 text-right">
-          <option value="">كل الموظفين</option>
-          {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-        </select>
-        <button onClick={()=>refreshAssignments(filter.from, filter.to, filter.employee_id)} className="bg-blue-600 text-white px-3 py-2 rounded">عرض</button>
-      </div>
-
-      <div className="mb-4 border p-3 rounded text-right">
-        <h4 className="font-semibold mb-2">إضافة تعيين</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select value={form.employee_id} onChange={e=>setForm({...form,employee_id:e.target.value})} className="border p-2 text-right">
-            <option value="">اختر موظف</option>
-            {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-          </select>
-          <select value={form.work_shift_id} onChange={e=>setForm({...form,work_shift_id:e.target.value})} className="border p-2 text-right">
-            <option value="">اختر وردية</option>
-            {shifts.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="border p-2 text-right" />
-        </div>
-        <div className="mt-2 text-right">
-          <button onClick={()=>onCreate(form)} className="bg-green-600 text-white px-3 py-2 rounded">إضافة</button>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {assignments.length === 0 ? <div className="text-gray-500 text-right">لا توجد تعيينات</div> : assignments.map(a => (
-          <div key={a.id} className="border p-2 rounded flex justify-between">
-            <div className="text-right">
-              <div className="font-semibold">{a.employee?.name || a.employee_id}</div>
-              <div className="text-xs text-gray-500">{a.date} — {a.shift?.name || a.work_shift_id}</div>
             </div>
             <div>
-              <button onClick={()=>confirmDelete(a.id)} className="px-2 py-1 bg-red-500 text-white rounded">حذف</button>
+              <label className="block text-sm mb-1">API URL</label>
+              <input
+                type="text"
+                value={whatsapp.api_url}
+                onChange={(e) => setWhatsapp({ ...whatsapp, api_url: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+                placeholder="https://api.whatsapp.com/send"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">API Key</label>
+              <input
+                type="password"
+                value={whatsapp.api_key}
+                onChange={(e) => setWhatsapp({ ...whatsapp, api_key: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">رقم الواتساب</label>
+              <input
+                type="text"
+                value={whatsapp.phone_number}
+                onChange={(e) => setWhatsapp({ ...whatsapp, phone_number: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+                placeholder="249xxxxxxxxx"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={saveWhatsApp}
+              className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+            >
+              حفظ
+            </button>
+            <button
+              onClick={testWhatsApp}
+              className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+            >
+              اختبار
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50 p-4 rounded-lg">
+          <h3 className="font-bold mb-4">إرسال الإشعارات عند:</h3>
+          <div className="space-y-2">
+            {[
+              { key: "notify_on_warning", label: "إصدار إنذار" },
+              { key: "notify_on_leave", label: "موافقة/رفض إجازة" },
+              { key: "notify_on_advance", label: "موافقة/رفض سلفة" },
+              { key: "notify_on_late", label: "التأخير في الحضور" },
+            ].map((item) => (
+              <label key={item.key} className="flex items-center gap-3 p-3 bg-white rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={whatsapp[item.key]}
+                  onChange={(e) => setWhatsapp({ ...whatsapp, [item.key]: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RolesTab({ roles }) {
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-6">🔐 الأدوار والصلاحيات</h2>
+
+      <div className="grid grid-cols-3 gap-4">
+        {roles.map((role) => (
+          <div
+            key={role.id}
+            className="bg-white border-2 rounded-lg p-4"
+            style={{ borderTopColor: role.color || "#6366f1", borderTopWidth: "5px" }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold"
+                style={{ backgroundColor: role.color || "#6366f1" }}
+              >
+                {role.display_name?.charAt(0)}
+              </div>
+              <div>
+                <h4 className="font-bold">{role.display_name}</h4>
+                <p className="text-sm text-gray-500">{role.description}</p>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t">
+              <span className="text-sm text-gray-600">الصلاحيات:</span>
+              <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                {role.permissions?.[0] === "*" ? "كاملة" : `${role.permissions?.length || 0}`}
+              </span>
             </div>
           </div>
         ))}
+        {roles.length === 0 && (
+          <div className="col-span-3 text-center py-12 text-gray-500">لا توجد أدوار محددة</div>
+        )}
       </div>
-
-      <ConfirmDialog open={confirmOpen} title="تأكيد حذف التعيين" message="هل تريد حذف هذا التعيين؟" onConfirm={doDelete} onCancel={()=>{ setConfirmOpen(false); setToDeleteId(null); }} />
     </div>
   );
 }
 
-/* ---------- Audit Tab (RTL) ---------- */
-function AuditTab({ audits = [] }) {
-  return (
-    <div dir="rtl">
-      {audits.length === 0 ? <div className="text-gray-500 text-right">لا توجد سجلات</div> : audits.map(a => (
-        <div key={a.id} className="border p-2 rounded mb-2 text-right">
-          <div className="text-sm text-gray-600">{a.setting_key} — {a.created_at}</div>
-          <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify({old:a.old_value,new:a.new_value}, null, 2)}</pre>
-        </div>
-      ))}
-    </div>
-  );
-}
+export default SettingsPage;

@@ -106,6 +106,18 @@ export default function AddEmployee() {
 
   const [newFingerprint, setNewFingerprint] = useState({ finger_id: "", finger_position: "right", finger: "thumb" });
 
+  // Map finger selection to finger ID (0-9)
+  const fingerPositionToId = (position, finger) => {
+    const rightFingers = { thumb: 0, index: 1, middle: 2, ring: 3, pinky: 4 };
+    const leftFingers = { thumb: 5, index: 6, middle: 7, ring: 8, pinky: 9 };
+    
+    if (position === "right") {
+      return rightFingers[finger] ?? 0;
+    } else {
+      return leftFingers[finger] ?? 5;
+    }
+  };
+
   const addFingerprint = async () => {
     if (!newFingerprint.finger_id) {
       toast.error("يرجى إدخال رقم البصمة");
@@ -118,32 +130,30 @@ export default function AddEmployee() {
       return;
     }
 
+    // Get finger ID (0-9) for the device
+    const fingerId = fingerPositionToId(newFingerprint.finger_position, newFingerprint.finger);
+
     try {
       setLoading(true);
-      // Send actual request to device
-      await registerUserOnDevice(deviceId, {
+      
+      // Send request to device with enrollment mode
+      const result = await registerUserOnDevice(deviceId, {
         user_id: newFingerprint.finger_id,
-        name: formData.name,
-        fingerprints: [{
-          finger_id: 1,
-          template: "placeholder"
-        }]
+        name: formData.name || newFingerprint.finger_id,
+        enroll_fingerprint: true,
+        finger_id: fingerId,
       });
-      
-      // Sync attendance logs after registration
-      try {
-        await syncDevice(deviceId);
-      } catch (syncErr) {
-        console.warn("Auto-sync failed:", syncErr);
+
+      if (result.success) {
+        setFormData(prev => ({ ...prev, fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId }] }));
+        setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
+        toast.success("✅ " + (result.message || "تم تسجيل البصمة بنجاح"));
+      } else {
+        toast.warning("⚠️ " + (result.message || "لم يتم تسجيل البصمة"));
       }
-      
-      setFormData(prev => ({ ...prev, fingerprints: [...prev.fingerprints, { ...newFingerprint }] }));
-      setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
-      toast.success("✅ تم تسجيل البصمة على الجهاز بنجاح");
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      toast.error("❌ فشل التواصل مع الجهاز - لم يتم إضافة البصمة");
-      // DO NOT add locally if device registration fails
+      toast.error("❌ فشل التواصل مع الجهاز");
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { listAttendanceLogs, listDevices } from "../services/fingerprintApi";
+import { listAttendanceLogs, listDevices, syncDevice, syncAttendance } from "../services/fingerprintApi";
 
 export default function AttendanceLogs() {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export default function AttendanceLogs() {
   const menuRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [logs, setLogs] = useState([]);
   const [devices, setDevices] = useState([]);
 
@@ -53,9 +54,13 @@ export default function AttendanceLogs() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await listAttendanceLogs(
-        Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
-      );
+      const params = {};
+      if (filters.from) params.from = filters.from;
+      if (filters.to) params.to = filters.to;
+      if (filters.employee_id) params.employee_id = filters.employee_id;
+      if (filters.device_id) params.device_id = filters.device_id;
+      
+      const data = await listAttendanceLogs(params);
       setLogs(Array.isArray(data) ? data : data?.data || []);
     } catch (e) {
       toast.error(e.message || "فشل في جلب السجلات");
@@ -64,19 +69,45 @@ export default function AttendanceLogs() {
     }
   };
 
+  const handleSync = async (deviceId = null) => {
+    setSyncing(true);
+    try {
+      if (deviceId) {
+        const result = await syncDevice(deviceId);
+        toast.success(`تم مزامنة الجهاز بنجاح. السجلات: ${result.fetched || 0}`);
+      } else {
+        await syncAttendance();
+        toast.success(`تمت المزامنة`);
+      }
+      await load();
+    } catch (e) {
+      toast.error(e.message || "فشل في المزامنة");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadDevices();
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const count = useMemo(() => (Array.isArray(logs) ? logs.length : 0), [logs]);
 
-  const deviceNameById = useMemo(() => {
-    const m = new Map();
-    for (const d of devices || []) m.set(String(d.id), d.name || `Device #${d.id}`);
-    return m;
-  }, [devices]);
+  const getTypeLabel = (log) => {
+    if (log.type) return log.type;
+    if (log.state !== null && log.state !== undefined) {
+      return log.state === 1 ? 'انصراف' : 'حضور';
+    }
+    return '-';
+  };
+
+  const isCheckOut = (log) => {
+    if (log.state !== null && log.state !== undefined) {
+      return log.state === 1;
+    }
+    return log.type === 'انصراف';
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
@@ -107,7 +138,7 @@ export default function AttendanceLogs() {
                     setOpenMenu(false);
                     navigate("/profilesettings");
                   }}
-                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
                 >
                   الملف الشخصي
                 </button>
@@ -144,12 +175,12 @@ export default function AttendanceLogs() {
               />
             </div>
             <div className="flex flex-col">
-              <label className="text-sm text-gray-600 mb-1">الموظف (ID)</label>
+              <label className="text-sm text-gray-600 mb-1">رقم الموظف</label>
               <input
                 value={filters.employee_id}
                 onChange={(e) => setFilters((f) => ({ ...f, employee_id: e.target.value }))}
                 className="border rounded-lg px-3 py-2"
-                placeholder="مثال: 12"
+                placeholder="رقم البصمة"
               />
             </div>
             <div className="flex flex-col">
@@ -162,13 +193,21 @@ export default function AttendanceLogs() {
                 <option value="">الكل</option>
                 {(devices || []).map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name || `Device #${d.id}`}
+                    {d.name || `جهاز #${d.id}`}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="flex gap-3 md:mr-auto">
+              <button
+                onClick={() => handleSync(filters.device_id || null)}
+                disabled={syncing}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50"
+                type="button"
+              >
+                {syncing ? "جارٍ المزامنة..." : "🔄 مزامنة"}
+              </button>
               <button
                 onClick={load}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-semibold"
@@ -198,8 +237,15 @@ export default function AttendanceLogs() {
             </div>
           </div>
 
-          <div className="text-indigo-800 font-bold">
-            عدد السجلات: <span className="font-extrabold">{count}</span>
+          <div className="flex gap-4 text-sm">
+            <span className="text-indigo-800 font-bold">
+              عدد السجلات: <span className="font-extrabold">{count}</span>
+            </span>
+            {devices.filter(d => d.last_sync_at).length > 0 && (
+              <span className="text-gray-600">
+                آخر مزامنة: {new Date(Math.max(...devices.filter(d => d.last_sync_at).map(d => new Date(d.last_sync_at)))).toLocaleString("ar-EG")}
+              </span>
+            )}
           </div>
         </div>
 
@@ -212,33 +258,56 @@ export default function AttendanceLogs() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr className="text-right text-gray-700">
-                      <th className="p-3">الموظف</th>
+                      <th className="p-3">#</th>
+                      <th className="p-3">اسم الموظف</th>
+                      <th className="p-3">رقم البصمة</th>
                       <th className="p-3">الجهاز</th>
-                      <th className="p-3">الوقت</th>
+                      <th className="p-3">التاريخ والوقت</th>
                       <th className="p-3">النوع</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(logs || []).map((row, idx) => {
-                      const employeeLabel = row.employee_name || row.device_user_id || "-";
-                      const deviceLabel = row.device_name || row.device_host || "-";
-                      const timeLabel = row.timestamp ? new Date(row.timestamp).toLocaleString("ar-EG") : "-";
-                      const typeLabel = row.type === "انصراف" ? "انصراف" : "حضور";
+                      const isDeparture = isCheckOut(row);
                       return (
-                        <tr key={row.id || idx} className="border-t">
-                          <td className="p-3 font-semibold">{employeeLabel}</td>
-                          <td className="p-3">{deviceLabel}</td>
-                          <td className="p-3">{timeLabel}</td>
-                          <td className={`p-3 font-semibold ${typeLabel === 'انصراف' ? 'text-red-600' : 'text-green-600'}`}>
-                            {typeLabel}
+                        <tr key={row.id || idx} className="border-t hover:bg-gray-50">
+                          <td className="p-3 text-gray-500">{idx + 1}</td>
+                          <td className="p-3 font-semibold">
+                            {row.employee_name ? (
+                              <span className="text-indigo-700">{row.employee_name}</span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="p-3">{row.device_user_id || "-"}</td>
+                          <td className="p-3 text-gray-600">
+                            {row.device_name || row.device_host || "غير معروف"}
+                          </td>
+                          <td className="p-3">
+                            {row.timestamp ? (
+                              <div>
+                                <div>{new Date(row.timestamp).toLocaleDateString("ar-EG")}</div>
+                                <div className="text-gray-500 text-xs">{new Date(row.timestamp).toLocaleTimeString("ar-EG")}</div>
+                              </div>
+                            ) : "-"}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              isDeparture ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {getTypeLabel(row)}
+                            </span>
                           </td>
                         </tr>
                       );
                     })}
                     {!logs?.length && (
                       <tr>
-                        <td className="p-6 text-center text-gray-600" colSpan={4}>
-                          لا توجد سجلات.
+                        <td className="p-6 text-center text-gray-600" colSpan={6}>
+                          <div className="flex flex-col items-center gap-2">
+                            <span>لا توجد سجلات حضور</span>
+                            <span className="text-sm text-gray-400">اضغط على "مزامنة" لجلب السجلات من الأجهزة</span>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -254,4 +323,3 @@ export default function AttendanceLogs() {
     </div>
   );
 }
-
