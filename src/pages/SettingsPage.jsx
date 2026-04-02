@@ -17,7 +17,7 @@ const TABS = [
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState("organization");
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   const [org, setOrg] = useState({});
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -33,6 +33,11 @@ function SettingsPage() {
     phone: "",
     email: "",
     address: "",
+    tax_number: "",
+    commercial_register: "",
+    activity: "",
+    employee_count: "",
+    foundation_year: "",
   });
   const [logoFile, setLogoFile] = useState(null);
   const [stampFile, setStampFile] = useState(null);
@@ -44,6 +49,8 @@ function SettingsPage() {
     delay_before_deduction: 5,
     late_deduction_percent: 1.5,
     absence_after_minutes: 60,
+    absence_deduction_days: 1,
+    termination_after_days: 30,
   });
 
   const [leaveSettings, setLeaveSettings] = useState({
@@ -52,6 +59,10 @@ function SettingsPage() {
     maternity_days: 90,
     notice_days: 3,
     by_grade: {},
+    hajj_days: 14,
+    emergency_days: 3,
+    unpaid_leave_max_days: 30,
+    leave_without_salary: true,
   });
 
   const [advanceSettings, setAdvanceSettings] = useState({
@@ -59,6 +70,9 @@ function SettingsPage() {
     max_percent: 50,
     repayment_months: 3,
     min_service_months: 6,
+    min_amount: 1000,
+    max_amount: 50000,
+    allow_multiple: true,
   });
 
   const [taxBrackets, setTaxBrackets] = useState([
@@ -71,6 +85,8 @@ function SettingsPage() {
   const [salaryIncrease, setSalaryIncrease] = useState({
     default_percent: 10,
     per_job_title: {},
+    apply_automatically: false,
+    min_service_months: 12,
   });
 
   const [whatsapp, setWhatsapp] = useState({
@@ -82,16 +98,29 @@ function SettingsPage() {
     notify_on_leave: true,
     notify_on_advance: true,
     notify_on_late: true,
+    message_template_warning: "عزيزي {name}، تم إصدار إنذار رقم {warning_no} بسبب {reason}",
+    message_template_leave: "عزيزي {name}، تم {action} طلب الإجازة المقدم من {from} إلى {to}",
+    message_template_advance: "عزيزي {name}، تم {action} طلب السلفة بمبلغ {amount}",
+    message_template_late: "عزيزي {name}، تم تسجيل تأخير اليوم",
+    notify_on_appointment: true,
+    message_template_appointment: "عزيزي {name}، يسعدنا إخباركم بانضمامكم إلينا في {company} بتاريخ {date}. الوظيفة: {position}، القسم: {department}، الراتب: {salary}",
+    notify_on_leave_end: true,
+    message_template_leave_end: "عزيزي {name}، نذكّركم بأن إجازتكم ستنتهي غداً. نرجو العودة في الموعد المحدد.",
   });
 
   const [shiftForm, setShiftForm] = useState({
     name: "",
     start_time: "08:00",
     end_time: "16:00",
+    color: "#3B82F6",
+    working_hours: 8,
+    week_days: [0, 1, 2, 3, 4],
+    weekend_days: [5, 6],
   });
 
   useEffect(() => {
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadAll() {
@@ -121,6 +150,11 @@ function SettingsPage() {
           phone: orgRes.data.data.phone || "",
           email: orgRes.data.data.email || "",
           address: orgRes.data.data.address || "",
+          tax_number: orgRes.data.data.tax_number || "",
+          commercial_register: orgRes.data.data.commercial_register || "",
+          activity: orgRes.data.data.activity || "",
+          employee_count: orgRes.data.data.employee_count || "",
+          foundation_year: orgRes.data.data.foundation_year || "",
         });
       }
 
@@ -285,11 +319,16 @@ function SettingsPage() {
 
   async function saveShift() {
     try {
-      await api.post("/work-shifts", shiftForm);
+      const shiftData = {
+        ...shiftForm,
+        daily_hours: shiftForm.working_hours,
+        active: true,
+      };
+      await api.post("/work-shifts", shiftData);
       toast.success("تم إنشاء الوردية");
       const res = await api.get("/work-shifts");
       setShifts(res.data?.data || []);
-      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00" });
+      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
       toast.error("فشل إنشاء الوردية");
     }
@@ -511,114 +550,206 @@ function SettingsPage() {
 function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg }) {
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6 text-right">🏢 معلومات المؤسسة</h2>
+      <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
+        <span className="text-2xl">🏢</span> معلومات المؤسسة
+      </h2>
 
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block font-medium mb-2 text-right">اسم الشركة</label>
-            <input
-              type="text"
-              value={orgForm.name}
-              onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
-              className="w-full border rounded-lg px-4 py-2 text-right"
-              placeholder="أدخل اسم الشركة"
-            />
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="bg-blue-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-blue-800">المعلومات الأساسية</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">اسم المؤسسة</label>
+              <input
+                type="text"
+                value={orgForm.name}
+                onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل اسم المؤسسة"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">رقم الهاتف</label>
+              <input
+                type="text"
+                value={orgForm.phone}
+                onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل رقم الهاتف"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">البريد الإلكتروني</label>
+              <input
+                type="email"
+                value={orgForm.email}
+                onChange={(e) => setOrgForm({ ...orgForm, email: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل البريد الإلكتروني"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">العنوان</label>
+              <input
+                type="text"
+                value={orgForm.address}
+                onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل العنوان"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block font-medium mb-2 text-right">رقم الهاتف</label>
-            <input
-              type="text"
-              value={orgForm.phone}
-              onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
-              className="w-full border rounded-lg px-4 py-2 text-right"
-              placeholder="أدخل رقم الهاتف"
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-2 text-right">البريد الإلكتروني</label>
-            <input
-              type="email"
-              value={orgForm.email}
-              onChange={(e) => setOrgForm({ ...orgForm, email: e.target.value })}
-              className="w-full border rounded-lg px-4 py-2 text-right"
-              placeholder="أدخل البريد الإلكتروني"
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-2 text-right">العنوان</label>
-            <input
-              type="text"
-              value={orgForm.address}
-              onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
-              className="w-full border rounded-lg px-4 py-2 text-right"
-              placeholder="أدخل العنوان"
-            />
-          </div>
-          <button onClick={saveOrg} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-            حفظ التغييرات
-          </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block font-medium mb-2 text-right">شعار الشركة</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setLogoFile(e.target.files[0])}
-              className="w-full border rounded-lg px-4 py-2"
-            />
-            {org.logo_url && <img src={org.logo_url} alt="Logo" className="mt-2 h-20" />}
+        <div className="bg-green-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-green-800">التسجيل والجهات الرقابية</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">رقم التسجيل الضريبي</label>
+              <input
+                type="text"
+                value={orgForm.tax_number}
+                onChange={(e) => setOrgForm({ ...orgForm, tax_number: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل رقم التسجيل الضريبي"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">السجل التجاري</label>
+              <input
+                type="text"
+                value={orgForm.commercial_register}
+                onChange={(e) => setOrgForm({ ...orgForm, commercial_register: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل السجل التجاري"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">النشاط التجاري</label>
+              <input
+                type="text"
+                value={orgForm.activity}
+                onChange={(e) => setOrgForm({ ...orgForm, activity: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل النشاط التجاري"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block font-medium mb-2 text-right">ختم الشركة</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setStampFile(e.target.files[0])}
-              className="w-full border rounded-lg px-4 py-2"
-            />
-            {org.stamp_url && <img src={org.stamp_url} alt="Stamp" className="mt-2 h-20" />}
+        </div>
+
+        <div className="bg-purple-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-purple-800">المعلومات الإضافية</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">عدد الموظفين</label>
+              <input
+                type="number"
+                value={orgForm.employee_count}
+                onChange={(e) => setOrgForm({ ...orgForm, employee_count: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="أدخل عدد الموظفين"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">سنة التأسيس</label>
+              <input
+                type="number"
+                value={orgForm.foundation_year}
+                onChange={(e) => setOrgForm({ ...orgForm, foundation_year: e.target.value })}
+                className="w-full border rounded-lg px-4 py-2 text-right"
+                placeholder="مثال: 2020"
+              />
+            </div>
           </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <div className="bg-amber-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-amber-800">شعار وختم المؤسسة</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">شعار المؤسسة</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files[0])}
+                className="w-full border rounded-lg px-4 py-2 bg-white"
+              />
+              {org.logo_url && (
+                <div className="mt-3 text-center">
+                  <img src={org.logo_url} alt="Logo" className="h-24 mx-auto rounded-lg shadow" />
+                  <p className="text-sm text-gray-500 mt-1">الشعار الحالي</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">ختم المؤسسة</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setStampFile(e.target.files[0])}
+                className="w-full border rounded-lg px-4 py-2 bg-white"
+              />
+              {org.stamp_url && (
+                <div className="mt-3 text-center">
+                  <img src={org.stamp_url} alt="Stamp" className="h-24 mx-auto rounded-lg shadow" />
+                  <p className="text-sm text-gray-500 mt-1">الختم الحالي</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-indigo-50 p-5 rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-5xl">🏢</span>
+            </div>
+            <p className="text-indigo-600 font-medium">معاينة الشعار والختم</p>
+            <p className="text-sm text-gray-500 mt-1">سيظهران في التقارير والخطابات</p>
+          </div>
+        </div>
+      </div>
+
+      <button onClick={saveOrg} className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium">
+        حفظ جميع التغييرات
+      </button>
     </div>
   );
 }
 
 function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, shifts }) {
-  const toggleShift = (shiftId) => {
-    const currentIds = attendance.shift_ids || [];
-    const newIds = currentIds.includes(shiftId)
-      ? currentIds.filter(id => id !== shiftId)
-      : [...currentIds, shiftId];
-    setAttendance({ ...attendance, shift_ids: newIds });
-  };
-
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6 text-right">⏰ إعدادات الحضور والإنذارات</h2>
+      <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
+        <span className="text-2xl">⏰</span> إعدادات الحضور والإنذارات
+      </h2>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg col-span-3">
-          <h3 className="font-bold mb-4 text-right">أوقات العمل حسب الورديات</h3>
-          {shifts.length === 0 ? (
-            <p className="text-center text-gray-500 py-4">لا توجد ورديات. أضف وردية جديدة من تبويب الورديات.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-white">
-                    <th className="border p-3 text-right">الوردية</th>
-                    <th className="border p-3 text-right">زمن الحضور</th>
-                    <th className="border p-3 text-right">زمن الانصراف</th>
-                    <th className="border p-3 text-center">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shifts.map((shift) => (
+      <div className="bg-blue-50 p-5 rounded-lg mb-6">
+        <h3 className="font-bold mb-4 text-right text-blue-800">أوقات العمل حسب الورديات</h3>
+        {shifts.length === 0 ? (
+          <p className="text-center text-gray-500 py-4">لا توجد ورديات. أضف وردية جديدة من تبويب الورديات.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-white">
+                  <th className="border p-3 text-right">#</th>
+                  <th className="border p-3 text-right">الوردية</th>
+                  <th className="border p-3 text-right">زمن الحضور</th>
+                  <th className="border p-3 text-right">زمن الانصراف</th>
+                  <th className="border p-3 text-right">عدد الساعات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shifts.map((shift, index) => {
+                  const startParts = shift.start_time?.split(":") || ["08", "00"];
+                  const endParts = shift.end_time?.split(":") || ["16", "00"];
+                  const hours = parseInt(endParts[0]) - parseInt(startParts[0]);
+                  return (
                     <tr key={shift.id} className="bg-white hover:bg-blue-50 transition">
+                      <td className="border p-3">{index + 1}</td>
                       <td className="border p-3 font-medium">{shift.name}</td>
                       <td className="border p-3">
                         <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold">
@@ -630,99 +761,151 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, sh
                           {shift.end_time}
                         </span>
                       </td>
-                      <td className="border p-3 text-center">
-                        <span className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-bold">
-                          ✓ مفعّل
+                      <td className="border p-3">
+                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">
+                          {hours} ساعات
                         </span>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-        <div className="bg-yellow-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">قواعد التأخير</h3>
-          <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="bg-yellow-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-yellow-800 flex items-center gap-2">
+            <span>⏱️</span> قواعد التأخير
+          </h3>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm mb-1 text-right">زمن التأخير المسموح (دقيقة)</label>
+              <label className="block text-sm font-medium mb-2 text-right">زمن التأخير المسموح (دقيقة)</label>
               <input
                 type="number"
                 value={attendance.allowed_delay_minutes || 5}
                 onChange={(e) => setAttendance({ ...attendance, allowed_delay_minutes: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">عدد التأخيرات قبل الإنذار</label>
+              <label className="block text-sm font-medium mb-2 text-right">عدد التأخيرات قبل الإنذار</label>
               <input
                 type="number"
                 value={attendance.delay_before_warning || 2}
                 onChange={(e) => setAttendance({ ...attendance, delay_before_warning: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">عدد التأخيرات قبل الخصم</label>
+              <label className="block text-sm font-medium mb-2 text-right">عدد التأخيرات قبل الخصم</label>
               <input
                 type="number"
                 value={attendance.delay_before_deduction || 5}
                 onChange={(e) => setAttendance({ ...attendance, delay_before_deduction: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">نسبة الخصم لكل تأخير (%)</label>
+              <label className="block text-sm font-medium mb-2 text-right">نسبة الخصم لكل تأخير (%)</label>
               <input
                 type="number"
                 step="0.1"
                 value={attendance.late_deduction_percent}
                 onChange={(e) => setAttendance({ ...attendance, late_deduction_percent: parseFloat(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
           </div>
         </div>
 
-        <div className="bg-red-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">قواعد الغياب</h3>
-          <div>
-            <label className="block text-sm mb-1 text-right">احتساب الغياب بعد (دقيقة)</label>
-            <input
-              type="number"
-              value={attendance.absence_after_minutes || 60}
-              onChange={(e) => setAttendance({ ...attendance, absence_after_minutes: parseInt(e.target.value) })}
-              className="w-full border rounded px-3 py-2 text-right"
-            />
+        <div className="bg-red-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-red-800 flex items-center gap-2">
+            <span>❌</span> قواعد الغياب والخصم
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">احتساب الغياب بعد (دقيقة)</label>
+              <input
+                type="number"
+                value={attendance.absence_after_minutes || 60}
+                onChange={(e) => setAttendance({ ...attendance, absence_after_minutes: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">خصم يوم عن كل غياب</label>
+              <input
+                type="number"
+                value={attendance.absence_deduction_days || 1}
+                onChange={(e) => setAttendance({ ...attendance, absence_deduction_days: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">فصل بعد غياب (يوم)</label>
+              <input
+                type="number"
+                value={attendance.termination_after_days || 30}
+                onChange={(e) => setAttendance({ ...attendance, termination_after_days: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+              <p className="text-xs text-gray-500 mt-1 text-right">سيتم تنبيه الإدارة عند الوصول لهذا الحد</p>
+            </div>
           </div>
-          <p className="text-xs text-red-600 mt-2 text-right">يتم احتساب الموظف غائب بعد هذا التأخير</p>
+        </div>
+
+        <div className="bg-purple-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-purple-800 flex items-center gap-2">
+            <span>📊</span> ملخص الإعدادات
+          </h3>
+          <div className="space-y-3">
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold text-purple-800">{attendance.allowed_delay_minutes} دقيقة</span>
+              <span className="text-gray-600">التأخير المسموح</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold text-purple-800">{attendance.delay_before_warning} تأخير</span>
+              <span className="text-gray-600">قبل الإنذار</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold text-purple-800">{attendance.delay_before_deduction} تأخير</span>
+              <span className="text-gray-600">قبل الخصم</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold text-purple-800">{attendance.late_deduction_percent}%</span>
+              <span className="text-gray-600">نسبة الخصم</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <button onClick={saveAttendance} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 mb-6">
-        حفظ الإعدادات
+      <button onClick={saveAttendance} className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium mb-6">
+        حفظ إعدادات الحضور
       </button>
 
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h3 className="font-bold mb-4 text-right">📋 سجل الإنذارات ({warnings.length})</h3>
+      <div className="bg-gray-50 p-5 rounded-lg">
+        <h3 className="font-bold mb-4 text-right flex items-center gap-2">
+          <span>📋</span> سجل الإنذارات ({warnings.length})
+        </h3>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-white">
-              <th className="border p-2 text-right">#</th>
-              <th className="border p-2 text-right">الموظف</th>
-              <th className="border p-2 text-right">الإنذار</th>
-              <th className="border p-2 text-right">التاريخ</th>
+              <th className="border p-3 text-right">#</th>
+              <th className="border p-3 text-right">الموظف</th>
+              <th className="border p-3 text-right">الإنذار</th>
+              <th className="border p-3 text-right">التاريخ</th>
             </tr>
           </thead>
           <tbody>
             {warnings.slice(0, 10).map((w, i) => (
               <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-2">{i + 1}</td>
-                <td className="border p-2">{w.employee?.name || w.employee_id}</td>
-                <td className="border p-2">{w.note}</td>
-                <td className="border p-2">{w.created_at?.split("T")[0]}</td>
+                <td className="border p-3">{i + 1}</td>
+                <td className="border p-3 font-medium">{w.employee?.name || w.employee_id}</td>
+                <td className="border p-3">{w.note}</td>
+                <td className="border p-3">{w.created_at?.split("T")[0]}</td>
               </tr>
             ))}
             {warnings.length === 0 && (
@@ -753,61 +936,99 @@ function LeavesTab({
 }) {
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6 text-right">🏖️ إعدادات الإجازات</h2>
+      <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
+        <span className="text-2xl">🏖️</span> إعدادات الإجازات
+      </h2>
 
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">أيام الإجازات</h3>
-          <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="bg-purple-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-purple-800">أيام الإجازات الأساسية</h3>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm mb-1 text-right">الإجازة السنوية</label>
+              <label className="block text-sm font-medium mb-2 text-right">الإجازة السنوية</label>
               <input
                 type="number"
                 value={leaveSettings.annual_days}
                 onChange={(e) => setLeaveSettings({ ...leaveSettings, annual_days: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">الإجازة المرضية</label>
+              <label className="block text-sm font-medium mb-2 text-right">الإجازة المرضية</label>
               <input
                 type="number"
                 value={leaveSettings.sick_days}
                 onChange={(e) => setLeaveSettings({ ...leaveSettings, sick_days: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">إجازة الأمومة</label>
+              <label className="block text-sm font-medium mb-2 text-right">إجازة الأمومة</label>
               <input
                 type="number"
                 value={leaveSettings.maternity_days}
                 onChange={(e) => setLeaveSettings({ ...leaveSettings, maternity_days: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">إشعار قبل الإجازة (أيام)</label>
+              <label className="block text-sm font-medium mb-2 text-right">إجازة الحج</label>
+              <input
+                type="number"
+                value={leaveSettings.hajj_days || 14}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, hajj_days: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-indigo-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-indigo-800">قواعد ومتطلبات الإجازات</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">إشعار قبل الإجازة (أيام)</label>
               <input
                 type="number"
                 value={leaveSettings.notice_days}
                 onChange={(e) => setLeaveSettings({ ...leaveSettings, notice_days: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">إجازة الطوارئ</label>
+              <input
+                type="number"
+                value={leaveSettings.emergency_days || 3}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, emergency_days: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">الحد الأقصى للإجازة بدون راتب</label>
+              <input
+                type="number"
+                value={leaveSettings.unpaid_leave_max_days || 30}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, unpaid_leave_max_days: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+              <span className="text-sm">السماح بالإجازة بدون راتب</span>
+              <input
+                type="checkbox"
+                checked={leaveSettings.leave_without_salary}
+                onChange={(e) => setLeaveSettings({ ...leaveSettings, leave_without_salary: e.target.checked })}
+                className="w-5 h-5"
               />
             </div>
           </div>
-          <button
-            onClick={saveLeaveSettings}
-            className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 mt-4"
-          >
-            حفظ الإعدادات
-          </button>
         </div>
 
-        <div className="bg-indigo-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">الإجازات بالدرجة الوظيفية</h3>
+        <div className="bg-cyan-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-cyan-800">الإجازات بالدرجة الوظيفية</h3>
           <div className="flex gap-2 mb-3">
-            <button onClick={addGradeLeave} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">+</button>
+            <button onClick={addGradeLeave} className="bg-cyan-600 text-white px-4 py-2 rounded-lg">+</button>
             <input
               type="number"
               placeholder="أيام"
@@ -816,7 +1037,7 @@ function LeavesTab({
               className="w-20 border rounded px-3 py-2 text-right"
             />
             <input
-              placeholder="الدرجة (مثل: junior)"
+              placeholder="الدرجة"
               value={gradeKey}
               onChange={(e) => setGradeKey(e.target.value)}
               className="flex-1 border rounded px-3 py-2 text-right"
@@ -826,43 +1047,51 @@ function LeavesTab({
             {Object.entries(leaveSettings.by_grade || {}).map(([key, days]) => (
               <div key={key} className="flex justify-between items-center bg-white p-2 rounded">
                 <button onClick={() => removeGradeLeave(key)} className="text-red-600 font-bold">×</button>
-                <span className="font-medium">
-                  {key}: {days} يوم
-                </span>
+                <span className="font-medium">{key}: {days} يوم</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <h3 className="font-bold mb-4 text-right">📋 طلبات الإجازات ({leaveRequests.length})</h3>
+      <button onClick={saveLeaveSettings} className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 font-medium mb-6">
+        حفظ إعدادات الإجازات
+      </button>
+
+      <h3 className="font-bold mb-4 text-right flex items-center gap-2">
+        <span>📋</span> طلبات الإجازات ({leaveRequests.length})
+      </h3>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border p-2 text-right">#</th>
-            <th className="border p-2 text-right">الموظف</th>
-            <th className="border p-2 text-right">النوع</th>
-            <th className="border p-2 text-right">من</th>
-            <th className="border p-2 text-right">إلى</th>
-            <th className="border p-2 text-right">الحالة</th>
-            <th className="border p-2 text-center">إجراء</th>
+            <th className="border p-3 text-right">#</th>
+            <th className="border p-3 text-right">الموظف</th>
+            <th className="border p-3 text-right">النوع</th>
+            <th className="border p-3 text-right">من</th>
+            <th className="border p-3 text-right">إلى</th>
+            <th className="border p-3 text-right">الأيام</th>
+            <th className="border p-3 text-right">الحالة</th>
+            <th className="border p-3 text-center">إجراء</th>
           </tr>
         </thead>
         <tbody>
           {leaveRequests.length === 0 ? (
             <tr>
-              <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+              <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
             </tr>
           ) : (
             leaveRequests.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-2">{i + 1}</td>
-                <td className="border p-2 font-medium">{r.employee?.name || r.employee_id}</td>
-                <td className="border p-2">{r.type}</td>
-                <td className="border p-2">{r.from_date}</td>
-                <td className="border p-2">{r.to_date}</td>
-                <td className="border p-2">{getStatusBadge(r.status)}</td>
-                <td className="border p-2 text-center">
+                <td className="border p-3">{i + 1}</td>
+                <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                <td className="border p-3">
+                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">{r.type}</span>
+                </td>
+                <td className="border p-3">{r.from_date}</td>
+                <td className="border p-3">{r.to_date}</td>
+                <td className="border p-3">{r.days || 1}</td>
+                <td className="border p-3">{getStatusBadge(r.status)}</td>
+                <td className="border p-3 text-center">
                   {r.status === "pending" && (
                     <div className="flex gap-2 justify-center">
                       <button
@@ -899,13 +1128,15 @@ function AdvancesTab({
 }) {
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6 text-right">💰 إعدادات السلفيات</h2>
+      <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
+        <span className="text-2xl">💰</span> إعدادات السلفيات
+      </h2>
 
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-yellow-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">الإعدادات</h3>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded">
+      <div className="grid grid-cols-3 gap-6 mb-6">
+        <div className="bg-yellow-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-yellow-800">الإعدادات الأساسية</h3>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg">
               <span className="font-medium">تفعيل نظام السلفيات</span>
               <input
                 type="checkbox"
@@ -915,49 +1146,81 @@ function AdvancesTab({
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">الحد الأقصى (%)</label>
+              <label className="block text-sm font-medium mb-2 text-right">الحد الأدنى للسلفة (SDG)</label>
+              <input
+                type="number"
+                value={advanceSettings.min_amount || 1000}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, min_amount: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">الحد الأقصى للسلفة (SDG)</label>
+              <input
+                type="number"
+                value={advanceSettings.max_amount || 50000}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, max_amount: parseInt(e.target.value) })}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">الحد الأقصى (%)</label>
               <input
                 type="number"
                 value={advanceSettings.max_percent}
                 onChange={(e) => setAdvanceSettings({ ...advanceSettings, max_percent: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
+              <p className="text-xs text-gray-500 mt-1 text-right">من المرتب الأساسي</p>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-amber-800">قواعد السداد</h3>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm mb-1 text-right">فترة السداد (أشهر)</label>
+              <label className="block text-sm font-medium mb-2 text-right">فترة السداد (أشهر)</label>
               <input
                 type="number"
                 value={advanceSettings.repayment_months}
                 onChange={(e) => setAdvanceSettings({ ...advanceSettings, repayment_months: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-right">حد الأهلية (أشهر خدمة)</label>
+              <label className="block text-sm font-medium mb-2 text-right">حد الأهلية (أشهر خدمة)</label>
               <input
                 type="number"
                 value={advanceSettings.min_service_months}
                 onChange={(e) => setAdvanceSettings({ ...advanceSettings, min_service_months: parseInt(e.target.value) })}
-                className="w-full border rounded px-3 py-2 text-right"
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+              <span className="text-sm">السماح بسلفيات متعددة</span>
+              <input
+                type="checkbox"
+                checked={advanceSettings.allow_multiple}
+                onChange={(e) => setAdvanceSettings({ ...advanceSettings, allow_multiple: e.target.checked })}
+                className="w-5 h-5"
               />
             </div>
           </div>
-          <button
-            onClick={saveAdvanceSettings}
-            className="w-full bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 mt-4"
-          >
-            حفظ الإعدادات
-          </button>
         </div>
 
-        <div className="bg-amber-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">ملخص الإعدادات</h3>
-          <div className="space-y-2">
+        <div className="bg-orange-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-orange-800">ملخص الإعدادات</h3>
+          <div className="space-y-3">
             <div className="flex justify-between p-3 bg-white rounded">
               <span className={`font-bold ${advanceSettings.enabled ? "text-green-600" : "text-red-600"}`}>
                 {advanceSettings.enabled ? "مفعل" : "معطل"}
               </span>
               <span>الحالة:</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold">{advanceSettings.min_amount?.toLocaleString()} - {advanceSettings.max_amount?.toLocaleString()}</span>
+              <span>المبلغ (SDG):</span>
             </div>
             <div className="flex justify-between p-3 bg-white rounded">
               <span className="font-bold">{advanceSettings.max_percent}%</span>
@@ -975,32 +1238,43 @@ function AdvancesTab({
         </div>
       </div>
 
-      <h3 className="font-bold mb-4 text-right">📋 طلبات السلفيات ({advanceRequests.length})</h3>
+      <button
+        onClick={saveAdvanceSettings}
+        className="w-full bg-yellow-600 text-white px-8 py-3 rounded-lg hover:bg-yellow-700 font-medium mb-6"
+      >
+        حفظ إعدادات السلفيات
+      </button>
+
+      <h3 className="font-bold mb-4 text-right flex items-center gap-2">
+        <span>📋</span> طلبات السلفيات ({advanceRequests.length})
+      </h3>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border p-2 text-right">#</th>
-            <th className="border p-2 text-right">الموظف</th>
-            <th className="border p-2 text-right">المبلغ</th>
-            <th className="border p-2 text-right">التاريخ</th>
-            <th className="border p-2 text-right">الحالة</th>
-            <th className="border p-2 text-center">إجراء</th>
+            <th className="border p-3 text-right">#</th>
+            <th className="border p-3 text-right">الموظف</th>
+            <th className="border p-3 text-right">المبلغ</th>
+            <th className="border p-3 text-right">القسط</th>
+            <th className="border p-3 text-right">التاريخ</th>
+            <th className="border p-3 text-right">الحالة</th>
+            <th className="border p-3 text-center">إجراء</th>
           </tr>
         </thead>
         <tbody>
           {advanceRequests.length === 0 ? (
             <tr>
-              <td colSpan="6" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+              <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
             </tr>
           ) : (
             advanceRequests.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-2">{i + 1}</td>
-                <td className="border p-2 font-medium">{r.employee?.name || r.employee_id}</td>
-                <td className="border p-2">{parseFloat(r.amount).toLocaleString()} ج.س</td>
-                <td className="border p-2">{r.created_at?.split("T")[0]}</td>
-                <td className="border p-2">{getStatusBadge(r.status)}</td>
-                <td className="border p-2 text-center">
+                <td className="border p-3">{i + 1}</td>
+                <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                <td className="border p-3">{parseFloat(r.amount).toLocaleString()} ج.س</td>
+                <td className="border p-3">{r.installments || 1} شهر</td>
+                <td className="border p-3">{r.created_at?.split("T")[0]}</td>
+                <td className="border p-3">{getStatusBadge(r.status)}</td>
+                <td className="border p-3 text-center">
                   {r.status === "pending" && (
                     <div className="flex gap-2 justify-center">
                       <button
@@ -1030,11 +1304,37 @@ function AdvancesTab({
 function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
   const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
 
+  const DAYS = [
+    { value: 0, label: "الأحد" },
+    { value: 1, label: "الاثنين" },
+    { value: 2, label: "الثلاثاء" },
+    { value: 3, label: "الأربعاء" },
+    { value: 4, label: "الخميس" },
+    { value: 5, label: "الجمعة" },
+    { value: 6, label: "السبت" },
+  ];
+
+  const toggleDay = (day, type) => {
+    const key = type === 'work' ? 'week_days' : 'weekend_days';
+    const otherKey = type === 'work' ? 'weekend_days' : 'week_days';
+    const current = shiftForm[key] || [];
+    if (current.includes(day)) return;
+    
+    const other = shiftForm[otherKey] || [];
+    const newOther = other.filter(d => d !== day);
+    
+    setShiftForm({
+      ...shiftForm,
+      [key]: [...current, day].sort(),
+      [otherKey]: newOther,
+    });
+  };
+
   const getShiftEmployees = (shiftId) => {
     const result = [];
     Object.entries(shiftAssignments).forEach(([assignId, data]) => {
-      if (data.shift_id == shiftId) {
-        const emp = employees.find(e => e.id == data.employee_id);
+      if (data.shift_id === shiftId) {
+        const emp = employees.find(e => e.id === data.employee_id);
         if (emp) {
           result.push({ ...emp, assignmentId: parseInt(assignId) });
         }
@@ -1045,7 +1345,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
 
   const getUnassignedEmployees = (shiftId) => {
     const assignedEmployeeIds = Object.values(shiftAssignments)
-      .filter(data => data.shift_id == shiftId)
+      .filter(data => data.shift_id === shiftId)
       .map(data => data.employee_id);
     return employees.filter(emp => !assignedEmployeeIds.includes(emp.id));
   };
@@ -1086,6 +1386,68 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
                   onChange={(e) => setShiftForm({ ...shiftForm, end_time: e.target.value })}
                   className="w-full border rounded px-3 py-2 text-right"
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <div>
+                <label className="block text-sm mb-1 text-right">ساعات العمل</label>
+                <input
+                  type="number"
+                  value={shiftForm.working_hours}
+                  onChange={(e) => setShiftForm({ ...shiftForm, working_hours: parseInt(e.target.value) })}
+                  className="w-full border rounded px-3 py-2 text-right"
+                  min="1"
+                  max="24"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-right">اللون</label>
+                <input
+                  type="color"
+                  value={shiftForm.color}
+                  onChange={(e) => setShiftForm({ ...shiftForm, color: e.target.value })}
+                  className="w-full border rounded px-3 py-2 h-10 cursor-pointer"
+                />
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <label className="block text-sm mb-2 text-right">أيام العمل</label>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map((day) => (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => toggleDay(day.value, 'work')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${
+                      (shiftForm.week_days || []).includes(day.value)
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="mt-3">
+              <label className="block text-sm mb-2 text-right">أيام الراحة</label>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map((day) => (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => toggleDay(day.value, 'off')}
+                    className={`px-3 py-1 rounded-full text-sm transition ${
+                      (shiftForm.weekend_days || []).includes(day.value)
+                        ? "bg-red-600 text-white"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1238,6 +1600,28 @@ function FinancialsTab({
                   setSalaryIncrease({ ...salaryIncrease, default_percent: parseFloat(e.target.value) })
                 }
                 className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">الحد الأدنى لفترة الخدمة (أشهر)</label>
+              <input
+                type="number"
+                value={salaryIncrease.min_service_months}
+                onChange={(e) =>
+                  setSalaryIncrease({ ...salaryIncrease, min_service_months: parseInt(e.target.value) })
+                }
+                className="w-full border rounded px-3 py-2 text-right"
+              />
+            </div>
+            <div className="p-3 bg-white rounded-lg flex items-center justify-between">
+              <span className="font-medium">تطبيق الزيادة تلقائياً</span>
+              <input
+                type="checkbox"
+                checked={salaryIncrease.apply_automatically}
+                onChange={(e) =>
+                  setSalaryIncrease({ ...salaryIncrease, apply_automatically: e.target.checked })
+                }
+                className="w-5 h-5"
               />
             </div>
             <div className="border-t pt-3 mt-3">
@@ -1447,7 +1831,73 @@ function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp }) {
           </div>
         </div>
 
-        <div className="bg-emerald-50 p-4 rounded-lg">
+        <div className="bg-emerald-100 p-4 rounded-lg">
+          <h3 className="font-bold mb-4">قوالب الرسائل</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة الإنذار</label>
+              <textarea
+                value={whatsapp.message_template_warning}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_warning: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، تم إصدار إنذار رقم {warning_no} بسبب {reason}"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة الإجازة</label>
+              <textarea
+                value={whatsapp.message_template_leave}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_leave: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، تم {action} طلب الإجازة المقدم من {from} إلى {to}"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة السلفة</label>
+              <textarea
+                value={whatsapp.message_template_advance}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_advance: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، تم {action} طلب السلفة بمبلغ {amount}"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة التأخير</label>
+              <textarea
+                value={whatsapp.message_template_late}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_late: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، تم تسجيل تأخير اليوم"
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة التعيين</label>
+              <textarea
+                value={whatsapp.message_template_appointment}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_appointment: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، يسعدنا إخباركم بانضمامكم إلينا في {company} بتاريخ {date}..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-right">قالب رسالة انتهاء الإجازة</label>
+              <textarea
+                value={whatsapp.message_template_leave_end}
+                onChange={(e) => setWhatsapp({ ...whatsapp, message_template_leave_end: e.target.value })}
+                className="w-full border rounded px-3 py-2 text-right text-sm"
+                rows={2}
+                placeholder="عزيزي {name}، نذكّركم بأن إجازتكم ستنتهي غداً..."
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-lime-50 p-4 rounded-lg">
           <h3 className="font-bold mb-4">إرسال الإشعارات عند:</h3>
           <div className="space-y-2">
             {[
@@ -1455,6 +1905,8 @@ function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp }) {
               { key: "notify_on_leave", label: "موافقة/رفض إجازة" },
               { key: "notify_on_advance", label: "موافقة/رفض سلفة" },
               { key: "notify_on_late", label: "التأخير في الحضور" },
+              { key: "notify_on_appointment", label: "تعيين موظف جديد" },
+              { key: "notify_on_leave_end", label: "انتهاء الإجازة (قبل يوم)" },
             ].map((item) => (
               <label key={item.key} className="flex items-center gap-3 p-3 bg-white rounded cursor-pointer">
                 <input

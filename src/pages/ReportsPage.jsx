@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { toast } from "react-toastify";
@@ -92,6 +92,7 @@ function ReportsPage() {
 
   useEffect(() => {
     switch (activeTab) {
+      // eslint-disable-next-line default-case
       case "salary": loadSalaryReport(); break;
       case "incomeTax": loadTaxReport(); break;
       case "salaryIncrease": loadIncreaseReport(); break;

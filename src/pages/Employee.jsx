@@ -5,17 +5,35 @@ import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+const WARNING_REASONS = [
+  { value: "neglect", label: "إهمال العهد" },
+  { value: "carelessness", label: "التقصير في العمل" },
+  { value: "leaving_work", label: "ترك موقع العمل" },
+  { value: "late_attendance", label: "التأخر المتكرر في الحضور" },
+  { value: "early_departure", label: "المغادرة قبل الأوان" },
+  { value: "absent", label: "الغياب دون إذن" },
+  { value: "misconduct", label: "سوء السلوك" },
+  { value: "violation", label: "مخالفة تعليمات العمل" },
+  { value: "other", label: "أخرى" },
+];
+
 export default function Employee() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [employee, setEmployee] = useState(null);
-  const [organization, setOrganization] = useState({});
+  const [, setOrganization] = useState({});
+  const [, setLeaveSettings] = useState(null);
+  const [, setAdvanceSettings] = useState(null);
   const [showVacationModal, setShowVacationModal] = useState(false);
   const [showTerminationModal, setShowTerminationModal] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [selectedWarningReason, setSelectedWarningReason] = useState("");
+  const [customWarningReason, setCustomWarningReason] = useState("");
   const [cvBlobUrl, setCvBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [vacationData, setVacationData] = useState({
     type: "official",
     from_date: "",
@@ -48,6 +66,16 @@ export default function Employee() {
       .get(`/organization`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setOrganization(res.data.data || {}))
       .catch((err) => console.error(err));
+    
+    api
+      .get(`/settings/leaves`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setLeaveSettings(res.data.data || {}))
+      .catch(() => {});
+    
+    api
+      .get(`/settings/advances`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setAdvanceSettings(res.data.data || {}))
+      .catch(() => {});
   }, [id, token]);
 
   const getCardColor = (status) => {
@@ -100,17 +128,31 @@ export default function Employee() {
   };
 
   const giveWarning = () => {
+    if (!selectedWarningReason && !customWarningReason) {
+      toast.error("يرجى اختيار سبب الإنذار");
+      return;
+    }
+    
+    const reason = selectedWarningReason === "other" 
+      ? customWarningReason 
+      : WARNING_REASONS.find(r => r.value === selectedWarningReason)?.label || selectedWarningReason;
+    
+    setLoading(true);
     api
       .post(
         "/discipline/warnings",
-        { employee_id: employee.id, reason: "إنذار من الإدارة" },
+        { employee_id: employee.id, reason: reason },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       .then(() => {
         toast.success("⚠️ تم إعطاء إنذار للموظف");
         refreshEmployee();
+        setShowWarningModal(false);
+        setSelectedWarningReason("");
+        setCustomWarningReason("");
       })
-      .catch(() => toast.error("❌ فشل إعطاء الإنذار"));
+      .catch(() => toast.error("❌ فشل إعطاء الإنذار"))
+      .finally(() => setLoading(false));
   };
 
   const cancelWarning = (warningId) => {
@@ -131,12 +173,13 @@ export default function Employee() {
       return;
     }
 
+    setLoading(true);
     const formData = new FormData();
     formData.append("employee_id", employee.id);
     formData.append("type", vacationData.type);
     formData.append("from_date", vacationData.from_date);
     formData.append("to_date", vacationData.to_date);
-    formData.append("paid", vacationData.paid);
+    formData.append("paid", vacationData.paid ? "1" : "0");
     if (vacationData.medical_certificate) {
       formData.append("medical_certificate", vacationData.medical_certificate);
     }
@@ -145,22 +188,16 @@ export default function Employee() {
       .post("/leaves/requests", formData, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      .then((res) => {
-        // Approve automatically
-        api
-          .post(
-            `/leaves/requests/${res.data.data.id}/status`,
-            { status: "approved" },
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          .then(() => {
-            toast.success("✅ تم منح الإجازة بنجاح");
-            refreshEmployee();
-            setShowVacationModal(false);
-            setVacationData({ type: "official", from_date: "", to_date: "", paid: true, medical_certificate: null });
-          });
+      .then(() => {
+        toast.success("✅ تم تقديم طلب الإجازة بنجاح - في انتظار الموافقة");
+        refreshEmployee();
+        setShowVacationModal(false);
+        setVacationData({ type: "official", from_date: "", to_date: "", paid: true, medical_certificate: null });
       })
-      .catch(() => toast.error("❌ فشل منح الإجازة"));
+      .catch((err) => {
+        toast.error(err?.response?.data?.message || "❌ فشل تقديم طلب الإجازة");
+      })
+      .finally(() => setLoading(false));
   };
 
   const submitTermination = () => {
@@ -190,6 +227,7 @@ export default function Employee() {
       return;
     }
 
+    setLoading(true);
     api
       .post(
         "/advances/requests",
@@ -202,22 +240,16 @@ export default function Employee() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      .then((res) => {
-        // Auto approve
-        api
-          .post(
-            `/advances/requests/${res.data.data.id}/approve`,
-            {},
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          .then(() => {
-            toast.success("✅ تم تقديم السلفة بنجاح");
-            refreshEmployee();
-            setShowAdvanceModal(false);
-            setAdvanceData({ type: "short", amount: "", installments: 1, note: "" });
-          });
+      .then(() => {
+        toast.success("✅ تم تقديم طلب السلفة بنجاح - في انتظار الموافقة");
+        refreshEmployee();
+        setShowAdvanceModal(false);
+        setAdvanceData({ type: "short", amount: "", installments: 1, note: "" });
       })
-      .catch(() => toast.error("❌ فشل تقديم السلفة"));
+      .catch((err) => {
+        toast.error(err?.response?.data?.message || "❌ فشل تقديم طلب السلفة");
+      })
+      .finally(() => setLoading(false));
   };
 
   const restoreEmployee = () => {
@@ -369,14 +401,14 @@ export default function Employee() {
             {/* أزرار */}
             <div className="flex gap-4 mt-6 flex-wrap justify-center">
               <button
-                onClick={() => toast.info("📌 تم فتح صفحة تعديل الموظف")}
-                className="bg-yellow-500 text-white px-6 py-2 rounded-lg hover:bg-yellow-600 text-lg"
+                onClick={() => navigate(`/employees/${id}/edit`)}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
               >
-                ✏ تعديل
+                ✏ استيضاح
               </button>
 
               <button
-                onClick={giveWarning}
+                onClick={() => setShowWarningModal(true)}
                 className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 text-lg"
               >
                 ⚠ إنذار
@@ -392,8 +424,9 @@ export default function Employee() {
               <button
                 onClick={() => setShowVacationModal(true)}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
+                disabled={employee.status === "vacation"}
               >
-                🌴 إجازة
+                🌴 طلب الإجازة
               </button>
 
               <button
@@ -406,8 +439,9 @@ export default function Employee() {
               <button
                 onClick={() => setShowAdvanceModal(true)}
                 className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 text-lg"
+                disabled={employee.status === "vacation"}
               >
-                💰 سلفية
+                💰 طلب السلفية
               </button>
 
               {employee.status === "terminated" && (
@@ -436,11 +470,83 @@ export default function Employee() {
             )}
           </div>
 
+          {/* مودل الإنذار */}
+          {showWarningModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+              <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
+                <h2 className="text-xl font-bold mb-4">⚠️ إصدار إنذار</h2>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-right">سبب الإنذار:</label>
+                  <select
+                    value={selectedWarningReason}
+                    onChange={(e) => setSelectedWarningReason(e.target.value)}
+                    className="w-full border rounded p-2 mb-3 text-right"
+                  >
+                    <option value="">اختر سبب الإنذار</option>
+                    {WARNING_REASONS.map((reason) => (
+                      <option key={reason.value} value={reason.value}>
+                        {reason.label}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {selectedWarningReason === "other" && (
+                    <textarea
+                      value={customWarningReason}
+                      onChange={(e) => setCustomWarningReason(e.target.value)}
+                      placeholder="أدخل سبب الإنذار..."
+                      className="w-full border rounded p-2 h-24 text-right"
+                    />
+                  )}
+                </div>
+
+                <div className="bg-yellow-50 p-3 rounded-lg mb-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>تنبيه:</strong> سيتم تسجيل الإنذار في ملف الموظف ({employee.name})
+                  </p>
+                </div>
+
+                <div className="flex justify-between mt-6">
+                  <button
+                    onClick={() => {
+                      setShowWarningModal(false);
+                      setSelectedWarningReason("");
+                      setCustomWarningReason("");
+                    }}
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={giveWarning}
+                    disabled={loading}
+                    className={`bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 flex items-center gap-2 ${
+                      loading ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        جاري الإرسال...
+                      </>
+                    ) : (
+                      "إصدار الإنذار"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* مودل الإجازة */}
           {showVacationModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]">
-                <h2 className="text-xl font-bold mb-4">📝 منح إجازة</h2>
+              <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
+                <h2 className="text-xl font-bold mb-4">🌴 طلب إجازة</h2>
 
                 <label className="block mb-2">نوع الإجازة:</label>
                 <select
@@ -514,9 +620,22 @@ export default function Employee() {
                   </button>
                   <button
                     onClick={submitVacation}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    disabled={loading}
+                    className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2 ${
+                      loading ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   >
-                    منح الإجازة
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        جاري الإرسال...
+                      </>
+                    ) : (
+                      "تقديم الطلب"
+                    )}
                   </button>
                 </div>
               </div>
@@ -617,7 +736,7 @@ export default function Employee() {
           {/* مودل طلب سلفية */}
           {showAdvanceModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]">
+              <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
                 <h2 className="text-xl font-bold mb-4">💰 طلب سلفية</h2>
 
                 <label className="block mb-2">نوع السلفة:</label>
@@ -672,9 +791,22 @@ export default function Employee() {
                   </button>
                   <button
                     onClick={submitAdvance}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    disabled={loading}
+                    className={`bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 flex items-center gap-2 ${
+                      loading ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   >
-                    تقديم الطلب
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        جاري الإرسال...
+                      </>
+                    ) : (
+                      "تقديم الطلب"
+                    )}
                   </button>
                 </div>
               </div>

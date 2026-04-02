@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { registerUserOnDevice, syncDevice } from "../services/fingerprintApi";
+import { registerUserOnDevice } from "../services/fingerprintApi";
 import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -439,26 +439,73 @@ export default function AddEmployee() {
               />
             </div>
 
-            {/* الراتب الأساسي */}
-            <div>
-              <label className="block text-lg font-semibold text-gray-700">الراتب الأساسي</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  name="base_salary"
-                  value={formData.base_salary}
-                  onChange={handleChange}
-                  className="w-48 border rounded-lg px-3 py-2 text-lg"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSalaryModal(true)}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-                >
-                  + بدلات وحافز
-                </button>
+            {/* الراتب الأساسي والبدلات */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <label className="block text-lg font-semibold text-gray-700 mb-3">الراتب والبدلات</label>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">الراتب الأساسي</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="base_salary"
+                    value={formData.base_salary}
+                    onChange={handleChange}
+                    className="w-full border rounded-lg px-3 py-2 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">بدل الدرجة</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="position_allowance"
+                    value={formData.position_allowance}
+                    onChange={handleChange}
+                    className="w-full border rounded-lg px-3 py-2 text-lg"
+                  />
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowSalaryModal(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
+              >
+                + إضافة بدلات وحوافز
+              </button>
+              
+              {(formData.allowances.length > 0 || formData.incentives.length > 0) && (
+                <div className="mt-4 border-t pt-4">
+                  <h4 className="font-medium text-sm text-gray-700 mb-2">البدلات المضافة:</h4>
+                  <div className="space-y-1 text-sm">
+                    {formData.allowances.map((a, idx) => (
+                      <div key={`a-${idx}`} className="flex justify-between bg-white p-2 rounded">
+                        <span>{a.type === 'transport' ? 'بدل نقل' : a.type === 'food' ? 'بدل طعام' : a.type === 'housing' ? 'بدل سكن' : a.type === 'phone' ? 'بدل هاتف' : 'بدل أخرى'}</span>
+                        <span className="font-medium text-green-600">{parseFloat(a.value).toLocaleString()} ج.س</span>
+                      </div>
+                    ))}
+                    {formData.incentives.map((i, idx) => (
+                      <div key={`i-${idx}`} className="flex justify-between bg-white p-2 rounded">
+                        <span>{i.type === 'bonus' ? 'مكافأة' : i.type === 'allowance' ? 'بدل' : i.type === 'commission' ? 'عمولة' : i.type === 'performance' ? 'حافز أداء' : 'أخرى'}</span>
+                        <span className="font-medium text-blue-600">{parseFloat(i.value).toLocaleString()} ج.س</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-gray-700">الإجمالي مع البدلات والحوافز:</span>
+                      <span className="font-bold text-xl text-green-700">
+                        {(
+                          parseFloat(formData.base_salary || 0) +
+                          parseFloat(formData.position_allowance || 0) +
+                          formData.allowances.reduce((sum, a) => sum + parseFloat(a.value || 0), 0) +
+                          formData.incentives.reduce((sum, i) => sum + parseFloat(i.value || 0), 0)
+                        ).toLocaleString()} ج.س
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* العنوان */}
