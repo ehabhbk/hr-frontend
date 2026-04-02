@@ -85,6 +85,13 @@ function ReportsPage() {
   const [letterData, setLetterData] = useState(null);
   const [letterParams, setLetterParams] = useState({});
   const [expandedEmployee, setExpandedEmployee] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("sidebarCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     loadInitialData();
@@ -111,11 +118,14 @@ function ReportsPage() {
         api.get("/departments"),
         api.get("/reports/summary"),
       ]);
+      
+      console.log("Employees response:", empRes.data);
       setEmployees(empRes.data?.data || []);
       setDepartments(deptRes.data?.data || []);
       setSummary(summaryRes.data);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load initial data:", err);
+      toast.error("فشل في تحميل البيانات");
     }
   }
 
@@ -123,8 +133,10 @@ function ReportsPage() {
     setLoading(true);
     try {
       const res = await api.get("/reports/summary");
+      console.log("Dashboard response:", res.data);
       setSummary(res.data);
     } catch (err) {
+      console.error("Dashboard error:", err);
       toast.error("فشل في جلب البيانات");
     } finally {
       setLoading(false);
@@ -138,8 +150,10 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       if (selectedEmployee) params.append('employee_id', selectedEmployee);
       const res = await api.get(`/reports/salary?${params}`);
+      console.log("Salary report response:", res.data);
       setSalaryReport(res.data?.data || []);
     } catch (err) {
+      console.error("Salary report error:", err);
       toast.error("فشل في جلب تقرير المرتبات");
     } finally {
       setLoading(false);
@@ -322,10 +336,10 @@ function ReportsPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-100" dir="rtl">
-      <div className="w-64 flex-shrink-0">
-        <Sidebar sticky />
+      <div className={`flex-shrink-0 transition-all duration-200 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
+        <Sidebar sticky onCollapseChange={setSidebarCollapsed} />
       </div>
-      <main className="flex-1 p-6 pl-8 overflow-auto">
+      <main className="flex-1 p-6 overflow-auto">
         <div className="max-w-full mr-auto">
           {/* Header */}
           <div className={`${currentTab?.gradient} text-white p-6 rounded-2xl mb-6 shadow-xl`}>

@@ -14,7 +14,7 @@ import {
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
 
-export default function Sidebar({ sticky = false }) {
+export default function Sidebar({ sticky = false, onCollapseChange }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,6 +25,16 @@ export default function Sidebar({ sticky = false }) {
       return false;
     }
   });
+
+  const handleToggle = () => {
+    setIsCollapsed((prev) => {
+      const newState = !prev;
+      if (onCollapseChange) {
+        onCollapseChange(newState);
+      }
+      return newState;
+    });
+  };
 
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -130,7 +140,7 @@ export default function Sidebar({ sticky = false }) {
       <div className="p-4 border-t border-indigo-700">
         <button
           type="button"
-          onClick={() => setIsCollapsed((s) => !s)}
+          onClick={handleToggle}
           className={[
             "w-full rounded px-3 py-2 hover:bg-indigo-700 transition",
             "flex items-center",
