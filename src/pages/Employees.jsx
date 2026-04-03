@@ -242,10 +242,10 @@ export default function Employees() {
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       {/* Sidebar ثابت */}
-      <Sidebar sticky />
+      <Sidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col main-content">
         {/* Navbar الأول ثابت */}
         <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
           <h1 className="text-xl font-semibold text-indigo-800">قائمة الموظفين</h1>

@@ -110,7 +110,7 @@ export default function Departments() {
       <Sidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col main-content">
         {/* Top Navbar */}
         <header className="bg-white shadow-md p-4 flex justify-between items-center relative">
           <h1 className="text-xl font-semibold text-indigo-800">لوحة التحكم</h1>

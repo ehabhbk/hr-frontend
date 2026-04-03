@@ -281,7 +281,7 @@ export default function ProfileSettingsSimple() {
     return (
       <div className="flex min-h-screen bg-gray-100" dir="rtl">
         <Sidebar />
-        <div className="flex-1 p-6">جارٍ التحميل...</div>
+        <div className="flex-1 p-6 main-content">جارٍ التحميل...</div>
       </div>
     );
   }
@@ -292,7 +292,7 @@ export default function ProfileSettingsSimple() {
       <Sidebar />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col main-content">
         {/* Top Navbar */}
         <header className="bg-white shadow-md p-4 flex justify-between items-center relative">
           <h1 className="text-xl font-semibold text-indigo-800">إعدادات المستخدم</h1>

@@ -437,10 +437,8 @@ function ReportsPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-100" dir="rtl">
-      <div className={`flex-shrink-0 transition-all duration-200 ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
-        <Sidebar sticky onCollapseChange={setSidebarCollapsed} />
-      </div>
-      <main className="flex-1 p-6 overflow-auto">
+      <Sidebar onCollapseChange={setSidebarCollapsed} />
+      <main className="flex-1 p-6 overflow-auto main-content">
         <div className="max-w-full mr-auto">
           {/* Header */}
           <div className={`${currentTab?.gradient} text-white p-6 rounded-2xl mb-6 shadow-xl`}>

@@ -26,6 +26,10 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
     }
   });
 
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '5rem' : '16rem');
+  }, []);
+
   const handleToggle = () => {
     setIsCollapsed((prev) => {
       const newState = !prev;
@@ -55,6 +59,7 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   useEffect(() => {
     try {
       localStorage.setItem("sidebarCollapsed", isCollapsed ? "1" : "0");
+      document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '5rem' : '16rem');
     } catch {
       // ignore
     }
@@ -79,9 +84,8 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   return (
     <aside
       className={[
-        "bg-indigo-800 text-white flex flex-col transition-all duration-200",
+        "bg-indigo-800 text-white flex flex-col transition-all duration-200 fixed top-0 right-0 h-screen z-50",
         isCollapsed ? "w-20" : "w-64",
-        sticky ? "sticky top-0 h-screen" : "",
       ].join(" ")}
     >
       <div className="p-6 border-b border-indigo-700 flex items-center justify-between">

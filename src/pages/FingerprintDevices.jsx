@@ -161,9 +161,9 @@ export default function FingerprintDevices() {
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
-      <Sidebar sticky />
+      <Sidebar />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col main-content">
         <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
           <h1 className="text-xl font-semibold text-indigo-800">أجهزة البصمة</h1>
           <div className="relative" ref={menuRef}>

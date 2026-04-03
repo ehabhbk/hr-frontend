@@ -184,9 +184,9 @@ function SettingsPage() {
       if (shiftAssignRes.data?.data) {
         const assignments = {};
         (shiftAssignRes.data.data).forEach(a => {
-          assignments[a.id] = {
-            employee_id: a.employee_id,
-            shift_id: a.work_shift_id
+          assignments[parseInt(a.id)] = {
+            employee_id: parseInt(a.employee_id),
+            shift_id: parseInt(a.work_shift_id)
           };
         });
         setShiftAssignments(assignments);
@@ -351,29 +351,36 @@ function SettingsPage() {
 
   async function assignEmployee(employeeId, shiftId) {
     try {
-      await api.post("/shift-assignments", {
+      const res = await api.post("/shift-assignments", {
         employee_id: employeeId,
         work_shift_id: shiftId,
       });
+      console.log("Assignment response:", res.data);
       toast.success("تم تعيين الموظف في الوردية");
-      setShiftAssignments({ ...shiftAssignments, [employeeId]: shiftId });
+      setShiftAssignments(prev => ({
+        ...prev,
+        [res.data.data.id]: {
+          employee_id: employeeId,
+          shift_id: shiftId
+        }
+      }));
     } catch (err) {
-      toast.error("فشل تعيين الموظف");
+      console.error("Assignment error:", err);
+      toast.error("فشل تعيين الموظف: " + (err.response?.data?.message || err.message));
     }
   }
 
   async function unassignEmployee(assignmentId) {
     try {
       await api.delete(`/shift-assignments/${assignmentId}`);
-      const newAssignments = { ...shiftAssignments };
-      Object.keys(newAssignments).forEach(key => {
-        if (newAssignments[key] === assignmentId) {
-          delete newAssignments[key];
-        }
+      setShiftAssignments(prev => {
+        const newAssignments = { ...prev };
+        delete newAssignments[assignmentId];
+        return newAssignments;
       });
-      setShiftAssignments(newAssignments);
       toast.success("تم إزالة الموظف من الوردية");
     } catch (err) {
+      console.error("Unassign error:", err);
       toast.error("فشل إزالة الموظف");
     }
   }
@@ -433,7 +440,7 @@ function SettingsPage() {
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       <Sidebar />
-      <main className="flex-1 p-6 pl-8">
+      <main className="flex-1 p-6 pl-8 main-content">
         <div>
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-lg mb-6">
             <h1 className="text-3xl font-bold">⚙️ لوحة الإعدادات</h1>
@@ -1336,10 +1343,11 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
   };
 
   const getShiftEmployees = (shiftId) => {
+    const shiftIdNum = parseInt(shiftId);
     const result = [];
     Object.entries(shiftAssignments).forEach(([assignId, data]) => {
-      if (data.shift_id === shiftId) {
-        const emp = employees.find(e => e.id === data.employee_id);
+      if (parseInt(data.shift_id) === shiftIdNum) {
+        const emp = employees.find(e => e.id === parseInt(data.employee_id));
         if (emp) {
           result.push({ ...emp, assignmentId: parseInt(assignId) });
         }
@@ -1349,10 +1357,11 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
   };
 
   const getUnassignedEmployees = (shiftId) => {
+    const shiftIdNum = parseInt(shiftId);
     const assignedEmployeeIds = Object.values(shiftAssignments)
-      .filter(data => data.shift_id === shiftId)
-      .map(data => data.employee_id);
-    return employees.filter(emp => !assignedEmployeeIds.includes(emp.id));
+      .filter(data => parseInt(data.shift_id) === shiftIdNum)
+      .map(data => parseInt(data.employee_id));
+    return employees.filter(emp => !assignedEmployeeIds.includes(parseInt(emp.id)));
   };
 
   return (
