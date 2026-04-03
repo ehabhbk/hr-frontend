@@ -4,6 +4,7 @@ import api from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
 
 const WARNING_REASONS = [
   { value: "neglect", label: "إهمال العهد" },
@@ -318,88 +319,288 @@ export default function Employee() {
                 <span className="text-red-600">مفصول</span>
               ) : employee.status === "warning" ? (
                 <span className="text-yellow-500">إنذار</span>
-              ) : employee.status === "vacation" ? (
-                <span className="text-blue-600">إجازة</span>
+              ) : employee.status === "vacation" || (employee.active_leave && employee.active_leave.status === "approved") ? (
+                <span className="text-blue-600">في إجازة</span>
               ) : (
                 <span className="text-green-600">نشط</span>
               )}
             </span>
+            
+            {employee.status === "vacation" || (employee.active_leave && employee.active_leave.status === "approved") ? (
+              <div className="flex flex-col gap-1 mt-1">
+                {employee.leave_count > 0 && (
+                  <span className="text-blue-600 font-semibold text-sm">
+                    مجموع أيام الإجازة: {employee.leave_count} يوم
+                  </span>
+                )}
+                {employee.active_leave && (
+                  <span className="text-blue-500 font-semibold text-sm">
+                    متبقي من الإجازة الحالية: {employee.active_leave.remaining_days || 0} يوم
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
+                {employee.warnings_count > 0 && (
+                  <span className="text-orange-600 font-semibold text-sm">
+                    عدد الإنذارات: {employee.warnings_count}
+                  </span>
+                )}
+                {employee.leave_count > 0 && (
+                  <span className="text-blue-600 font-semibold text-sm">
+                    مجموع أيام الإجازات: {employee.leave_count} يوم
+                  </span>
+                )}
+              </>
+            )}
+            
             {employee.termination_type && employee.status === "terminated" && (
               <span className="text-red-500 text-sm">
                 نوع الفصل: {employee.termination_type} - {employee.termination_reason}
-              </span>
-            )}
-            {employee.warnings_count > 0 && (
-              <span className="text-orange-600 font-semibold text-sm">
-                عدد الإنذارات: {employee.warnings_count}
-              </span>
-            )}
-            {employee.leave_count > 0 && (
-              <span className="text-blue-600 font-semibold text-sm">
-                عدد أيام الإجازات: {employee.leave_count}
               </span>
             )}
           </div>
         </div>
 
         <main className="flex-1 p-6">
-          <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-8 flex flex-col items-center text-center`}>
-            <img
-              src={employee.profile_photo_url || "/default-avatar.png"}
-              alt={employee.name}
-              className="w-40 h-40 rounded-full border-4 border-indigo-300 mb-6 cursor-pointer object-cover"
-              onClick={() => {
-                if (employee.profile_photo_url) window.open(employee.profile_photo_url, "_blank");
-              }}
-            />
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">{employee.name}</h2>
-            <p className="text-xl text-gray-700 mb-1">{employee.position}</p>
-            <p className="text-lg text-gray-600 mb-1">القسم: {employee.department?.name || "غير محدد"}</p>
-            <p className="text-lg text-green-700 font-semibold mb-1">💰 الراتب الأساسي: {employee.salary}</p>
-            {employee.total_salary && (
-              <p className="text-lg text-green-700 font-semibold mb-1">💰 الإجمالي مع البدلات والحوافز: {employee.total_salary}</p>
-            )}
-            <p className="text-lg text-gray-600 mb-1">📅 تاريخ التعيين: {employee.hire_date}</p>
-            <p className="text-lg text-gray-600 mb-1">📞 الهاتف: {employee.phone}</p>
-            <p className="text-lg text-gray-600 mb-1">🏠 العنوان: {employee.address}</p>
-
-            {employee.contract_file && (
-              <button onClick={() => window.open(employee.contract_file, "_blank")} className="text-blue-600 underline text-lg mb-4">
-                📄 عرض العقد
-              </button>
-            )}
-
-            {employee.active_leave && (
-              <div className="bg-blue-50 p-4 rounded-lg mt-2">
-                <p className="text-lg font-semibold text-blue-700">🌴 الإجازة الحالية:</p>
-                <p className="text-gray-700">النوع: {employee.active_leave.type === "sick" ? "مرضية" : "رسمية"}</p>
-                <p className="text-gray-700">من: {employee.active_leave.from_date} إلى: {employee.active_leave.to_date}</p>
-                <p className="text-gray-700">المدة: {employee.active_leave.days} أيام</p>
-                <p className="text-gray-700">الحالة: {employee.active_leave.paid ? "بمرتب" : "بدون مرتب"}</p>
-                {employee.active_leave.medical_certificate && (
-                  <a href={`/storage/${employee.active_leave.medical_certificate}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                    📎 عرض الملف الطبي
-                  </a>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* بطاقة معلومات الموظف الأساسية */}
+            <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-6`}>
+              <div className="flex items-center gap-4 mb-4">
+                <img
+                  src={employee.profile_photo_url || "/default-avatar.png"}
+                  alt={employee.name}
+                  className="w-24 h-24 rounded-full border-4 border-indigo-300 cursor-pointer object-cover"
+                  onClick={() => {
+                    if (employee.profile_photo_url) window.open(employee.profile_photo_url, "_blank");
+                  }}
+                />
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{employee.name}</h2>
+                  <p className="text-lg text-gray-700">{employee.position}</p>
+                  <p className="text-gray-600">القسم: {employee.department?.name || "غير محدد"}</p>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4 space-y-2">
+                {employee.file_number && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">رقم الملف:</span>
+                    <span className="font-semibold">{employee.file_number}</span>
+                  </div>
                 )}
+                {employee.device_user_id && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">رقم البصمة:</span>
+                    <span className="font-semibold">{employee.device_user_id}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">تاريخ التعيين:</span>
+                  <span className="font-semibold">{formatDateDisplay(employee.hire_date)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">الهاتف:</span>
+                  <span className="font-semibold">{employee.phone || "غير محدد"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">البريد:</span>
+                  <span className="font-semibold text-sm">{employee.email || "غير محدد"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">العنوان:</span>
+                  <span className="font-semibold">{employee.address || "غير محدد"}</span>
+                </div>
+                {employee.position_grade && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">الدرجة:</span>
+                    <span className="font-semibold">{employee.position_grade}</span>
+                  </div>
+                )}
+              </div>
+
+              {employee.active_leave && (
+                <div className="bg-blue-50 p-3 rounded-lg mt-4">
+                  <p className="font-semibold text-blue-700">🌴 إجازة نشطة</p>
+                  <p className="text-sm">من {formatDateDisplay(employee.active_leave.from_date)} إلى {formatDateDisplay(employee.active_leave.to_date)}</p>
+                </div>
+              )}
+
+              {(employee.cv || employee.cv_url) && (
+                <button 
+                  onClick={() => setShowCvModal(true)} 
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 mt-4 w-full justify-center"
+                >
+                  عرض السيرة الذاتية
+                </button>
+              )}
+            </div>
+
+            {/* بطاقة تفاصيل الراتب */}
+            <div className="bg-green-50 shadow-lg rounded-xl p-6">
+              <h3 className="text-xl font-bold text-green-800 mb-4">💰 تفاصيل الراتب</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-lg">
+                  <span className="text-gray-700">الراتب الأساسي:</span>
+                  <span className="font-semibold">{parseFloat(employee.base_salary || 0).toLocaleString()} ج.س</span>
+                </div>
+                {employee.position_allowance > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">بدل الدرجة:</span>
+                    <span className="text-green-600">{parseFloat(employee.position_allowance).toLocaleString()} ج.س</span>
+                  </div>
+                )}
+                
+                {employee.allowances && employee.allowances.length > 0 && (
+                  <div className="border-t pt-2 mt-2">
+                    <span className="font-semibold text-gray-700 block mb-1">البدلات:</span>
+                    {employee.allowances.map((a, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span className="text-gray-600 mr-4">
+                          {a.type?.includes('transport') ? 'بدل نقل' : 
+                           a.type?.includes('food') ? 'بدل طعام' : 
+                           a.type?.includes('housing') ? 'بدل سكن' : 
+                           a.type?.includes('phone') ? 'بدل هاتف' : 'بدل أخرى'}:
+                        </span>
+                        <span className="text-green-600">{parseFloat(a.value || 0).toLocaleString()} ج.س</span>
+                      </div>
+                    ))}
+                    {employee.allowances_total > 0 && (
+                      <div className="flex justify-between font-semibold mt-1">
+                        <span>إجمالي البدلات:</span>
+                        <span className="text-green-600">{parseFloat(employee.allowances_total).toLocaleString()} ج.س</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {employee.incentives && employee.incentives.length > 0 && (
+                  <div className="border-t pt-2 mt-2">
+                    <span className="font-semibold text-gray-700 block mb-1">الحوافز:</span>
+                    {employee.incentives.map((i, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span className="text-gray-600 mr-4">
+                          {i.type === 'bonus' ? 'مكافأة' : 
+                           i.type === 'allowance' ? 'بدل' : 
+                           i.type === 'commission' ? 'عمولة' : 
+                           i.type === 'performance' ? 'حافز أداء' : 'أخرى'}:
+                        </span>
+                        <span className="text-blue-600">{parseFloat(i.value || 0).toLocaleString()} ج.س</span>
+                      </div>
+                    ))}
+                    {employee.incentives_total > 0 && (
+                      <div className="flex justify-between font-semibold mt-1">
+                        <span>إجمالي الحوافز:</span>
+                        <span className="text-blue-600">{parseFloat(employee.incentives_total).toLocaleString()} ج.س</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {employee.insurance_amount > 0 && employee.insurance_type !== 'none' && (
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">خصم التأمين:</span>
+                      <span className="text-red-600">-{parseFloat(employee.insurance_amount).toLocaleString()} ج.س</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="border-t-2 border-green-600 pt-3 mt-3">
+                  <div className="flex justify-between text-xl font-bold">
+                    <span>صافي الراتب:</span>
+                    <span className="text-green-700">{parseFloat(employee.total_salary || 0).toLocaleString()} ج.س</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* بطاقة المعلومات البنكية */}
+            {(employee.bank_name || employee.bank_account) && (
+              <div className="bg-blue-50 shadow-lg rounded-xl p-6">
+                <h3 className="text-xl font-bold text-blue-800 mb-4">🏦 المعلومات البنكية</h3>
+                <div className="space-y-2">
+                  {employee.bank_name && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">اسم البنك:</span>
+                      <span className="font-semibold">
+                        {employee.bank_name === 'فهد' ? 'بنك الفهد الإسلامي' : 
+                         employee.bank_name === 'التعاون' ? 'بنك التعاون' : 
+                         employee.bank_name === 'الزراعي' ? 'البنك الزراعي' : 
+                         employee.bank_name === 'الشعب' ? 'بنك الشعب' : 
+                         employee.bank_name === 'الثقة' ? 'بنك الثقة' : 
+                         employee.bank_name}
+                      </span>
+                    </div>
+                  )}
+                  {employee.bank_account && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">رقم الحساب:</span>
+                      <span className="font-semibold font-mono">{employee.bank_account}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {(employee.cv || employee.cv_url) && (
-              <button 
-                onClick={() => setShowCvModal(true)} 
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 mt-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                عرض السيرة الذاتية
-              </button>
+            {/* بطاقة التأمين */}
+            {employee.insurance_type && employee.insurance_type !== 'none' && (
+              <div className="bg-yellow-50 shadow-lg rounded-xl p-6">
+                <h3 className="text-xl font-bold text-yellow-800 mb-4">🛡️ التأمين</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">نوع التأمين:</span>
+                    <span className="font-semibold">
+                      {employee.insurance_type === 'health' ? 'تأمين صحي' : 
+                       employee.insurance_type === 'social' ? 'تأمين اجتماعي' : 
+                       'تأمين صحي واجتماعي'}
+                    </span>
+                  </div>
+                  {employee.insurance_amount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">القيمة الشهرية:</span>
+                      <span className="font-semibold text-yellow-700">{parseFloat(employee.insurance_amount).toLocaleString()} ج.س</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
-            <p className="text-lg text-gray-600 mb-4">📝 ملاحظات: {employee.notes || "لا توجد"}</p>
+            {/* بطاقة العهد */}
+            {employee.assets && employee.assets.length > 0 && (
+              <div className="bg-purple-50 shadow-lg rounded-xl p-6">
+                <h3 className="text-xl font-bold text-purple-800 mb-4">📦 العهد</h3>
+                <div className="space-y-2">
+                  {employee.assets.map((asset) => (
+                    <div key={asset.id} className="bg-white p-3 rounded-lg flex justify-between items-center">
+                      <div>
+                        <span className="font-semibold">{asset.name}</span>
+                        <span className="text-sm text-gray-500 mr-2">
+                          ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
+                        </span>
+                        {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
+                      </div>
+                      <span className="text-purple-600 font-bold">{parseFloat(asset.value || 0).toLocaleString()} ج.س</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* أزرار */}
-            <div className="flex gap-4 mt-6 flex-wrap justify-center">
+            {/* بطاقة الملاحظات */}
+            {employee.notes && (
+              <div className="bg-gray-50 shadow-lg rounded-xl p-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">📝 ملاحظات</h3>
+                <p className="text-gray-700">{employee.notes}</p>
+              </div>
+            )}
+
+          </div>
+
+          {/* أزرار الإجراءات */}
+          <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-6 mt-6`}>
+            <div className="flex gap-4 mt-4 flex-wrap justify-center">
               <button
                 onClick={() => navigate(`/employees/${id}/edit`)}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
@@ -456,11 +657,11 @@ export default function Employee() {
 
             {/* Warnings List */}
             {employee.warnings && employee.warnings.length > 0 && (
-              <div className="mt-6 w-full">
+              <div className="mt-6">
                 <h3 className="text-lg font-bold mb-2">الإنذارات:</h3>
                 {employee.warnings.map((warning) => (
                   <div key={warning.id} className="bg-red-50 p-3 rounded-lg mb-2 flex justify-between items-center">
-                    <span>{warning.reason || "إنذار"} - {new Date(warning.created_at).toLocaleDateString("ar-EG")}</span>
+                    <span>{warning.reason || "إنذار"} - {formatDateArabic(warning.created_at)}</span>
                     <button onClick={() => cancelWarning(warning.id)} className="text-red-500 text-sm underline">
                       إلغاء
                     </button>
@@ -712,7 +913,7 @@ export default function Employee() {
                   <p>الوظيفة: {employee.position}</p>
                   <p>القسم: {employee.department?.name || "غير محدد"}</p>
                   <p>الراتب الأساسي: {employee.base_salary}</p>
-                  <p>تاريخ التعيين: {employee.hire_date}</p>
+                  <p>تاريخ التعيين: {formatDateDisplay(employee.hire_date)}</p>
                 </div>
 
                 <div className="flex justify-between mt-6">

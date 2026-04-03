@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { listAttendanceLogs, listDevices, syncDevice, syncAttendance } from "../services/fingerprintApi";
+import { formatDateArabic } from "../utils/dateUtils";
 
 export default function AttendanceLogs() {
   const navigate = useNavigate();
@@ -285,10 +286,7 @@ export default function AttendanceLogs() {
                           </td>
                           <td className="p-3">
                             {row.timestamp ? (
-                              <div>
-                                <div>{new Date(row.timestamp).toLocaleDateString("ar-EG")}</div>
-                                <div className="text-gray-500 text-xs">{new Date(row.timestamp).toLocaleTimeString("ar-EG")}</div>
-                              </div>
+                              <div className="text-sm">{formatDateArabic(row.timestamp)}</div>
                             ) : "-"}
                           </td>
                           <td className="p-3">

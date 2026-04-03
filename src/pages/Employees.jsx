@@ -7,6 +7,7 @@ import CountUp from "react-countup";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import { ToastContainer, toast } from "react-toastify";
+import { getBankOptions } from "../config/banks";
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
@@ -26,27 +27,134 @@ export default function Employees() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [editFormData, setEditFormData] = useState({
+    file_number: "",
     name: "",
     email: "",
     phone: "",
+    phone_country_code: "+249",
     position: "",
     position_grade: "",
     position_allowance: "",
     department_id: "",
     attendance_device_id: "",
-    device_user_id: "",
+    hire_date: "",
     base_salary: "",
     address: "",
     notes: "",
+    status: "active",
     profile_photo: null,
     cv: null,
     contract_file: null,
+    insurance_type: "none",
+    insurance_amount: 0,
+    bank_name: "",
+    bank_account: "",
     allowances: [],
     incentives: [],
+    assets: [],
   });
-  const [newAllowance, setNewAllowance] = useState({ type: "transport", value: 0 });
-  const [newIncentive, setNewIncentive] = useState({ type: "bonus", value: 0 });
+  const [newAllowance, setNewAllowance] = useState({ type: "transport", custom_name: "", value: 0 });
+  const [newIncentive, setNewIncentive] = useState({ type: "bonus", custom_name: "", value: 0 });
+  const [showCustomAllowanceModal, setShowCustomAllowanceModal] = useState(false);
+  const [showCustomIncentiveModal, setShowCustomIncentiveModal] = useState(false);
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [customAllowanceName, setCustomAllowanceName] = useState("");
+  const [customIncentiveName, setCustomIncentiveName] = useState("");
+  const [newAsset, setNewAsset] = useState({ name: "", description: "", type: "fixed", value: 0 });
+  const [customBanks, setCustomBanks] = useState([]);
   const [editLoading, setEditLoading] = useState(false);
+  const [newFingerprint, setNewFingerprint] = useState({ finger_id: "", finger_position: "right", finger: "thumb" });
+
+  const fingerOptions = [
+    { value: "thumb", label: "الإبهام" },
+    { value: "index", label: "السبابة" },
+    { value: "middle", label: "الوسطى" },
+    { value: "ring", label: "البنصر" },
+    { value: "pinky", label: "الخنصر" },
+  ];
+
+  const fingerPositions = [
+    { value: "right", label: "اليد اليمنى" },
+    { value: "left", label: "اليد اليسرى" },
+  ];
+
+  const fingerPositionToId = (position, finger) => {
+    const rightFingers = { thumb: 0, index: 1, middle: 2, ring: 3, pinky: 4 };
+    const leftFingers = { thumb: 5, index: 6, middle: 7, ring: 8, pinky: 9 };
+    if (position === "right") {
+      return rightFingers[finger] ?? 0;
+    } else {
+      return leftFingers[finger] ?? 5;
+    }
+  };
+
+  const addEditFingerprint = async () => {
+    if (!newFingerprint.finger_id) {
+      toast.error("يرجى إدخال رقم البصمة");
+      return;
+    }
+    if (!editFormData.attendance_device_id) {
+      toast.error("يرجى اختيار جهاز البصمة أولاً");
+      return;
+    }
+
+    const fingerId = fingerPositionToId(newFingerprint.finger_position, newFingerprint.finger);
+
+    try {
+      setEditLoading(true);
+      
+      // Register on device
+      const result = await registerUserOnDevice(editFormData.attendance_device_id, {
+        user_id: newFingerprint.finger_id,
+        name: editFormData.name || newFingerprint.finger_id,
+        enroll_fingerprint: true,
+        finger_id: fingerId,
+      });
+
+      if (result.success) {
+        // Save to database
+        await api.post(`/employees/${editingEmployee.id}/fingerprint`, {
+          finger_id: newFingerprint.finger_id,
+          finger_position: newFingerprint.finger_position,
+          finger: newFingerprint.finger,
+          attendance_device_id: editFormData.attendance_device_id,
+        }, { headers: { Authorization: `Bearer ${token}` } });
+
+        const newFp = { 
+          ...newFingerprint, 
+          device_finger_id: fingerId,
+          attendance_device_id: editFormData.attendance_device_id,
+        };
+        setEditFormData(prev => ({ ...prev, fingerprints: [...(prev.fingerprints || []), newFp] }));
+        setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
+        toast.success("✅ تم تسجيل البصمة على الجهاز وقاعدة البيانات");
+      } else {
+        toast.warning("⚠️ " + (result.message || "لم يتم تسجيل البصمة"));
+      }
+    } catch (error) {
+      console.error("Fingerprint registration error:", error);
+      toast.error("❌ فشل التواصل مع الجهاز أو قاعدة البيانات");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const removeEditFingerprint = async (index) => {
+    const fp = editFormData.fingerprints[index];
+    
+    if (fp && fp.id) {
+      try {
+        await api.delete(`/employees/${editingEmployee.id}/fingerprint/${fp.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error("Failed to delete fingerprint from database:", err);
+      }
+    }
+    
+    setEditFormData(prev => ({ ...prev, fingerprints: prev.fingerprints.filter((_, i) => i !== index) }));
+    toast.success("✅ تم حذف البصمة");
+  };
 
   useEffect(() => {
     loadData();
@@ -64,6 +172,10 @@ export default function Employees() {
     api.get("/attendance-device", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setDevices(res.data.data || []))
       .catch((err) => console.error(err));
+
+    api.get("/banks/custom", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setCustomBanks(res.data?.data || []))
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -86,27 +198,49 @@ export default function Employees() {
   };
 
   // Open edit modal
-  const openEditModal = (employee) => {
+  const openEditModal = async (employee) => {
     setEditingEmployee(employee);
     setEditFormData({
+      file_number: employee.file_number || "",
       name: employee.name || "",
       email: employee.email || "",
       phone: employee.phone || "",
+      phone_country_code: employee.phone_country_code || "+249",
       position: employee.position || "",
       position_grade: employee.position_grade || "",
       position_allowance: employee.position_allowance || "",
       department_id: employee.department_id || "",
       attendance_device_id: employee.attendance_device_id || "",
-      device_user_id: employee.device_user_id || "",
+      hire_date: employee.hire_date || "",
       base_salary: employee.base_salary || "",
       address: employee.address || "",
       notes: employee.notes || "",
+      status: employee.status || "active",
       profile_photo: null,
       cv: null,
       contract_file: null,
-      allowances: [],
-      incentives: [],
+      insurance_type: employee.insurance_type || "none",
+      insurance_amount: employee.insurance_amount || 0,
+      bank_name: employee.bank_name || "",
+      bank_account: employee.bank_account || "",
+      allowances: employee.allowances || [],
+      incentives: employee.incentives || [],
+      assets: employee.assets || [],
+      fingerprints: [],
     });
+
+    // Load fingerprints from database
+    try {
+      const fpRes = await api.get(`/employees/${employee.id}/fingerprints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const fingerprints = fpRes.data?.data || fpRes.data || [];
+      setEditFormData(prev => ({ ...prev, fingerprints }));
+    } catch (err) {
+      console.error("Failed to load fingerprints:", err);
+      setEditFormData(prev => ({ ...prev, fingerprints: employee.fingerprints || [] }));
+    }
+
     setShowEditModal(true);
   };
 
@@ -126,7 +260,39 @@ export default function Employees() {
   const addEditAllowance = () => {
     if (newAllowance.value > 0) {
       setEditFormData(prev => ({ ...prev, allowances: [...prev.allowances, { ...newAllowance }] }));
-      setNewAllowance({ type: "transport", value: 0 });
+      setNewAllowance({ type: "transport", custom_name: "", value: 0 });
+    }
+  };
+
+  // Add custom allowance
+  const addEditCustomAllowance = () => {
+    if (customAllowanceName.trim() && newAllowance.value > 0) {
+      setEditFormData(prev => ({ 
+        ...prev, 
+        allowances: [...prev.allowances, { type: "custom", custom_name: customAllowanceName.trim(), value: newAllowance.value }] 
+      }));
+      setNewAllowance({ type: "transport", custom_name: "", value: 0 });
+      setCustomAllowanceName("");
+      setShowCustomAllowanceModal(false);
+      toast.success("✅ تم إضافة البدل بنجاح");
+    } else {
+      toast.warning("⚠️ يرجى إدخال اسم البدل وقيمته");
+    }
+  };
+
+  // Add custom incentive
+  const addEditCustomIncentive = () => {
+    if (customIncentiveName.trim() && newIncentive.value > 0) {
+      setEditFormData(prev => ({ 
+        ...prev, 
+        incentives: [...prev.incentives, { type: "custom", custom_name: customIncentiveName.trim(), value: newIncentive.value }] 
+      }));
+      setNewIncentive({ type: "bonus", custom_name: "", value: 0 });
+      setCustomIncentiveName("");
+      setShowCustomIncentiveModal(false);
+      toast.success("✅ تم إضافة الحافز بنجاح");
+    } else {
+      toast.warning("⚠️ يرجى إدخال اسم الحافز وقيمته");
     }
   };
 
@@ -139,7 +305,7 @@ export default function Employees() {
   const addEditIncentive = () => {
     if (newIncentive.value > 0) {
       setEditFormData(prev => ({ ...prev, incentives: [...prev.incentives, { ...newIncentive }] }));
-      setNewIncentive({ type: "bonus", value: 0 });
+      setNewIncentive({ type: "bonus", custom_name: "", value: 0 });
     }
   };
 
@@ -148,22 +314,60 @@ export default function Employees() {
     setEditFormData(prev => ({ ...prev, incentives: prev.incentives.filter((_, i) => i !== index) }));
   };
 
+  // Add asset
+  const addEditAsset = () => {
+    if (newAsset.name && newAsset.value > 0) {
+      setEditFormData(prev => ({ ...prev, assets: [...prev.assets, { ...newAsset }] }));
+      setNewAsset({ name: "", description: "", type: "fixed", value: 0 });
+      toast.success("✅ تم إضافة العهدة");
+    } else {
+      toast.warning("⚠️ يرجى إدخال اسم العهدة وقيمتها");
+    }
+  };
+
+  // Remove asset
+  const removeEditAsset = (index) => {
+    setEditFormData(prev => ({ ...prev, assets: prev.assets.filter((_, i) => i !== index) }));
+  };
+
   // Submit edit form
   const submitEdit = async () => {
     setEditLoading(true);
     try {
       const data = new FormData();
-      Object.keys(editFormData).forEach(key => {
-        if (editFormData[key] !== null && editFormData[key] !== "") {
-          if (key === "allowances" || key === "incentives") {
-            data.append(key, JSON.stringify(editFormData[key]));
-          } else if (editFormData[key] instanceof File) {
-            data.append(key, editFormData[key]);
-          } else {
-            data.append(key, editFormData[key]);
-          }
+      const scalarFields = [
+        "file_number", "name", "email", "phone", "phone_country_code",
+        "position", "position_grade", "position_allowance", "department_id",
+        "attendance_device_id", "hire_date", "base_salary", "address", "notes", "status",
+        "insurance_type", "insurance_amount", "bank_name", "bank_account",
+      ];
+
+      scalarFields.forEach(key => {
+        const val = editFormData[key];
+        if (val !== "" && val !== null && typeof val !== "undefined") {
+          data.append(key, val);
         }
       });
+
+      if (editFormData.allowances.length > 0) {
+        data.append("allowances", JSON.stringify(editFormData.allowances));
+      }
+      if (editFormData.incentives.length > 0) {
+        data.append("incentives", JSON.stringify(editFormData.incentives));
+      }
+      if (editFormData.assets.length > 0) {
+        data.append("assets", JSON.stringify(editFormData.assets));
+      }
+
+      if (editFormData.profile_photo) {
+        data.append("profile_photo", editFormData.profile_photo);
+      }
+      if (editFormData.cv) {
+        data.append("cv", editFormData.cv);
+      }
+      if (editFormData.contract_file) {
+        data.append("contract_file", editFormData.contract_file);
+      }
 
       await api.post(`/employees/${editingEmployee.id}?_method=PUT`, data, {
         headers: { Authorization: `Bearer ${token}` },
@@ -180,33 +384,9 @@ export default function Employees() {
     }
   };
 
-  // Register fingerprint on device
+  // Register fingerprint on device (kept for future use)
   const registerFingerprint = async () => {
-    if (!editFormData.device_user_id) {
-      toast.error("يرجى إدخال رقم البصمة");
-      return;
-    }
-    if (!editFormData.attendance_device_id) {
-      toast.error("يرجى اختيار جهاز البصمة");
-      return;
-    }
-
-    try {
-      await registerUserOnDevice(editFormData.attendance_device_id, {
-        user_id: editFormData.device_user_id,
-        name: editFormData.name,
-        fingerprints: [{ finger_id: 1, template: "placeholder" }]
-      });
-      // Sync attendance logs after registration
-      try {
-        await syncDevice(editFormData.attendance_device_id);
-      } catch (syncErr) {
-        console.warn("Auto-sync failed:", syncErr);
-      }
-      toast.success("✅ تم تسجيل البصمة على الجهاز");
-    } catch (error) {
-      toast.error("⚠️ فشل التواصل مع الجهاز");
-    }
+    toast.info("⚠️ يتم تسجيل البصمة من صفحة الجهاز مباشرة");
   };
 
   // تحديد لون البطاقة حسب الحالة
@@ -390,169 +570,411 @@ export default function Employees() {
         {/* مودل تعديل الموظف */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 overflow-auto">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl p-6 m-4" dir="rtl">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl p-6 m-4 max-h-[90vh] overflow-y-auto" dir="rtl">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-indigo-800">تعديل بيانات الموظف</h3>
+                <h3 className="text-xl font-bold text-indigo-800">✏️ تعديل بيانات الموظف: {editingEmployee?.name}</h3>
                 <button onClick={() => setShowEditModal(false)} className="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto p-2">
-                {/* الاسم */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">الاسم</label>
-                  <input type="text" name="name" value={editFormData.name} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* البريد الإلكتروني */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">البريد الإلكتروني</label>
-                  <input type="email" name="email" value={editFormData.email} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* الهاتف */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">الهاتف</label>
-                  <input type="text" name="phone" value={editFormData.phone} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* الوظيفة */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">الوظيفة</label>
-                  <input type="text" name="position" value={editFormData.position} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* الدرجة الوظيفية */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">الدرجة الوظيفية</label>
-                  <input type="text" name="position_grade" value={editFormData.position_grade} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* بدل الدرجة */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">بدل الدرجة</label>
-                  <input type="number" name="position_allowance" value={editFormData.position_allowance} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* القسم */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">القسم</label>
-                  <select name="department_id" value={editFormData.department_id} onChange={handleEditChange} className="w-full border rounded p-2">
-                    <option value="">اختر القسم</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* الراتب الأساسي */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">الراتب الأساسي</label>
-                  <input type="number" name="base_salary" value={editFormData.base_salary} onChange={handleEditChange} className="w-full border rounded p-2" />
-                </div>
-
-                {/* جهاز البصمة */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">جهاز البصمة</label>
-                  <select name="attendance_device_id" value={editFormData.attendance_device_id} onChange={handleEditChange} className="w-full border rounded p-2">
-                    <option value="">اختر الجهاز</option>
-                    {devices.map(dev => (
-                      <option key={dev.id} value={dev.id}>{dev.name || `جهاز #${dev.id}`}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* رقم المستخدم على الجهاز */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">رقم البصمة على الجهاز</label>
-                  <div className="flex gap-2">
-                    <input type="text" name="device_user_id" value={editFormData.device_user_id} onChange={handleEditChange} className="w-full border rounded p-2" />
-                    <button onClick={registerFingerprint} className="bg-indigo-600 text-white px-3 py-2 rounded text-sm">تسجيل</button>
+              {/* القسم الأول: البيانات الأساسية */}
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-200 mb-4">
+                <h4 className="text-lg font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                  <span>📋</span> البيانات الأساسية
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">رقم الملف</label>
+                    <input type="text" name="file_number" value={editFormData.file_number} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الاسم <span className="text-red-500">*</span></label>
+                    <input type="text" name="name" value={editFormData.name} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">البريد الإلكتروني</label>
+                    <input type="email" name="email" value={editFormData.email} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">رقم الهاتف</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={editFormData.phone_country_code}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, phone_country_code: e.target.value }))}
+                        className="border border-gray-300 rounded-lg px-2 py-2 bg-gray-50"
+                      >
+                        <option value="+249">🇸🇩 +249</option>
+                        <option value="+20">🇪🇬 +20</option>
+                        <option value="+966">🇸🇦 +966</option>
+                        <option value="+971">🇦🇪 +971</option>
+                      </select>
+                      <input type="tel" name="phone" value={editFormData.phone} onChange={handleEditChange} placeholder="رقم الهاتف" className="flex-1 border border-gray-300 rounded-lg px-3 py-2" />
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold mb-1">العنوان</label>
+                    <input type="text" name="address" value={editFormData.address} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
                   </div>
                 </div>
+              </div>
 
-                {/* العنوان */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-1">العنوان</label>
-                  <input type="text" name="address" value={editFormData.address} onChange={handleEditChange} className="w-full border rounded p-2" />
+              {/* القسم الثاني: بيانات الوظيفة */}
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 p-4 rounded-xl border border-green-200 mb-4">
+                <h4 className="text-lg font-bold text-green-800 mb-3 flex items-center gap-2">
+                  <span>💼</span> بيانات الوظيفة
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">المسمى الوظيفي</label>
+                    <input type="text" name="position" value={editFormData.position} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الدرجة الوظيفية</label>
+                    <input type="text" name="position_grade" value={editFormData.position_grade} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">القسم</label>
+                    <select name="department_id" value={editFormData.department_id} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                      <option value="">اختر القسم</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">تاريخ التعيين</label>
+                    <input type="date" name="hire_date" value={editFormData.hire_date} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الحالة</label>
+                    <select name="status" value={editFormData.status} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                      <option value="active">نشط</option>
+                      <option value="vacation">في إجازة</option>
+                      <option value="warning">إنذار</option>
+                      <option value="terminated">منتهي</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">جهاز البصمة</label>
+                    <div className="flex gap-2">
+                      <select name="attendance_device_id" value={editFormData.attendance_device_id} onChange={handleEditChange} className="flex-1 border border-gray-300 rounded-lg px-3 py-2">
+                        <option value="">اختر جهازاً</option>
+                        {devices.map(dev => (
+                          <option key={dev.id} value={dev.id}>{dev.name || `جهاز #${dev.id}`}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowFingerprintModal(true)}
+                        className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        + بصمة
+                      </button>
+                    </div>
+                    {editFormData.fingerprints && editFormData.fingerprints.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {editFormData.fingerprints.map((fp, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-green-50 p-2 rounded text-sm">
+                            <span>🔐 {fp.finger_id || fp.finger} - {fp.finger_position === 'right' ? 'اليد اليمنى' : 'اليد اليسرى'} - {fp.finger}</span>
+                            <button type="button" onClick={() => removeEditFingerprint(idx)} className="text-red-500 hover:text-red-700">حذف</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* القسم الثالث: المرتب والبدلات */}
+              <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 mb-4">
+                <h4 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                  <span>💰</span> المرتب والبدلات والحوافز
+                </h4>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الراتب الأساسي</label>
+                    <input type="number" step="0.01" name="base_salary" value={editFormData.base_salary} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">بدل الدرجة</label>
+                    <input type="number" step="0.01" name="position_allowance" value={editFormData.position_allowance} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
                 </div>
 
                 {/* البدلات */}
-                <div className="md:col-span-2 border-t pt-4 mt-2">
-                  <label className="block text-sm font-semibold mb-2">البدلات</label>
+                <div className="border-t border-emerald-200 pt-4 mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h5 className="font-semibold text-emerald-700">البدلات</h5>
+                    <button onClick={() => setShowCustomAllowanceModal(true)} className="bg-indigo-600 text-white px-3 py-1 rounded text-sm">+ بدل مخصص</button>
+                  </div>
                   <div className="flex gap-2 mb-2">
                     <select value={newAllowance.type} onChange={(e) => setNewAllowance({ ...newAllowance, type: e.target.value })} className="border p-2 rounded flex-1">
-                      <option value="transport">بدل نقل</option>
-                      <option value="food">بدل طعام</option>
-                      <option value="housing">بدل سكن</option>
-                      <option value="phone">بدل هاتف</option>
-                      <option value="other">أخرى</option>
+                      <option value="transport">🚗 بدل نقل</option>
+                      <option value="food">🍽️ بدل طعام</option>
+                      <option value="housing">🏠 بدل سكن</option>
+                      <option value="phone">📱 بدل هاتف</option>
+                      <option value="education">📚 بدل تعليم</option>
+                      <option value="medical">🏥 بدل علاج</option>
+                      <option value="other">📋 بدل أخرى</option>
                     </select>
-                    <input type="number" value={newAllowance.value} onChange={(e) => setNewAllowance({ ...newAllowance, value: Number(e.target.value) })} placeholder="القيمة" className="border p-2 rounded w-24" />
-                    <button onClick={addEditAllowance} className="bg-blue-600 text-white px-3 py-2 rounded">إضافة</button>
+                    <input type="number" value={newAllowance.value} onChange={(e) => setNewAllowance({ ...newAllowance, value: Number(e.target.value) })} placeholder="القيمة" className="border p-2 rounded w-32" />
+                    <button onClick={addEditAllowance} className="bg-emerald-600 text-white px-3 py-2 rounded">إضافة</button>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-24 overflow-auto">
                     {editFormData.allowances.map((a, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded text-sm">
-                        <span>{a.type === 'transport' ? 'بدل نقل' : a.type === 'food' ? 'بدل طعام' : a.type === 'housing' ? 'بدل سكن' : a.type === 'phone' ? 'بدل هاتف' : 'أخرى'}: {a.value}</span>
-                        <button onClick={() => removeEditAllowance(idx)} className="text-red-500">حذف</button>
+                      <div key={idx} className="flex justify-between items-center bg-white p-2 rounded text-sm border">
+                        <span className="text-emerald-700">
+                          {a.type === 'custom' ? `📌 ${a.custom_name}` : 
+                           a.type === 'transport' ? '🚗 بدل نقل' : 
+                           a.type === 'food' ? '🍽️ بدل طعام' : 
+                           a.type === 'housing' ? '🏠 بدل سكن' : 
+                           a.type === 'phone' ? '📱 بدل هاتف' : '📋 بدل أخرى'}: 
+                          <span className="font-bold">{parseFloat(a.value).toLocaleString()} ج.س</span>
+                        </span>
+                        <button onClick={() => removeEditAllowance(idx)} className="text-red-500 hover:text-red-700">✕</button>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* الحوافز */}
-                <div className="md:col-span-2 border-t pt-4 mt-2">
-                  <label className="block text-sm font-semibold mb-2">الحوافز</label>
+                <div className="border-t border-emerald-200 pt-4 mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h5 className="font-semibold text-blue-700">الحوافز</h5>
+                    <button onClick={() => setShowCustomIncentiveModal(true)} className="bg-blue-600 text-white px-3 py-1 rounded text-sm">+ حافز مخصص</button>
+                  </div>
                   <div className="flex gap-2 mb-2">
                     <select value={newIncentive.type} onChange={(e) => setNewIncentive({ ...newIncentive, type: e.target.value })} className="border p-2 rounded flex-1">
-                      <option value="bonus">مكافأة</option>
-                      <option value="allowance">بدل</option>
-                      <option value="commission">عمولة</option>
-                      <option value="performance">حافز أداء</option>
-                      <option value="other">أخرى</option>
+                      <option value="bonus">🏆 مكافأة</option>
+                      <option value="allowance">💵 بدل</option>
+                      <option value="commission">💼 عمولة</option>
+                      <option value="performance">📈 حافز أداء</option>
+                      <option value="other">⭐ أخرى</option>
                     </select>
-                    <input type="number" value={newIncentive.value} onChange={(e) => setNewIncentive({ ...newIncentive, value: Number(e.target.value) })} placeholder="القيمة" className="border p-2 rounded w-24" />
+                    <input type="number" value={newIncentive.value} onChange={(e) => setNewIncentive({ ...newIncentive, value: Number(e.target.value) })} placeholder="القيمة" className="border p-2 rounded w-32" />
                     <button onClick={addEditIncentive} className="bg-blue-600 text-white px-3 py-2 rounded">إضافة</button>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-24 overflow-auto">
                     {editFormData.incentives.map((i, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded text-sm">
-                        <span>{i.type === 'bonus' ? 'مكافأة' : i.type === 'allowance' ? 'بدل' : i.type === 'commission' ? 'عمولة' : i.type === 'performance' ? 'حافز أداء' : 'أخرى'}: {i.value}</span>
-                        <button onClick={() => removeEditIncentive(idx)} className="text-red-500">حذف</button>
+                      <div key={idx} className="flex justify-between items-center bg-white p-2 rounded text-sm border">
+                        <span className="text-blue-700">
+                          {i.type === 'custom' ? `🎯 ${i.custom_name}` :
+                           i.type === 'bonus' ? '🏆 مكافأة' : 
+                           i.type === 'allowance' ? '💵 بدل' : 
+                           i.type === 'commission' ? '💼 عمولة' : 
+                           i.type === 'performance' ? '📈 حافز أداء' : '⭐ أخرى'}: 
+                          <span className="font-bold">{parseFloat(i.value).toLocaleString()} ج.س</span>
+                        </span>
+                        <button onClick={() => removeEditIncentive(idx)} className="text-red-500 hover:text-red-700">✕</button>
                       </div>
                     ))}
                   </div>
                 </div>
+              </div>
 
-                {/* رفع صورة */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">تغيير الصورة</label>
-                  <input type="file" name="profile_photo" accept="image/*" onChange={handleEditFileChange} className="w-full border rounded p-2" />
+              {/* القسم الرابع: البنك والتأمين والعهد */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* البنك */}
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                  <h4 className="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <span>🏦</span> البنك
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">اسم البنك</label>
+                      <select name="bank_name" value={editFormData.bank_name} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                        <option value="">اختر البنك</option>
+                        {getBankOptions(customBanks).map((bank) => (
+                          <option key={bank.value} value={bank.value}>{bank.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">رقم الحساب</label>
+                      <input type="text" name="bank_account" value={editFormData.bank_account} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
                 </div>
 
-                {/* رفع السيرة الذاتية */}
-                <div>
-                  <label className="block text-sm font-semibold mb-1">تغيير السيرة الذاتية</label>
-                  <input type="file" name="cv" accept=".pdf,.doc,.docx" onChange={handleEditFileChange} className="w-full border rounded p-2" />
+                {/* التأمين */}
+                <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                  <h4 className="text-lg font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                    <span>🏥</span> التأمين
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">نوع التأمين</label>
+                      <select name="insurance_type" value={editFormData.insurance_type} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                        <option value="none">بدون تأمين</option>
+                        <option value="health">تأمين صحي</option>
+                        <option value="social">تأمين اجتماعي</option>
+                        <option value="both">كلاهما</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">قيمة التأمين</label>
+                      <input type="number" step="0.01" name="insurance_amount" value={editFormData.insurance_amount} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
                 </div>
 
-                {/* رفع العقد */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-1">تغيير العقد</label>
-                  <input type="file" name="contract_file" accept=".pdf,.doc,.docx" onChange={handleEditFileChange} className="w-full border rounded p-2" />
+                {/* العهد */}
+                <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                  <h4 className="text-lg font-bold text-purple-800 mb-3 flex items-center gap-2">
+                    <span>📦</span> العهد
+                  </h4>
+                  <div className="space-y-2">
+                    <input type="text" value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} placeholder="اسم العهدة" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                    <input type="number" value={newAsset.value} onChange={(e) => setNewAsset({ ...newAsset, value: parseFloat(e.target.value) || 0 })} placeholder="القيمة" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                    <button onClick={addEditAsset} className="bg-purple-600 text-white px-2 py-1 rounded text-sm w-full">+ إضافة</button>
+                    <div className="space-y-1 max-h-20 overflow-auto">
+                      {editFormData.assets.map((asset, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-white p-1 rounded text-xs">
+                          <span className="text-purple-700 truncate flex-1">{asset.name}</span>
+                          <button onClick={() => removeEditAsset(idx)} className="text-red-500 mr-1">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              </div>
 
-                {/* ملاحظات */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-1">ملاحظات</label>
-                  <textarea name="notes" value={editFormData.notes} onChange={handleEditChange} className="w-full border rounded p-2" rows="2" />
+              {/* القسم الخامس: الملاحظات */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-1">ملاحظات</label>
+                <textarea name="notes" value={editFormData.notes} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows="2" />
+              </div>
+
+              {/* القسم السادس: المرفقات */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-300 mb-4">
+                <h4 className="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <span>📎</span> المرفقات
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الصورة الشخصية</label>
+                    <input type="file" name="profile_photo" accept="image/*" onChange={handleEditFileChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">السيرة الذاتية (CV)</label>
+                    <input type="file" name="cv" accept=".pdf,.doc,.docx" onChange={handleEditFileChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">العقد الموقّع</label>
+                    <input type="file" name="contract_file" accept=".pdf,.doc,.docx" onChange={handleEditFileChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-                <button onClick={() => setShowEditModal(false)} className="bg-gray-500 text-white px-4 py-2 rounded">إلغاء</button>
-                <button onClick={submitEdit} disabled={editLoading} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-                  {editLoading ? "جاري الحفظ..." : "حفظ التغييرات"}
+                <button onClick={() => setShowEditModal(false)} className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">إلغاء</button>
+                <button onClick={submitEdit} disabled={editLoading} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                  {editLoading ? "جاري الحفظ..." : "✅ حفظ التغييرات"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Custom Allowance */}
+        {showCustomAllowanceModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6" dir="rtl">
+              <h3 className="text-lg font-bold mb-4 text-indigo-800">إضافة بدل مخصص</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">اسم البدل</label>
+                  <input type="text" value={customAllowanceName} onChange={(e) => setCustomAllowanceName(e.target.value)} placeholder="مثال: بدل مواصلات..." className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">القيمة (جنيه)</label>
+                  <input type="number" value={newAllowance.value} onChange={(e) => setNewAllowance({ ...newAllowance, value: Number(e.target.value) })} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => { setShowCustomAllowanceModal(false); setCustomAllowanceName(""); }} className="bg-gray-500 text-white px-4 py-2 rounded">إلغاء</button>
+                <button onClick={addEditCustomAllowance} className="bg-indigo-600 text-white px-4 py-2 rounded">إضافة</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Custom Incentive */}
+        {showCustomIncentiveModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6" dir="rtl">
+              <h3 className="text-lg font-bold mb-4 text-blue-800">إضافة حافز مخصص</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">اسم الحافز</label>
+                  <input type="text" value={customIncentiveName} onChange={(e) => setCustomIncentiveName(e.target.value)} placeholder="مثال: حافز نهاية العام..." className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">القيمة (جنيه)</label>
+                  <input type="number" value={newIncentive.value} onChange={(e) => setNewIncentive({ ...newIncentive, value: Number(e.target.value) })} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => { setShowCustomIncentiveModal(false); setCustomIncentiveName(""); }} className="bg-gray-500 text-white px-4 py-2 rounded">إلغاء</button>
+                <button onClick={addEditCustomIncentive} className="bg-blue-600 text-white px-4 py-2 rounded">إضافة</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Fingerprint */}
+        {showFingerprintModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6" dir="rtl">
+              <h3 className="text-xl font-bold mb-4 text-green-800">إضافة بصمة</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">رقم البصمة</label>
+                  <input
+                    type="text"
+                    value={newFingerprint.finger_id}
+                    onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_id: e.target.value })}
+                    placeholder="أدخل رقم البصمة"
+                    className="w-full border p-2 rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">نوع البصمة</label>
+                  <select
+                    value={newFingerprint.finger_position}
+                    onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_position: e.target.value })}
+                    className="w-full border p-2 rounded"
+                  >
+                    {fingerPositions.map(pos => (
+                      <option key={pos.value} value={pos.value}>{pos.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">اختر الإصبع</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {fingerOptions.map(finger => (
+                      <label key={finger.value} className={`flex items-center gap-2 p-2 border rounded cursor-pointer ${newFingerprint.finger === finger.value ? 'bg-green-100 border-green-500' : ''}`}>
+                        <input
+                          type="radio"
+                          name="finger"
+                          value={finger.value}
+                          checked={newFingerprint.finger === finger.value}
+                          onChange={(e) => setNewFingerprint({ ...newFingerprint, finger: e.target.value })}
+                        />
+                        {finger.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setShowFingerprintModal(false)} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">إلغاء</button>
+                <button onClick={addEditFingerprint} disabled={editLoading} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                  {editLoading ? "جاري..." : "إضافة"}
                 </button>
               </div>
             </div>

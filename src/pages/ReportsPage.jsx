@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import api from "../services/api";
+import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import * as XLSX from "xlsx";
+import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
 import {
   PrinterIcon,
   DocumentArrowDownIcon,
@@ -18,6 +20,8 @@ import {
   DocumentTextIcon,
   ArrowDownTrayIcon,
   DocumentChartBarIcon,
+  UserCircleIcon,
+  IdentificationIcon,
 } from "@heroicons/react/24/outline";
 
 const TABS = [
@@ -26,6 +30,7 @@ const TABS = [
   { key: "incomeTax", label: "ضريبة الدخل", icon: ScaleIcon, color: "from-orange-500 to-red-500", gradient: "bg-gradient-to-r from-orange-500 to-red-500" },
   { key: "salaryIncrease", label: "الزيادة السنوية", icon: ArrowTrendingUpIcon, color: "from-blue-500 to-indigo-600", gradient: "bg-gradient-to-r from-blue-500 to-indigo-600" },
   { key: "leaveWarning", label: "الإجازات والإنذارات", icon: ClipboardDocumentListIcon, color: "from-violet-500 to-purple-600", gradient: "bg-gradient-to-r from-violet-500 to-purple-600" },
+  { key: "employeeReport", label: "تقرير الموظف", icon: UserCircleIcon, color: "from-teal-500 to-cyan-600", gradient: "bg-gradient-to-r from-teal-500 to-cyan-600" },
   { key: "evaluation", label: "تقييم الموظفين", icon: StarIcon, color: "from-amber-500 to-orange-500", gradient: "bg-gradient-to-r from-amber-500 to-orange-500" },
   { key: "department", label: "تقارير الأقسام", icon: BuildingOfficeIcon, color: "from-cyan-500 to-teal-600", gradient: "bg-gradient-to-r from-cyan-500 to-teal-600" },
   { key: "history", label: "سجل التقارير", icon: ClockIcon, color: "from-gray-500 to-gray-700", gradient: "bg-gradient-to-r from-gray-500 to-gray-700" },
@@ -62,9 +67,8 @@ function formatCurrency(num) {
   return num ? num.toLocaleString("ar-EG", { minimumFractionDigits: 2 }) : "0.00";
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
+function formatDate(dateStr, includeTime = true) {
+  return formatDateArabic(dateStr, includeTime);
 }
 
 function ReportsPage() {
@@ -88,6 +92,8 @@ function ReportsPage() {
   const [letterData, setLetterData] = useState(null);
   const [letterParams, setLetterParams] = useState({});
   const [expandedEmployee, setExpandedEmployee] = useState(null);
+  const [employeeReportData, setEmployeeReportData] = useState(null);
+  const [employeeReportEmp, setEmployeeReportEmp] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem("sidebarCollapsed") === "1";
@@ -211,7 +217,7 @@ function ReportsPage() {
       case "history": loadReportHistory(); break;
       case "dashboard": loadDashboard(); break;
     }
-  }, [activeTab, month, year, selectedDepartment]);
+  }, [activeTab, month, year, selectedDepartment, selectedEmployee]);
 
   async function loadInitialData() {
     try {
@@ -349,6 +355,60 @@ function ReportsPage() {
     }
   }
 
+  async function loadEmployeeReport() {
+    if (!selectedEmployee) {
+      setEmployeeReportData(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.get(`/reports/employee-detailed?employee_id=${selectedEmployee}`);
+      setEmployeeReportData(res.data);
+      setEmployeeReportEmp(res.data.employee);
+      toast.success("تم تحميل تقرير الموظف بنجاح ✅");
+    } catch (err) {
+      console.error("Employee report error:", err);
+      toast.error("فشل في تحميل تقرير الموظف ❌");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function exportEmployeeReportPDF() {
+    if (!selectedEmployee) {
+      toast.error("اختر الموظف أولاً");
+      return;
+    }
+    setExporting(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/pdf/employee-detailed-report?employee_id=${selectedEmployee}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Accept': 'application/pdf',
+          },
+        }
+      );
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `تقرير_موظف_${selectedEmployee}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('تم تصدير التقرير بنجاح ✅');
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('فشل في تصدير التقرير ❌');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function generateLetter() {
     if (!selectedEmployee) {
       toast.error("اختر الموظف أولاً");
@@ -400,6 +460,44 @@ function ReportsPage() {
     `);
     printWindow.document.close();
     setTimeout(() => printWindow.print(), 500);
+  }
+
+  async function exportLetterPdf() {
+    if (!selectedEmployee) {
+      toast.error("اختر الموظف أولاً");
+      return;
+    }
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post("http://localhost:8000/api/letters/export-pdf", {
+        type: letterType,
+        employee_id: parseInt(selectedEmployee),
+        ...letterParams,
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        responseType: 'blob',
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `خطاب_${letterData?.type_label || letterType}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("تم تصدير الخطاب بنجاح ✅");
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error("فشل في تصدير الخطاب ❌");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function printReport(title) {
@@ -573,6 +671,20 @@ function ReportsPage() {
                 exporting={exporting}
               />
             )}
+            {activeTab === "employeeReport" && (
+              <EmployeeDetailedReport
+                data={employeeReportData}
+                emp={employeeReportEmp}
+                loading={loading}
+                employees={employees}
+                selectedEmployee={selectedEmployee}
+                setSelectedEmployee={setSelectedEmployee}
+                formatCurrency={formatCurrency}
+                onLoadReport={loadEmployeeReport}
+                onExportPDF={exportEmployeeReportPDF}
+                exporting={exporting}
+              />
+            )}
             {activeTab === "evaluation" && (
               <EvaluationReport
                 data={evaluationReport}
@@ -611,6 +723,7 @@ function ReportsPage() {
                 loading={loading}
                 generateLetter={generateLetter}
                 printLetter={printLetter}
+                exportLetterPdf={exportLetterPdf}
                 LETTER_TYPES={LETTER_TYPES}
               />
             )}
@@ -714,17 +827,56 @@ function FilterBar({ children, onExportPDF, onExportExcel, exporting }) {
 }
 
 function SalaryReport({ data, loading, month, setMonth, year, setYear, departments, selectedDepartment, setSelectedDepartment, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onExportPDF, onExportExcel, exporting }) {
+  const allAllowanceTypes = [];
+  const allIncentiveTypes = [];
+  
+  data.forEach(emp => {
+    (emp.allowances || []).forEach(a => {
+      if (!allAllowanceTypes.find(t => t.name === a.name)) {
+        allAllowanceTypes.push({ name: a.name, type: a.type });
+      }
+    });
+    (emp.incentives || []).forEach(inc => {
+      if (!allIncentiveTypes.find(t => t.name === inc.name)) {
+        allIncentiveTypes.push({ name: inc.name, type: inc.type });
+      }
+    });
+  });
+
   const totals = {
     base: data.reduce((s, e) => s + (e.base_salary || 0), 0),
+    position: data.reduce((s, e) => s + (e.position_allowance || 0), 0),
     allowances: data.reduce((s, e) => s + (e.total_allowances || 0), 0),
     incentives: data.reduce((s, e) => s + (e.total_incentives || 0), 0),
     gross: data.reduce((s, e) => s + (e.gross_salary || 0), 0),
-    deductions: data.reduce((s, e) => s + (e.total_deductions || 0), 0),
+    insurance: data.reduce((s, e) => s + (e.insurance_amount || 0), 0),
+    deductions: data.reduce((s, e) => s + (e.deductions || 0), 0),
+    advanceDeductions: data.reduce((s, e) => s + (e.advance_deductions || 0), 0),
     tax: data.reduce((s, e) => s + (e.income_tax || 0), 0),
     net: data.reduce((s, e) => s + (e.net_salary || 0), 0),
   };
 
   const selectedMonth = MONTHS.find(m => m.value === month)?.label;
+
+  const getAllowanceAmount = (emp, name) => {
+    const allowance = (emp.allowances || []).find(a => a.name === name);
+    return allowance ? allowance.amount : 0;
+  };
+
+  const getIncentiveAmount = (emp, name) => {
+    const incentive = (emp.incentives || []).find(i => i.name === name);
+    return incentive ? incentive.amount : 0;
+  };
+
+  const allowanceTotals = {};
+  allAllowanceTypes.forEach(t => {
+    allowanceTotals[t.name] = data.reduce((s, e) => s + getAllowanceAmount(e, t.name), 0);
+  });
+  
+  const incentiveTotals = {};
+  allIncentiveTypes.forEach(t => {
+    incentiveTotals[t.name] = data.reduce((s, e) => s + getIncentiveAmount(e, t.name), 0);
+  });
 
   return (
     <div>
@@ -751,34 +903,46 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
         </div>
       </FilterBar>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-        <div className="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100">
-          <p className="text-xs text-emerald-600 font-medium">الراتب الأساسي</p>
-          <p className="font-bold text-emerald-700">{formatCurrency(totals.base)}</p>
+      <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-2 mb-4">
+        <div className="bg-blue-50 p-2 rounded-xl text-center border border-blue-100">
+          <p className="text-xs text-blue-600 font-medium">الأساسي</p>
+          <p className="font-bold text-blue-700 text-sm">{formatCurrency(totals.base)}</p>
         </div>
-        <div className="bg-green-50 p-3 rounded-xl text-center border border-green-100">
+        <div className="bg-cyan-50 p-2 rounded-xl text-center border border-cyan-100">
+          <p className="text-xs text-cyan-600 font-medium">بدل وظيفي</p>
+          <p className="font-bold text-cyan-700 text-sm">{formatCurrency(totals.position)}</p>
+        </div>
+        <div className="bg-green-50 p-2 rounded-xl text-center border border-green-100">
           <p className="text-xs text-green-600 font-medium">البدلات</p>
-          <p className="font-bold text-green-700">{formatCurrency(totals.allowances)}</p>
+          <p className="font-bold text-green-700 text-sm">{formatCurrency(totals.allowances)}</p>
         </div>
-        <div className="bg-purple-50 p-3 rounded-xl text-center border border-purple-100">
+        <div className="bg-purple-50 p-2 rounded-xl text-center border border-purple-100">
           <p className="text-xs text-purple-600 font-medium">الحوافز</p>
-          <p className="font-bold text-purple-700">{formatCurrency(totals.incentives)}</p>
+          <p className="font-bold text-purple-700 text-sm">{formatCurrency(totals.incentives)}</p>
         </div>
-        <div className="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
-          <p className="text-xs text-blue-600 font-medium">إجمالي المستحق</p>
-          <p className="font-bold text-blue-700">{formatCurrency(totals.gross)}</p>
+        <div className="bg-blue-100 p-2 rounded-xl text-center border border-blue-200">
+          <p className="text-xs text-blue-700 font-medium">المستحق</p>
+          <p className="font-bold text-blue-800 text-sm">{formatCurrency(totals.gross)}</p>
         </div>
-        <div className="bg-red-50 p-3 rounded-xl text-center border border-red-100">
-          <p className="text-xs text-red-600 font-medium">الخصومات</p>
-          <p className="font-bold text-red-700">{formatCurrency(totals.deductions)}</p>
+        <div className="bg-red-50 p-2 rounded-xl text-center border border-red-100">
+          <p className="text-xs text-red-600 font-medium">التأمين</p>
+          <p className="font-bold text-red-700 text-sm">{formatCurrency(totals.insurance)}</p>
         </div>
-        <div className="bg-orange-50 p-3 rounded-xl text-center border border-orange-100">
+        <div className="bg-yellow-50 p-2 rounded-xl text-center border border-yellow-100">
+          <p className="text-xs text-yellow-600 font-medium">الخصومات</p>
+          <p className="font-bold text-yellow-700 text-sm">{formatCurrency(totals.deductions)}</p>
+        </div>
+        <div className="bg-pink-50 p-2 rounded-xl text-center border border-pink-100">
+          <p className="text-xs text-pink-600 font-medium">السلف</p>
+          <p className="font-bold text-pink-700 text-sm">{formatCurrency(totals.advanceDeductions)}</p>
+        </div>
+        <div className="bg-orange-50 p-2 rounded-xl text-center border border-orange-100">
           <p className="text-xs text-orange-600 font-medium">الضريبة</p>
-          <p className="font-bold text-orange-700">{formatCurrency(totals.tax)}</p>
+          <p className="font-bold text-orange-700 text-sm">{formatCurrency(totals.tax)}</p>
         </div>
-        <div className="bg-indigo-100 p-3 rounded-xl text-center border border-indigo-200 col-span-2 lg:col-span-1">
+        <div className="bg-indigo-100 p-2 rounded-xl text-center border border-indigo-200">
           <p className="text-xs text-indigo-600 font-medium">صافي المرتب</p>
-          <p className="font-bold text-indigo-700 text-lg">{formatCurrency(totals.net)}</p>
+          <p className="font-bold text-indigo-700 text-sm">{formatCurrency(totals.net)}</p>
         </div>
       </div>
 
@@ -786,36 +950,81 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
 
       {loading ? <LoadingSpinner /> : data.length === 0 ? <EmptyState icon="💰" message="لا توجد بيانات للمرتبات" /> : (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
               <tr className="bg-gradient-to-r from-slate-700 to-slate-900 text-white">
-                <th className="p-3 border border-slate-600">#</th>
-                <th className="p-3 border border-slate-600 text-right">الاسم</th>
-                <th className="p-3 border border-slate-600 text-right">القسم</th>
-                <th className="p-3 border border-slate-600 text-right">الأساسي</th>
-                <th className="p-3 border border-slate-600 text-right">البدلات</th>
-                <th className="p-3 border border-slate-600 text-right">الحوافز</th>
-                <th className="p-3 border border-slate-600 text-right">السلفيات</th>
-                <th className="p-3 border border-slate-600 text-right">الخصومات</th>
-                <th className="p-3 border border-slate-600 text-right">الضريبة</th>
-                <th className="p-3 border border-slate-600 text-right bg-indigo-600">صافي المرتب</th>
+                <th className="p-2 border border-slate-600">#</th>
+                <th className="p-2 border border-slate-600 text-right">الاسم</th>
+                <th className="p-2 border border-slate-600 text-right">القسم</th>
+                <th className="p-2 border border-slate-600 bg-blue-600 text-right">الأساسي</th>
+                <th className="p-2 border border-slate-600 bg-cyan-600 text-right">بدل وظيفي</th>
+                {allAllowanceTypes.map(t => (
+                  <th key={t.name} className="p-2 border border-slate-600 bg-emerald-600 text-right">{t.name}</th>
+                ))}
+                {allIncentiveTypes.map(t => (
+                  <th key={t.name} className="p-2 border border-slate-600 bg-violet-600 text-right">{t.name}</th>
+                ))}
+                <th className="p-2 border border-slate-600 bg-blue-700 text-right">المستحق</th>
+                <th className="p-2 border border-slate-600 bg-red-600 text-right">التأمين</th>
+                <th className="p-2 border border-slate-600 bg-yellow-600 text-right">الخصومات</th>
+                <th className="p-2 border border-slate-600 bg-pink-600 text-right">السلف</th>
+                <th className="p-2 border border-slate-600 bg-orange-600 text-right">الضريبة</th>
+                <th className="p-2 border border-slate-600 bg-indigo-600 text-right">صافي الراتب</th>
               </tr>
             </thead>
             <tbody>
               {data.map((emp, i) => (
                 <tr key={emp.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                  <td className="p-3 border border-slate-200 text-center">{i + 1}</td>
-                  <td className="p-3 border border-slate-200 font-semibold">{emp.name}</td>
-                  <td className="p-3 border border-slate-200 text-slate-600">{emp.department}</td>
-                  <td className="p-3 border border-slate-200 text-right">{formatCurrency(emp.base_salary)}</td>
-                  <td className="p-3 border border-slate-200 text-right text-emerald-600">{formatCurrency(emp.total_allowances)}</td>
-                  <td className="p-3 border border-slate-200 text-right text-purple-600">{formatCurrency(emp.total_incentives)}</td>
-                  <td className="p-3 border border-slate-200 text-right text-red-600">{formatCurrency(emp.loan_payments)}</td>
-                  <td className="p-3 border border-slate-200 text-right text-red-600">{formatCurrency(Math.max(0, emp.total_deductions - emp.loan_payments))}</td>
-                  <td className="p-3 border border-slate-200 text-right text-orange-600">{formatCurrency(emp.income_tax)}</td>
-                  <td className="p-3 border border-slate-200 text-right font-bold bg-indigo-50">{formatCurrency(emp.net_salary)}</td>
+                  <td className="p-2 border border-slate-200 text-center">{i + 1}</td>
+                  <td className="p-2 border border-slate-200 font-semibold">{emp.name}</td>
+                  <td className="p-2 border border-slate-200 text-slate-600">{emp.department}</td>
+                  <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.base_salary)}</td>
+                  <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.position_allowance)}</td>
+                  {allAllowanceTypes.map(t => (
+                    <td key={t.name} className="p-2 border border-slate-200 text-right text-emerald-600">{formatCurrency(getAllowanceAmount(emp, t.name))}</td>
+                  ))}
+                  {allIncentiveTypes.map(t => (
+                    <td key={t.name} className="p-2 border border-slate-200 text-right text-purple-600">{formatCurrency(getIncentiveAmount(emp, t.name))}</td>
+                  ))}
+                  <td className="p-2 border border-slate-200 text-right font-bold">{formatCurrency(emp.gross_salary)}</td>
+                  <td className="p-2 border border-slate-200 text-right text-red-600">
+                    {(emp.insurance_amount || 0) > 0 && (
+                      <span>{formatCurrency(emp.insurance_amount)}</span>
+                    )}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-right text-yellow-600">
+                    {(emp.deductions || 0) > 0 && (
+                      <span>{formatCurrency(emp.deductions)}</span>
+                    )}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-right text-pink-600">
+                    {(emp.advance_deductions || 0) > 0 && (
+                      <span title={emp.advances_list?.map(a => `${a.type}: ${formatCurrency(a.deducted)}`).join('\n')}>
+                        {formatCurrency(emp.advance_deductions)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-right text-orange-600">{formatCurrency(emp.income_tax)}</td>
+                  <td className="p-2 border border-slate-200 text-right font-bold bg-indigo-50">{formatCurrency(emp.net_salary)}</td>
                 </tr>
               ))}
+              <tr className="bg-emerald-50 font-bold">
+                <td className="p-2 border border-slate-300 text-center" colSpan={3}>الإجمالي</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.base)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.position)}</td>
+                {allAllowanceTypes.map(t => (
+                  <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(allowanceTotals[t.name])}</td>
+                ))}
+                {allIncentiveTypes.map(t => (
+                  <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(incentiveTotals[t.name])}</td>
+                ))}
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.gross)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.insurance)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.deductions)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.advanceDeductions)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.tax)}</td>
+                <td className="p-2 border border-slate-300 text-right bg-indigo-200">{formatCurrency(totals.net)}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1287,7 +1496,7 @@ function ReportHistory({ data, loading }) {
   );
 }
 
-function LettersSection({ employees, departments, letterType, setLetterType, selectedEmployee, setSelectedEmployee, letterData, setLetterData, letterParams, setLetterParams, loading, generateLetter, printLetter, LETTER_TYPES }) {
+function LettersSection({ employees, departments, letterType, setLetterType, selectedEmployee, setSelectedEmployee, letterData, setLetterData, letterParams, setLetterParams, loading, generateLetter, printLetter, exportLetterPdf, LETTER_TYPES }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-slate-700 flex items-center gap-2">
@@ -1452,13 +1661,22 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
               {loading ? "جاري الإنشاء..." : "🔍 معاينة الخطاب"}
             </button>
             {letterData && (
-              <button
-                onClick={printLetter}
-                className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-medium hover:from-emerald-600 hover:to-green-700 transition flex items-center gap-2"
-              >
-                <PrinterIcon className="h-5 w-5" />
-                طباعة
-              </button>
+              <>
+                <button
+                  onClick={exportLetterPdf}
+                  className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-medium hover:from-red-600 hover:to-red-700 transition flex items-center gap-2"
+                >
+                  <DocumentArrowDownIcon className="h-5 w-5" />
+                  تصدير PDF
+                </button>
+                <button
+                  onClick={printLetter}
+                  className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-medium hover:from-emerald-600 hover:to-green-700 transition flex items-center gap-2"
+                >
+                  <PrinterIcon className="h-5 w-5" />
+                  طباعة
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1473,6 +1691,465 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
             </div>
             <div dangerouslySetInnerHTML={{ __html: letterData.content?.body }} />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onLoadReport, onExportPDF, exporting }) {
+  const insuranceLabels = {
+    'none': 'بدون تأمين',
+    'health': 'تأمين صحي',
+    'social': 'تأمين اجتماعي',
+    'both': 'تأمين صحي واجتماعي',
+  };
+  
+  const statusLabels = {
+    'pending': 'قيد الانتظار',
+    'approved': 'موافق عليها',
+    'rejected': 'مرفوضة',
+    'cancelled': 'ملغاة',
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap justify-between items-center mb-6 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+        <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+          <UserCircleIcon className="h-6 w-6 text-teal-600" />
+          تقرير موظف شامل ومفصل
+        </h2>
+        <div className="flex flex-wrap gap-3 items-center">
+          <select 
+            value={selectedEmployee} 
+            onChange={e => setSelectedEmployee(e.target.value)}
+            className="border rounded-lg px-4 py-2 bg-white min-w-[200px]"
+          >
+            <option value="">-- اختر الموظف --</option>
+            {employees.map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={onLoadReport}
+            disabled={!selectedEmployee || loading}
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+          >
+            <DocumentTextIcon className="h-5 w-5" />
+            تحميل التقرير
+          </button>
+          <button
+            onClick={onExportPDF}
+            disabled={!selectedEmployee || exporting}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+          >
+            <DocumentArrowDownIcon className="h-5 w-5" />
+            تصدير PDF
+          </button>
+        </div>
+      </div>
+
+      {loading ? <LoadingSpinner /> : !data ? (
+        <EmptyState icon="👤" message="اختر موظفاً لتحميل تقريره" />
+      ) : (
+        <div className="space-y-6">
+          {/* Employee Header */}
+          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-6 rounded-xl border border-teal-200">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 bg-teal-600 text-white rounded-full flex items-center justify-center text-3xl font-bold">
+                {emp?.name?.charAt(0) || '?'}
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-teal-800">{emp?.name}</h3>
+                <p className="text-teal-600">{emp?.position} - {emp?.department}</p>
+                <p className="text-sm text-gray-500">رقم الموظف: {emp?.employee_number} | الحالة: {emp?.status}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Personal Info */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-700 text-white px-4 py-3 font-bold">اولا: البيانات الشخصية</div>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div><span className="text-gray-500 text-sm">الاسم:</span> <span className="font-medium">{emp?.name}</span></div>
+              <div><span className="text-gray-500 text-sm">رقم الموظف:</span> <span className="font-medium">{emp?.employee_number}</span></div>
+              <div><span className="text-gray-500 text-sm">الرقم الوطني:</span> <span className="font-medium">{emp?.national_id}</span></div>
+              <div><span className="text-gray-500 text-sm">تاريخ الميلاد:</span> <span className="font-medium">{formatDateDisplay(emp?.birth_date)}</span></div>
+              <div><span className="text-gray-500 text-sm">الجنس:</span> <span className="font-medium">{emp?.gender}</span></div>
+              <div><span className="text-gray-500 text-sm">الحالة الاجتماعية:</span> <span className="font-medium">{emp?.marital_status}</span></div>
+              <div><span className="text-gray-500 text-sm">البريد:</span> <span className="font-medium">{emp?.email}</span></div>
+              <div><span className="text-gray-500 text-sm">الهاتف:</span> <span className="font-medium">{emp?.phone}</span></div>
+              <div className="col-span-4"><span className="text-gray-500 text-sm">العنوان:</span> <span className="font-medium">{emp?.address}</span></div>
+            </div>
+          </div>
+
+          {/* Appointment Info */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-600 text-white px-4 py-3 font-bold">ثانيا: بيانات التعيين</div>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div><span className="text-gray-500 text-sm">القسم:</span> <span className="font-medium">{emp?.department}</span></div>
+              <div><span className="text-gray-500 text-sm">المسمى:</span> <span className="font-medium">{emp?.position}</span></div>
+              <div><span className="text-gray-500 text-sm">تاريخ التعيين:</span> <span className="font-medium">{formatDateDisplay(emp?.hire_date)}</span></div>
+              <div><span className="text-gray-500 text-sm">نوع العقد:</span> <span className="font-medium">{emp?.contract_type}</span></div>
+              <div><span className="text-gray-500 text-sm">نوع التوظيف:</span> <span className="font-medium">{emp?.employment_status}</span></div>
+              <div><span className="text-gray-500 text-sm">الحالة:</span> <span className="font-medium">{emp?.status}</span></div>
+            </div>
+          </div>
+
+          {/* Salary Info */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-blue-700 text-white px-4 py-3 font-bold">ثالثا: بيانات المرتب</div>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-blue-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">الراتب الاساسي</span><span className="font-bold text-blue-700 text-lg">{formatCurrency(data.salary_info?.base_salary)}</span></div>
+              <div className="bg-cyan-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">بدل الوظيفة</span><span className="font-bold text-cyan-700 text-lg">{formatCurrency(data.salary_info?.position_allowance)}</span></div>
+              <div className="bg-green-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">اجمالي البدلات</span><span className="font-bold text-green-700 text-lg">{formatCurrency(data.salary_info?.total_allowances)}</span></div>
+              <div className="bg-purple-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">اجمالي الحوافز</span><span className="font-bold text-purple-700 text-lg">{formatCurrency(data.salary_info?.total_incentives)}</span></div>
+              <div className="bg-red-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">التامين</span><span className="font-bold text-red-700 text-lg">{insuranceLabels[data.salary_info?.insurance_type] || '-'}</span></div>
+              <div className="bg-orange-50 p-3 rounded-lg"><span className="text-gray-500 text-sm block">قيمة التامين</span><span className="font-bold text-orange-700 text-lg">{formatCurrency(data.salary_info?.insurance_amount)}</span></div>
+              <div className="bg-gray-50 p-3 rounded-lg col-span-2"><span className="text-gray-500 text-sm block">البنك</span><span className="font-bold text-gray-700">{data.salary_info?.bank_name} - {data.salary_info?.bank_account}</span></div>
+            </div>
+          </div>
+
+          {/* Allowances Table */}
+          {data.salary_info?.allowances?.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-emerald-600 text-white px-4 py-3 font-bold">البدلات المسجلة</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-emerald-50">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">النوع</th>
+                      <th className="p-2 border">القيمة</th>
+                      <th className="p-2 border">التاريخ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.salary_info.allowances.map((a, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-emerald-50/50'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border">{a.name}</td>
+                        <td className="p-2 border text-center font-medium text-emerald-600">{formatCurrency(a.amount)}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(a.date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Leaves Section */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-blue-700 text-white px-4 py-3 font-bold">
+              رابعا: سجل الإجازات المفصل
+            </div>
+            
+            {/* Leave Summary */}
+            <div className="p-4 bg-blue-50 border-b border-blue-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-blue-600 text-sm">إجمالي الإجازات</p>
+                  <p className="font-bold text-blue-800 text-xl">{data.leaves_summary?.total_count || 0}</p>
+                  <p className="text-xs text-blue-500">{data.leaves_summary?.total_days || 0} يوم</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-green-600 text-sm">الموافق عليها</p>
+                  <p className="font-bold text-green-800 text-xl">{data.leaves_summary?.approved_days || 0}</p>
+                  <p className="text-xs text-green-500">يوم</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-yellow-600 text-sm">المعلقة</p>
+                  <p className="font-bold text-yellow-800 text-xl">{data.leaves_summary?.pending_days || 0}</p>
+                  <p className="text-xs text-yellow-500">يوم</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-red-600 text-sm">المرفوضة</p>
+                  <p className="font-bold text-red-800 text-xl">{data.leaves_summary?.rejected_days || 0}</p>
+                  <p className="text-xs text-red-500">يوم</p>
+                </div>
+              </div>
+            </div>
+
+            {data.leaves && data.leaves.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-blue-100">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">النوع</th>
+                      <th className="p-2 border">من تاريخ</th>
+                      <th className="p-2 border">إلى تاريخ</th>
+                      <th className="p-2 border">الأيام</th>
+                      <th className="p-2 border">الحالة</th>
+                      <th className="p-2 border">مدفوعة</th>
+                      <th className="p-2 border">السبب</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.leaves.map((leave, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/30'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border">{leave.type}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(leave.from_date)}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(leave.to_date)}</td>
+                        <td className="p-2 border text-center font-bold">{leave.days}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            leave.status === 'approved' ? 'bg-green-100 text-green-700' :
+                            leave.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {statusLabels[leave.status] || leave.status}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{leave.paid}</td>
+                        <td className="p-2 border text-xs">{leave.reason || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">لا توجد إجازات مسجلة</div>
+            )}
+          </div>
+
+          {/* Warnings Section */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-red-700 text-white px-4 py-3 font-bold">
+              خامسا: سجل الإنذارات المفصل
+            </div>
+            
+            {/* Warnings Summary */}
+            <div className="p-4 bg-red-50 border-b border-red-100">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-red-600 text-sm">إجمالي الإنذارات</p>
+                  <p className="font-bold text-red-800 text-xl">{data.warnings_summary?.total_count || 0}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-orange-600 text-sm">النشطة</p>
+                  <p className="font-bold text-orange-800 text-xl">{data.warnings_summary?.active_count || 0}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-green-600 text-sm">المحلولة</p>
+                  <p className="font-bold text-green-800 text-xl">{data.warnings_summary?.resolved_count || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            {data.warnings && data.warnings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-red-100">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">النوع</th>
+                      <th className="p-2 border">التاريخ</th>
+                      <th className="p-2 border">الحالة</th>
+                      <th className="p-2 border">صدر من</th>
+                      <th className="p-2 border">السبب</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.warnings.map((warning, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-red-50/30'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border">{warning.type}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(warning.date)}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            warning.status === 'active' ? 'bg-red-100 text-red-700' :
+                            warning.status === 'resolved' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {warning.status === 'active' ? 'نشط' : warning.status === 'resolved' ? 'محلول' : warning.status}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{warning.created_by || '-'}</td>
+                        <td className="p-2 border text-xs">{warning.reason || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">لا توجد إنذارات مسجلة</div>
+            )}
+          </div>
+
+          {/* Advances Section */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-amber-700 text-white px-4 py-3 font-bold">
+              سادسا: سجل السلف المفصل
+            </div>
+            
+            {/* Advances Summary */}
+            <div className="p-4 bg-amber-50 border-b border-amber-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-amber-600 text-sm">إجمالي السلف</p>
+                  <p className="font-bold text-amber-800 text-xl">{formatCurrency(data.advances_summary?.total_amount || 0)}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-green-600 text-sm">الم Approved</p>
+                  <p className="font-bold text-green-800 text-xl">{formatCurrency(data.advances_summary?.approved_amount || 0)}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-yellow-600 text-sm">المعلقة</p>
+                  <p className="font-bold text-yellow-800 text-xl">{formatCurrency(data.advances_summary?.pending_amount || 0)}</p>
+                </div>
+                <div className="bg-white p-3 rounded-lg text-center">
+                  <p className="text-red-600 text-sm">المتبقي</p>
+                  <p className="font-bold text-red-800 text-xl">{formatCurrency(data.advances_summary?.total_remaining || 0)}</p>
+                </div>
+              </div>
+            </div>
+
+            {data.advances && data.advances.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-amber-100">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">القيمة</th>
+                      <th className="p-2 border">التاريخ</th>
+                      <th className="p-2 border">الحالة</th>
+                      <th className="p-2 border">الأقساط</th>
+                      <th className="p-2 border">قسط شهري</th>
+                      <th className="p-2 border">المدفوع</th>
+                      <th className="p-2 border">المتبقي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.advances.map((advance, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-amber-50/30'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border text-center font-bold">{formatCurrency(advance.amount)}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(advance.date)}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            advance.status === 'approved' ? 'bg-green-100 text-green-700' :
+                            advance.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {advance.status === 'approved' ? 'موافق' : advance.status === 'pending' ? 'معلق' : 'مرفوض'}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{advance.installment_count}</td>
+                        <td className="p-2 border text-center">{formatCurrency(advance.monthly_installment)}</td>
+                        <td className="p-2 border text-center">{formatCurrency(advance.total_paid)}</td>
+                        <td className="p-2 border text-center font-bold text-red-600">{formatCurrency(advance.remaining_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">لا توجد سلف مسجلة</div>
+            )}
+          </div>
+
+          {/* Assets Summary */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-cyan-600 text-white px-4 py-3 font-bold">
+              سابعا: العهد والادوات المستلمة ({data.assets?.total_count || 0}) عهدة
+            </div>
+            
+            {data.assets?.items?.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-cyan-100">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">الاسم</th>
+                      <th className="p-2 border">رقم العهدة</th>
+                      <th className="p-2 border">الرقم التسلسلي</th>
+                      <th className="p-2 border">الحالة</th>
+                      <th className="p-2 border">تاريخ الاستلام</th>
+                      <th className="p-2 border">تاريخ الارجاع</th>
+                      <th className="p-2 border">ملاحظات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.assets.items.map((asset, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-cyan-50/30'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border font-medium">{asset.name}</td>
+                        <td className="p-2 border text-center">{asset.asset_number || '-'}</td>
+                        <td className="p-2 border text-center">{asset.serial_number || '-'}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            asset.status === 'active' ? 'bg-green-100 text-green-700' : 
+                            asset.status === 'returned' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {asset.status === 'active' ? 'نشط' : asset.status === 'returned' ? 'مرجع' : asset.status}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{formatDateDisplay(asset.received_date)}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(asset.returned_date)}</td>
+                        <td className="p-2 border text-xs">{asset.notes || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">لا توجد عهد مسجلة</div>
+            )}
+          </div>
+
+          {/* CV Section */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-indigo-600 text-white px-4 py-3 font-bold">
+              ثامنا: السيرة الذاتية
+            </div>
+            
+            <div className="p-4">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-indigo-100 rounded-xl flex items-center justify-center">
+                  <span className="text-3xl">📄</span>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">حالة السيرة الذاتية</p>
+                  <p className={`text-lg font-bold ${data.employee?.cv_url ? 'text-green-600' : 'text-red-600'}`}>
+                    {data.employee?.cv_url ? 'متوفرة ✓' : 'غير متوفرة ✗'}
+                  </p>
+                </div>
+              </div>
+              
+              {data.employee?.cv_url ? (
+                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-green-700">السيرة الذاتية متوفرة ومرفقة بالتقرير</p>
+                      <p className="text-sm text-green-600 mt-1">اسم الملف: {data.employee?.cv_filename || 'cv.pdf'}</p>
+                    </div>
+                    <a
+                      href={data.employee.cv_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
+                    >
+                      <DocumentArrowDownIcon className="h-5 w-5" />
+                      تحميل السيرة الذاتية
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                  <p className="font-bold text-red-700">لم يتم رفع السيرة الذاتية لهذا الموظف</p>
+                  <p className="text-sm text-red-600 mt-1">يرجى التواصل مع الموارد البشرية لإكمال الملف</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 text-center">
+            تقرير موظف شامل ومفصل | Jawda HR | تاريخ التقرير: {new Date().toLocaleDateString('ar-EG')}
+          </p>
         </div>
       )}
     </div>

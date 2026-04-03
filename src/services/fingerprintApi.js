@@ -94,3 +94,27 @@ export async function removeUserFromDevice(deviceId, userId) {
   }
 }
 
+export async function saveFingerprintToDatabase(employeeId, fingerprintData) {
+  try {
+    return unwrap(await api.post(`/employees/${employeeId}/fingerprint`, fingerprintData));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function deleteFingerprintFromDatabase(employeeId, fingerprintId) {
+  try {
+    return unwrap(await api.delete(`/employees/${employeeId}/fingerprint/${fingerprintId}`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function getEmployeeFingerprints(employeeId) {
+  try {
+    return unwrap(await api.get(`/employees/${employeeId}/fingerprints`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+

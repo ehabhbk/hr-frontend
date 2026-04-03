@@ -24,11 +24,15 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev": "react-scripts start",
+    "build": "set BUILD_PATH=C:/hr/dist&& react-scripts build && echo Build completed! Files saved to C:/hr/dist",
+    "build:win": "react-scripts build && xcopy /E /I /Y build C:\\hr\\dist",
+    "service": "node service.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "proxy": "http://localhost:8000",
+  "homepage": "./",
   "eslintConfig": {
     "extends": [
       "react-app",

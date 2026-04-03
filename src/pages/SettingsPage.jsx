@@ -3,6 +3,7 @@ import api, { API_BASE } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
 
 const TABS = [
   { key: "organization", label: "معلومات المؤسسة", icon: "🏢" },
@@ -38,9 +39,19 @@ function SettingsPage() {
     activity: "",
     employee_count: "",
     foundation_year: "",
+    currency: "SDG",
+    currency_symbol: "جنيه",
   });
   const [logoFile, setLogoFile] = useState(null);
   const [stampFile, setStampFile] = useState(null);
+
+  const currencyOptions = [
+    { value: "SDG", label: "جنيه سوداني (SDG)", symbol: "جنيه", icon: "💵" },
+    { value: "USD", label: "دولار أمريكي (USD)", symbol: "$", icon: "💵" },
+    { value: "SAR", label: "ريال سعودي (SAR)", symbol: "ر.س", icon: "💵" },
+    { value: "AED", label: "درهم إماراتي (AED)", symbol: "د.إ", icon: "💵" },
+    { value: "EGP", label: "جنيه مصري (EGP)", symbol: "ج.م", icon: "💵" },
+  ];
 
   const [attendance, setAttendance] = useState({
     shift_ids: [],
@@ -67,12 +78,24 @@ function SettingsPage() {
 
   const [advanceSettings, setAdvanceSettings] = useState({
     enabled: true,
-    max_percent: 50,
-    repayment_months: 3,
-    min_service_months: 6,
-    min_amount: 1000,
-    max_amount: 50000,
-    allow_multiple: true,
+    // سلفة قصيرة - من المرتب الشهري
+    short_advance: {
+      enabled: true,
+      max_percent: 50, // نسبة من المرتب الأساسي
+      max_amount: 50000, // الحد الأقصى بالجنيه
+      min_service_months: 0, // لا تشترط مدة خدمة
+      deduction_percent: 100, // نسبة خصم الراتب (100% يعني تخصم كلها)
+    },
+    // سلفة طويلة - تقسط على أشهر
+    long_advance: {
+      enabled: true,
+      max_percent: 100, // نسبة من المرتب الأساسي
+      max_amount: 500000, // الحد الأقصى بالجنيه
+      min_amount: 10000, // الحد الأدنى للجنيه
+      min_service_months: 6, // أشهر الخدمة المطلوبة
+      max_installments: 12, // أقساط شهرية
+      min_installments: 3, // أقساط شهرية
+    },
   });
 
   const [taxBrackets, setTaxBrackets] = useState([
@@ -170,6 +193,8 @@ function SettingsPage() {
           activity: orgRes.data.data.activity || "",
           employee_count: orgRes.data.data.employee_count || "",
           foundation_year: orgRes.data.data.foundation_year || "",
+          currency: orgRes.data.data.currency || "SDG",
+          currency_symbol: orgRes.data.data.currency_symbol || "جنيه",
         });
       }
 
@@ -522,6 +547,7 @@ function SettingsPage() {
                 setStampFile={setStampFile}
                 saveOrg={saveOrg}
                 loadingSave={loadingStates.saveOrg}
+                currencyOptions={currencyOptions}
               />
             )}
             {activeTab === "attendance" && (
@@ -614,12 +640,56 @@ function SettingsPage() {
   );
 }
 
-function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg, loadingSave }) {
+function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg, loadingSave, currencyOptions }) {
+  const selectedCurrency = currencyOptions.find(c => c.value === orgForm.currency) || currencyOptions[0];
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
         <span className="text-2xl">🏢</span> معلومات المؤسسة
       </h2>
+
+      {/* قسم العملة */}
+      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl mb-6 border-2 border-yellow-200">
+        <h3 className="font-bold text-lg text-orange-800 mb-4 flex items-center gap-2">
+          <span className="text-2xl">💰</span> العملة الرسمية
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-right">اختر العملة</label>
+            <select
+              value={orgForm.currency}
+              onChange={(e) => {
+                const selected = currencyOptions.find(c => c.value === e.target.value);
+                setOrgForm({ 
+                  ...orgForm, 
+                  currency: e.target.value,
+                  currency_symbol: selected?.symbol || "جنيه"
+                });
+              }}
+              className="w-full border rounded-lg px-4 py-3 bg-white"
+            >
+              {currencyOptions.map(curr => (
+                <option key={curr.value} value={curr.value}>
+                  {curr.icon} {curr.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="bg-white p-4 rounded-lg flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-4xl mb-2">{selectedCurrency.icon}</div>
+              <div className="text-2xl font-bold text-orange-700">{selectedCurrency.symbol}</div>
+              <div className="text-sm text-gray-500">الرمز المستخدم في التقارير</div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 bg-orange-100 p-3 rounded-lg">
+          <p className="text-sm text-orange-800">
+            <strong>💡 ملاحظة:</strong> هذه العملة ستُستخدم في جميع التقارير والعقود والمرتبات والسلفيات والضرائب.
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">
         <div className="bg-blue-50 p-5 rounded-lg">
@@ -992,7 +1062,7 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, sh
                 <td className="border p-3">{i + 1}</td>
                 <td className="border p-3 font-medium">{w.employee?.name || w.employee_id}</td>
                 <td className="border p-3">{w.note}</td>
-                <td className="border p-3">{w.created_at?.split("T")[0]}</td>
+                <td className="border p-3">{formatDateDisplay(w.created_at)}</td>
               </tr>
             ))}
             {warnings.length === 0 && (
@@ -1185,8 +1255,8 @@ function LeavesTab({
                 <td className="border p-3">
                   <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">{r.type}</span>
                 </td>
-                <td className="border p-3">{r.from_date}</td>
-                <td className="border p-3">{r.to_date}</td>
+                <td className="border p-3">{formatDateDisplay(r.from_date)}</td>
+                <td className="border p-3">{formatDateDisplay(r.to_date)}</td>
                 <td className="border p-3">{r.days || 1}</td>
                 <td className="border p-3">{getStatusBadge(r.status)}</td>
                 <td className="border p-3 text-center">
@@ -1225,123 +1295,208 @@ function AdvancesTab({
   getStatusBadge,
   loadingStates,
 }) {
+  const shortAdvance = advanceSettings.short_advance || {};
+  const longAdvance = advanceSettings.long_advance || {};
+
+  const updateShortAdvance = (key, value) => {
+    setAdvanceSettings({
+      ...advanceSettings,
+      short_advance: { ...shortAdvance, [key]: value }
+    });
+  };
+
+  const updateLongAdvance = (key, value) => {
+    setAdvanceSettings({
+      ...advanceSettings,
+      long_advance: { ...longAdvance, [key]: value }
+    });
+  };
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
         <span className="text-2xl">💰</span> إعدادات السلفيات
       </h2>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="bg-yellow-50 p-5 rounded-lg">
-          <h3 className="font-bold mb-4 text-right text-yellow-800">الإعدادات الأساسية</h3>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg">
-              <span className="font-medium">تفعيل نظام السلفيات</span>
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        {/* سلفة قصيرة */}
+        <div className="bg-green-50 p-5 rounded-lg border-2 border-green-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-right text-green-800 flex items-center gap-2">
+              <span className="text-2xl">⚡</span> سلفة قصيرة
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">تفعيل</span>
               <input
                 type="checkbox"
-                checked={advanceSettings.enabled}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, enabled: e.target.checked })}
-                className="w-5 h-5"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">الحد الأدنى للسلفة (SDG)</label>
-              <input
-                type="number"
-                value={advanceSettings.min_amount || 1000}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, min_amount: parseInt(e.target.value) })}
-                className="w-full border rounded-lg px-3 py-2 text-right"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">الحد الأقصى للسلفة (SDG)</label>
-              <input
-                type="number"
-                value={advanceSettings.max_amount || 50000}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, max_amount: parseInt(e.target.value) })}
-                className="w-full border rounded-lg px-3 py-2 text-right"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">الحد الأقصى (%)</label>
-              <input
-                type="number"
-                value={advanceSettings.max_percent}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, max_percent: parseInt(e.target.value) })}
-                className="w-full border rounded-lg px-3 py-2 text-right"
-              />
-              <p className="text-xs text-gray-500 mt-1 text-right">من المرتب الأساسي</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-amber-50 p-5 rounded-lg">
-          <h3 className="font-bold mb-4 text-right text-amber-800">قواعد السداد</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">فترة السداد (أشهر)</label>
-              <input
-                type="number"
-                value={advanceSettings.repayment_months}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, repayment_months: parseInt(e.target.value) })}
-                className="w-full border rounded-lg px-3 py-2 text-right"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">حد الأهلية (أشهر خدمة)</label>
-              <input
-                type="number"
-                value={advanceSettings.min_service_months}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, min_service_months: parseInt(e.target.value) })}
-                className="w-full border rounded-lg px-3 py-2 text-right"
-              />
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-              <span className="text-sm">السماح بسلفيات متعددة</span>
-              <input
-                type="checkbox"
-                checked={advanceSettings.allow_multiple}
-                onChange={(e) => setAdvanceSettings({ ...advanceSettings, allow_multiple: e.target.checked })}
+                checked={shortAdvance.enabled ?? true}
+                onChange={(e) => updateShortAdvance('enabled', e.target.checked)}
                 className="w-5 h-5"
               />
             </div>
           </div>
+          <p className="text-sm text-gray-600 mb-4">تخصم من مرتب الشهر الجاري</p>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">النسبة من المرتب (%)</label>
+                <input
+                  type="number"
+                  value={shortAdvance.max_percent || 50}
+                  onChange={(e) => updateShortAdvance('max_percent', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (SDG)</label>
+                <input
+                  type="number"
+                  value={shortAdvance.max_amount || 50000}
+                  onChange={(e) => updateShortAdvance('max_amount', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-right">نسبة الخصم من الراتب (%)</label>
+              <input
+                type="number"
+                value={shortAdvance.deduction_percent || 100}
+                onChange={(e) => updateShortAdvance('deduction_percent', parseInt(e.target.value))}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
+              <p className="text-xs text-gray-500 mt-1">100% = تخصم من الراتب كامل، 50% = نصف الراتب</p>
+            </div>
+            <div className="bg-green-100 p-3 rounded-lg">
+              <p className="text-sm text-green-800">
+                <strong>مثال:</strong> راتب 200,000 × {shortAdvance.max_percent || 50}% = {((200000 * (shortAdvance.max_percent || 50)) / 100).toLocaleString()} ج.س
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-orange-50 p-5 rounded-lg">
-          <h3 className="font-bold mb-4 text-right text-orange-800">ملخص الإعدادات</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between p-3 bg-white rounded">
-              <span className={`font-bold ${advanceSettings.enabled ? "text-green-600" : "text-red-600"}`}>
-                {advanceSettings.enabled ? "مفعل" : "معطل"}
-              </span>
-              <span>الحالة:</span>
+        {/* سلفة طويلة */}
+        <div className="bg-blue-50 p-5 rounded-lg border-2 border-blue-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-right text-blue-800 flex items-center gap-2">
+              <span className="text-2xl">📅</span> سلفة طويلة
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">تفعيل</span>
+              <input
+                type="checkbox"
+                checked={longAdvance.enabled ?? true}
+                onChange={(e) => updateLongAdvance('enabled', e.target.checked)}
+                className="w-5 h-5"
+              />
             </div>
-            <div className="flex justify-between p-3 bg-white rounded">
-              <span className="font-bold">{advanceSettings.min_amount?.toLocaleString()} - {advanceSettings.max_amount?.toLocaleString()}</span>
-              <span>المبلغ (SDG):</span>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">تقسط على عدة أشهر</p>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">النسبة من المرتب (%)</label>
+                <input
+                  type="number"
+                  value={longAdvance.max_percent || 100}
+                  onChange={(e) => updateLongAdvance('max_percent', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (SDG)</label>
+                <input
+                  type="number"
+                  value={longAdvance.max_amount || 500000}
+                  onChange={(e) => updateLongAdvance('max_amount', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
             </div>
-            <div className="flex justify-between p-3 bg-white rounded">
-              <span className="font-bold">{advanceSettings.max_percent}%</span>
-              <span>الحد الأقصى:</span>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأدنى (SDG)</label>
+                <input
+                  type="number"
+                  value={longAdvance.min_amount || 10000}
+                  onChange={(e) => updateLongAdvance('min_amount', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">أشهر الخدمة المطلوبة</label>
+                <input
+                  type="number"
+                  value={longAdvance.min_service_months || 6}
+                  onChange={(e) => updateLongAdvance('min_service_months', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
             </div>
-            <div className="flex justify-between p-3 bg-white rounded">
-              <span className="font-bold">{advanceSettings.repayment_months} شهر</span>
-              <span>السداد:</span>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">أقل عدد أقساط</label>
+                <input
+                  type="number"
+                  value={longAdvance.min_installments || 3}
+                  onChange={(e) => updateLongAdvance('min_installments', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-right">أكثر عدد أقساط</label>
+                <input
+                  type="number"
+                  value={longAdvance.max_installments || 12}
+                  onChange={(e) => updateLongAdvance('max_installments', parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                />
+              </div>
             </div>
-            <div className="flex justify-between p-3 bg-white rounded">
-              <span className="font-bold">{advanceSettings.min_service_months} شهر</span>
-              <span>الأهلية:</span>
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>مثال:</strong> راتب 200,000 × {longAdvance.max_percent || 100}% = {((200000 * (longAdvance.max_percent || 100)) / 100).toLocaleString()} ج.س
+              </p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ملخص */}
+      <div className="bg-yellow-50 p-5 rounded-lg mb-6">
+        <h3 className="font-bold mb-4 text-right text-yellow-800">ملخص الإعدادات</h3>
+        <div className="grid grid-cols-4 gap-4 text-center">
+          <div className="bg-white p-3 rounded-lg">
+            <p className="text-2xl font-bold text-green-600">{shortAdvance.enabled ? "✅" : "❌"}</p>
+            <p className="text-sm">سلفة قصيرة</p>
+            <p className="text-xs text-gray-500">حتى {shortAdvance.max_percent || 50}% من الراتب</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg">
+            <p className="text-2xl font-bold text-blue-600">{longAdvance.enabled ? "✅" : "❌"}</p>
+            <p className="text-sm">سلفة طويلة</p>
+            <p className="text-xs text-gray-500">حتى {longAdvance.max_installments || 12} شهر</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg">
+            <p className="text-2xl font-bold">{longAdvance.min_service_months || 6}</p>
+            <p className="text-sm">أشهر الخدمة</p>
+            <p className="text-xs text-gray-500">لل سلفة طويلة</p>
+          </div>
+          <div className="bg-white p-3 rounded-lg">
+            <p className="text-2xl font-bold">{advanceSettings.enabled ? "✅" : "❌"}</p>
+            <p className="text-sm">السلفيات</p>
+            <p className="text-xs text-gray-500">الحالة العامة</p>
           </div>
         </div>
       </div>
 
       <button
         onClick={saveAdvanceSettings}
-        className="w-full bg-yellow-600 text-white px-8 py-3 rounded-lg hover:bg-yellow-700 font-medium mb-6"
+        disabled={loadingStates?.saveAdvanceSettings}
+        className="w-full bg-yellow-600 text-white px-8 py-3 rounded-lg hover:bg-yellow-700 font-medium mb-6 disabled:bg-yellow-300"
       >
-        حفظ إعدادات السلفيات
+        {loadingStates?.saveAdvanceSettings ? "جاري الحفظ..." : "💾 حفظ إعدادات السلفيات"}
       </button>
 
       <h3 className="font-bold mb-4 text-right flex items-center gap-2">
@@ -1352,8 +1507,9 @@ function AdvancesTab({
           <tr className="bg-gray-100">
             <th className="border p-3 text-right">#</th>
             <th className="border p-3 text-right">الموظف</th>
+            <th className="border p-3 text-right">النوع</th>
             <th className="border p-3 text-right">المبلغ</th>
-            <th className="border p-3 text-right">القسط</th>
+            <th className="border p-3 text-right">الأقساط</th>
             <th className="border p-3 text-right">التاريخ</th>
             <th className="border p-3 text-right">الحالة</th>
             <th className="border p-3 text-center">إجراء</th>
@@ -1362,16 +1518,21 @@ function AdvancesTab({
         <tbody>
           {advanceRequests.length === 0 ? (
             <tr>
-              <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+              <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
             </tr>
           ) : (
             advanceRequests.map((r, i) => (
               <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                 <td className="border p-3">{i + 1}</td>
                 <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                <td className="border p-3">
+                  <span className={`px-2 py-1 rounded text-xs ${r.type === 'short' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {r.type === 'short' ? 'قصيرة' : 'طويلة'}
+                  </span>
+                </td>
                 <td className="border p-3">{parseFloat(r.amount).toLocaleString()} ج.س</td>
                 <td className="border p-3">{r.installments || 1} شهر</td>
-                <td className="border p-3">{r.created_at?.split("T")[0]}</td>
+                <td className="border p-3">{formatDateDisplay(r.created_at)}</td>
                 <td className="border p-3">{getStatusBadge(r.status)}</td>
                 <td className="border p-3 text-center">
                   {r.status === "pending" && (
