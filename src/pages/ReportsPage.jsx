@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import Sidebar from "../components/Sidebar";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import * as XLSX from "xlsx";
 import {
@@ -143,10 +143,10 @@ function ReportsPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      toast.success('تم تصدير التقرير بنجاح');
+      toast.success('تم تصدير التقرير بنجاح ✅');
     } catch (err) {
       console.error('Export error:', err);
-      toast.error('فشل في تصدير التقرير');
+      toast.error('فشل في تصدير التقرير ❌');
     } finally {
       setExporting(false);
     }
@@ -176,6 +176,7 @@ function ReportsPage() {
       
       if (!data.data || data.data.length === 0) {
         toast.warning('لا توجد بيانات للتصدير');
+        setExporting(false);
         return;
       }
 
@@ -189,10 +190,10 @@ function ReportsPage() {
       };
       
       XLSX.writeFile(wb, fileNames[type]);
-      toast.success('تم تصدير ملف Excel بنجاح');
+      toast.success('تم تصدير ملف Excel بنجاح ✅');
     } catch (err) {
       console.error('Excel export error:', err);
-      toast.error('فشل في تصدير ملف Excel');
+      toast.error('فشل في تصدير ملف Excel ❌');
     } finally {
       setExporting(false);
     }
@@ -253,9 +254,10 @@ function ReportsPage() {
       const res = await api.get(`/reports/salary?${params}`);
       console.log("Salary report response:", res.data);
       setSalaryReport(res.data?.data || []);
+      toast.success("تم تحميل تقرير المرتبات بنجاح ✅");
     } catch (err) {
       console.error("Salary report error:", err);
-      toast.error("فشل في جلب تقرير المرتبات");
+      toast.error("فشل في تحميل تقرير المرتبات ❌");
     } finally {
       setLoading(false);
     }
@@ -268,8 +270,9 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/income-tax?${params}`);
       setTaxReport(res.data?.data || []);
+      toast.success("تم تحميل تقرير ضريبة الدخل بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب تقرير ضريبة الدخل");
+      toast.error("فشل في تحميل تقرير ضريبة الدخل ❌");
     } finally {
       setLoading(false);
     }
@@ -282,8 +285,9 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/salary-increase?${params}`);
       setIncreaseReport(res.data?.data || []);
+      toast.success("تم تحميل تقرير الزيادة السنوية بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب تقرير الزيادة السنوية");
+      toast.error("فشل في تحميل تقرير الزيادة السنوية ❌");
     } finally {
       setLoading(false);
     }
@@ -296,8 +300,9 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/leave-warning?${params}`);
       setLeaveWarningReport(res.data?.data || []);
+      toast.success("تم تحميل تقرير الإجازات والإنذارات بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب تقرير الإجازات والإنذارات");
+      toast.error("فشل في تحميل تقرير الإجازات والإنذارات ❌");
     } finally {
       setLoading(false);
     }
@@ -310,8 +315,9 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/employee-evaluation?${params}`);
       setEvaluationReport(res.data);
+      toast.success("تم تحميل تقرير تقييم الموظفين بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب تقرير تقييم الموظفين");
+      toast.error("فشل في تحميل تقرير تقييم الموظفين ❌");
     } finally {
       setLoading(false);
     }
@@ -322,8 +328,9 @@ function ReportsPage() {
     try {
       const res = await api.get(`/reports/department?year=${year}`);
       setDepartmentReport(res.data?.data || []);
+      toast.success("تم تحميل تقرير الأقسام بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب تقرير الأقسام");
+      toast.error("فشل في تحميل تقرير الأقسام ❌");
     } finally {
       setLoading(false);
     }
@@ -334,8 +341,9 @@ function ReportsPage() {
     try {
       const res = await api.get("/reports/history");
       setReportHistory(res.data?.data || []);
+      toast.success("تم تحميل سجل التقارير بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في جلب سجل التقارير");
+      toast.error("فشل في تحميل سجل التقارير ❌");
     } finally {
       setLoading(false);
     }
@@ -354,9 +362,9 @@ function ReportsPage() {
         ...letterParams,
       });
       setLetterData(res.data);
-      toast.success("تم إنشاء الخطاب بنجاح");
+      toast.success("تم إنشاء الخطاب بنجاح ✅");
     } catch (err) {
-      toast.error("فشل في إنشاء الخطاب");
+      toast.error("فشل في إنشاء الخطاب ❌");
     } finally {
       setLoading(false);
     }
@@ -431,12 +439,26 @@ function ReportsPage() {
       </html>
     `);
     printWindow.document.close();
+    toast.success('جاري فتح نافذة الطباعة...');
   }
 
   const currentTab = TABS.find(t => t.key === activeTab);
 
   return (
-    <div className="flex min-h-screen bg-slate-100" dir="rtl">
+    <>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={true}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        style={{ fontSize: '14px' }}
+      />
+      <div className="flex min-h-screen bg-slate-100" dir="rtl">
       <Sidebar onCollapseChange={setSidebarCollapsed} />
       <main className="flex-1 p-6 overflow-auto main-content">
         <div className="max-w-full mr-auto">
@@ -596,6 +618,7 @@ function ReportsPage() {
         </div>
       </main>
     </div>
+    </>
   );
 }
 

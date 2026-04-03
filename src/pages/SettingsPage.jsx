@@ -108,6 +108,21 @@ function SettingsPage() {
     message_template_leave_end: "عزيزي {name}، نذكّركم بأن إجازتكم ستنتهي غداً. نرجو العودة في الموعد المحدد.",
   });
 
+  const [loadingStates, setLoadingStates] = useState({
+    saveOrg: false,
+    saveAttendance: false,
+    saveLeaveSettings: false,
+    saveAdvanceSettings: false,
+    saveShift: false,
+    deleteShift: false,
+    saveSalaryIncrease: false,
+    saveTax: false,
+    saveWhatsApp: false,
+    handleLeaveStatus: false,
+    handleAdvanceStatus: false,
+    handleWarningStatus: false,
+  });
+
   const [shiftForm, setShiftForm] = useState({
     name: "",
     start_time: "08:00",
@@ -199,6 +214,7 @@ function SettingsPage() {
   }
 
   async function saveOrg() {
+    setLoadingStates(prev => ({ ...prev, saveOrg: true }));
     try {
       const fd = new FormData();
       fd.append("name", orgForm.name);
@@ -216,65 +232,85 @@ function SettingsPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setOrg(res.data?.data || {});
-      toast.success("تم حفظ بيانات الشركة بنجاح");
+      toast.success("تم حفظ بيانات الشركة بنجاح ✅");
     } catch (err) {
-      toast.error("فشل حفظ البيانات");
+      toast.error("فشل حفظ البيانات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveOrg: false }));
     }
   }
 
   async function saveAttendance() {
+    setLoadingStates(prev => ({ ...prev, saveAttendance: true }));
     try {
       await api.put("/settings/attendance", attendance);
-      toast.success("تم حفظ إعدادات الحضور");
+      toast.success("تم حفظ إعدادات الحضور ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveAttendance: false }));
     }
   }
 
   async function saveLeaveSettings() {
+    setLoadingStates(prev => ({ ...prev, saveLeaveSettings: true }));
     try {
       await api.put("/settings/leaves", leaveSettings);
-      toast.success("تم حفظ إعدادات الإجازات");
+      toast.success("تم حفظ إعدادات الإجازات ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveLeaveSettings: false }));
     }
   }
 
   async function handleLeaveStatus(id, status) {
+    setLoadingStates(prev => ({ ...prev, handleLeaveStatus: true }));
     try {
       await api.post(`/leaves/requests/${id}/status`, { status });
-      toast.success(`تم ${status === "approved" ? "الموافقة" : "رفض"} الإجازة`);
+      toast.success(`تم ${status === "approved" ? "الموافقة على" : "رفض"} الإجازة ✅`);
       loadAll();
     } catch (err) {
-      toast.error("فشل تحديث الحالة");
+      toast.error("فشل تحديث الحالة ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, handleLeaveStatus: false }));
     }
   }
 
   async function saveAdvanceSettings() {
+    setLoadingStates(prev => ({ ...prev, saveAdvanceSettings: true }));
     try {
       await api.put("/settings/advances", advanceSettings);
-      toast.success("تم حفظ إعدادات السلفيات");
+      toast.success("تم حفظ إعدادات السلفيات ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveAdvanceSettings: false }));
     }
   }
 
   async function handleAdvanceStatus(id, action) {
+    setLoadingStates(prev => ({ ...prev, handleAdvanceStatus: true }));
     try {
       await api.post(`/advances/requests/${id}/${action}`);
-      toast.success(`تم ${action === "approve" ? "الموافقة" : "رفض"} السلفة`);
+      toast.success(`تم ${action === "approve" ? "الموافقة على" : "رفض"} السلفة ✅`);
       loadAll();
     } catch (err) {
-      toast.error("فشل تحديث الحالة");
+      toast.error("فشل تحديث الحالة ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, handleAdvanceStatus: false }));
     }
   }
 
   async function saveTax() {
+    setLoadingStates(prev => ({ ...prev, saveTax: true }));
     try {
       await api.put("/settings/tax-brackets", { brackets: taxBrackets });
-      toast.success("تم حفظ شرائح الضريبة");
+      toast.success("تم حفظ شرائح الضريبة ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الشرائح ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveTax: false }));
     }
   }
 
@@ -293,20 +329,26 @@ function SettingsPage() {
   }
 
   async function saveSalaryIncrease() {
+    setLoadingStates(prev => ({ ...prev, saveSalaryIncrease: true }));
     try {
       await api.put("/settings/salary-increase", salaryIncrease);
-      toast.success("تم حفظ إعدادات الزيادة السنوية");
+      toast.success("تم حفظ إعدادات الزيادة السنوية ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveSalaryIncrease: false }));
     }
   }
 
   async function saveWhatsApp() {
+    setLoadingStates(prev => ({ ...prev, saveWhatsApp: true }));
     try {
       await api.put("/settings/whatsapp", whatsapp);
-      toast.success("تم حفظ إعدادات واتساب");
+      toast.success("تم حفظ إعدادات واتساب ✅");
     } catch (err) {
-      toast.error("فشل الحفظ");
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveWhatsApp: false }));
     }
   }
 
@@ -323,6 +365,7 @@ function SettingsPage() {
   }
 
   async function saveShift() {
+    setLoadingStates(prev => ({ ...prev, saveShift: true }));
     try {
       const shiftData = {
         ...shiftForm,
@@ -330,22 +373,27 @@ function SettingsPage() {
         active: true,
       };
       await api.post("/work-shifts", shiftData);
-      toast.success("تم إنشاء الوردية");
+      toast.success("تم إنشاء الوردية ✅");
       const res = await api.get("/work-shifts");
       setShifts(res.data?.data || []);
       setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
-      toast.error("فشل إنشاء الوردية");
+      toast.error("فشل إنشاء الوردية ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveShift: false }));
     }
   }
 
   async function deleteShift(id) {
+    setLoadingStates(prev => ({ ...prev, deleteShift: true }));
     try {
       await api.delete(`/work-shifts/${id}`);
-      toast.success("تم حذف الوردية");
+      toast.success("تم حذف الوردية ✅");
       setShifts(shifts.filter((s) => s.id !== id));
     } catch (err) {
-      toast.error("فشل حذف الوردية");
+      toast.error("فشل حذف الوردية ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, deleteShift: false }));
     }
   }
 
@@ -473,6 +521,7 @@ function SettingsPage() {
                 stampFile={stampFile}
                 setStampFile={setStampFile}
                 saveOrg={saveOrg}
+                loadingSave={loadingStates.saveOrg}
               />
             )}
             {activeTab === "attendance" && (
@@ -482,6 +531,7 @@ function SettingsPage() {
                 warnings={warnings}
                 saveAttendance={saveAttendance}
                 shifts={shifts}
+                loadingSave={loadingStates.saveAttendance}
               />
             )}
             {activeTab === "leaves" && (
@@ -498,6 +548,7 @@ function SettingsPage() {
                 saveLeaveSettings={saveLeaveSettings}
                 handleLeaveStatus={handleLeaveStatus}
                 getStatusBadge={getStatusBadge}
+                loadingStates={loadingStates}
               />
             )}
             {activeTab === "advances" && (
@@ -508,6 +559,7 @@ function SettingsPage() {
                 saveAdvanceSettings={saveAdvanceSettings}
                 handleAdvanceStatus={handleAdvanceStatus}
                 getStatusBadge={getStatusBadge}
+                loadingStates={loadingStates}
               />
             )}
             {activeTab === "shifts" && (
@@ -521,6 +573,7 @@ function SettingsPage() {
                 shiftAssignments={shiftAssignments}
                 assignEmployee={assignEmployee}
                 unassignEmployee={unassignEmployee}
+                loadingStates={loadingStates}
               />
             )}
             {activeTab === "financials" && (
@@ -541,6 +594,7 @@ function SettingsPage() {
                 addTaxBracket={addTaxBracket}
                 removeTaxBracket={removeTaxBracket}
                 updateTaxBracket={updateTaxBracket}
+                loadingStates={loadingStates}
               />
             )}
             {activeTab === "whatsapp" && (
@@ -549,6 +603,7 @@ function SettingsPage() {
                 setWhatsapp={setWhatsapp}
                 saveWhatsApp={saveWhatsApp}
                 testWhatsApp={testWhatsApp}
+                loadingSave={loadingStates.saveWhatsApp}
               />
             )}
             {activeTab === "roles" && <RolesTab roles={roles} />}
@@ -559,7 +614,7 @@ function SettingsPage() {
   );
 }
 
-function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg }) {
+function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg, loadingSave }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
@@ -724,14 +779,24 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
         </div>
       </div>
 
-      <button onClick={saveOrg} className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium">
-        حفظ جميع التغييرات
+      <button 
+        onClick={saveOrg} 
+        disabled={loadingSave}
+        className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-400 flex items-center gap-2 justify-center"
+      >
+        {loadingSave ? (
+          <>
+            <span className="animate-spin">⟳</span> جاري الحفظ...
+          </>
+        ) : (
+          <>💾 حفظ جميع التغييرات</>
+        )}
       </button>
     </div>
   );
 }
 
-function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, shifts }) {
+function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, shifts, loadingSave }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
@@ -894,8 +959,18 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, sh
         </div>
       </div>
 
-      <button onClick={saveAttendance} className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium mb-6">
-        حفظ إعدادات الحضور
+      <button 
+        onClick={saveAttendance} 
+        disabled={loadingSave}
+        className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium mb-6 disabled:bg-green-400 flex items-center gap-2 justify-center"
+      >
+        {loadingSave ? (
+          <>
+            <span className="animate-spin">⟳</span> جاري الحفظ...
+          </>
+        ) : (
+          <>💾 حفظ إعدادات الحضور</>
+        )}
       </button>
 
       <div className="bg-gray-50 p-5 rounded-lg">
@@ -945,6 +1020,7 @@ function LeavesTab({
   saveLeaveSettings,
   handleLeaveStatus,
   getStatusBadge,
+  loadingStates,
 }) {
   return (
     <div>
@@ -1066,8 +1142,18 @@ function LeavesTab({
         </div>
       </div>
 
-      <button onClick={saveLeaveSettings} className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 font-medium mb-6">
-        حفظ إعدادات الإجازات
+      <button 
+        onClick={saveLeaveSettings} 
+        disabled={loadingStates?.saveLeaveSettings}
+        className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 font-medium mb-6 disabled:bg-purple-400 flex items-center gap-2 justify-center"
+      >
+        {loadingStates?.saveLeaveSettings ? (
+          <>
+            <span className="animate-spin">⟳</span> جاري الحفظ...
+          </>
+        ) : (
+          <>💾 حفظ إعدادات الإجازات</>
+        )}
       </button>
 
       <h3 className="font-bold mb-4 text-right flex items-center gap-2">
@@ -1137,6 +1223,7 @@ function AdvancesTab({
   saveAdvanceSettings,
   handleAdvanceStatus,
   getStatusBadge,
+  loadingStates,
 }) {
   return (
     <div>
@@ -1593,6 +1680,7 @@ function FinancialsTab({
   addTaxBracket,
   removeTaxBracket,
   updateTaxBracket,
+  loadingStates,
 }) {
   const jobTitles = [...new Set(employees.map((emp) => emp.job_title).filter(Boolean))];
 
@@ -1683,9 +1771,14 @@ function FinancialsTab({
           </div>
           <button
             onClick={saveSalaryIncrease}
-            className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 mt-4"
+            disabled={loadingStates?.saveSalaryIncrease}
+            className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 mt-4 disabled:bg-green-400 flex items-center justify-center gap-2"
           >
-            حفظ الزيادة السنوية
+            {loadingStates?.saveSalaryIncrease ? (
+              <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+            ) : (
+              <>💾 حفظ الزيادة السنوية</>
+            )}
           </button>
         </div>
 
@@ -1750,9 +1843,14 @@ function FinancialsTab({
           </table>
           <button
             onClick={saveTax}
-            className="w-full bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+            disabled={loadingStates?.saveTax}
+            className="w-full bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:bg-orange-400 flex items-center justify-center gap-2"
           >
-            حفظ الشرائح
+            {loadingStates?.saveTax ? (
+              <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+            ) : (
+              <>💾 حفظ الشرائح</>
+            )}
           </button>
         </div>
       </div>
@@ -1779,7 +1877,7 @@ function FinancialsTab({
   );
 }
 
-function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp }) {
+function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp, loadingSave }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6">📱 إعدادات واتساب</h2>
@@ -1832,9 +1930,14 @@ function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp }) {
           <div className="flex gap-3 mt-4">
             <button
               onClick={saveWhatsApp}
-              className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+              disabled={loadingSave}
+              className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 flex items-center justify-center gap-2"
             >
-              حفظ
+              {loadingSave ? (
+                <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+              ) : (
+                <>💾 حفظ</>
+              )}
             </button>
             <button
               onClick={testWhatsApp}

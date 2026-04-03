@@ -28,7 +28,7 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '5rem' : '16rem');
-  }, []);
+  }, [isCollapsed]);
 
   const handleToggle = () => {
     setIsCollapsed((prev) => {
