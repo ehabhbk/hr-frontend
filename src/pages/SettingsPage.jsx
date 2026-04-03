@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../services/api";
+import api, { API_BASE } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -205,6 +205,11 @@ function SettingsPage() {
       fd.append("phone", orgForm.phone);
       fd.append("email", orgForm.email);
       fd.append("address", orgForm.address);
+      fd.append("tax_number", orgForm.tax_number);
+      fd.append("commercial_register", orgForm.commercial_register);
+      fd.append("activity", orgForm.activity);
+      fd.append("employee_count", orgForm.employee_count);
+      fd.append("foundation_year", orgForm.foundation_year);
       if (logoFile) fd.append("logo", logoFile);
       if (stampFile) fd.append("stamp", stampFile);
       const res = await api.post("/organization", fd, {
@@ -678,7 +683,7 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
               />
               {org.logo_url && (
                 <div className="mt-3 text-center">
-                  <img src={org.logo_url} alt="Logo" className="h-24 mx-auto rounded-lg shadow" />
+                  <img src={org.logo_url.startsWith('http') ? org.logo_url : API_BASE + org.logo_url} alt="Logo" className="h-24 mx-auto rounded-lg shadow" />
                   <p className="text-sm text-gray-500 mt-1">الشعار الحالي</p>
                 </div>
               )}
@@ -693,7 +698,7 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
               />
               {org.stamp_url && (
                 <div className="mt-3 text-center">
-                  <img src={org.stamp_url} alt="Stamp" className="h-24 mx-auto rounded-lg shadow" />
+                  <img src={org.stamp_url.startsWith('http') ? org.stamp_url : API_BASE + org.stamp_url} alt="Stamp" className="h-24 mx-auto rounded-lg shadow" />
                   <p className="text-sm text-gray-500 mt-1">الختم الحالي</p>
                 </div>
               )}

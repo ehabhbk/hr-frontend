@@ -5,6 +5,8 @@ const api = axios.create({
   headers: { "Accept": "application/json" },
 });
 
+export const API_BASE = "http://localhost:8000";
+
 // Interceptor لإضافة التوكن في كل طلب
 api.interceptors.request.use(
   (config) => {

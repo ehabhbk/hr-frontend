@@ -3,6 +3,7 @@ import api from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import * as XLSX from "xlsx";
 import {
   PrinterIcon,
   DocumentArrowDownIcon,
@@ -15,6 +16,8 @@ import {
   BuildingOfficeIcon,
   ClockIcon,
   DocumentTextIcon,
+  ArrowDownTrayIcon,
+  DocumentChartBarIcon,
 } from "@heroicons/react/24/outline";
 
 const TABS = [
@@ -92,10 +95,108 @@ function ReportsPage() {
       return false;
     }
   });
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  async function exportToPDF(type) {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('month', month);
+      params.append('year', year);
+      if (selectedDepartment) params.append('department_id', selectedDepartment);
+      if (selectedEmployee) params.append('employee_id', selectedEmployee);
+
+      const endpoints = {
+        salary: '/pdf/salary-report',
+        incomeTax: '/pdf/income-tax-report',
+        leaveWarning: '/pdf/leave-warning-report',
+      };
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}${endpoints[type]}?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/pdf',
+        },
+        responseType: 'blob',
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const fileNames = {
+        salary: `كشف_المرتبات_${MONTHS.find(m => m.value === month)?.label}_${year}.pdf`,
+        incomeTax: `تقرير_ضريبة_الدخل_${year}.pdf`,
+        leaveWarning: `تقرير_الإجازات_والإنذارات_${year}.pdf`,
+      };
+      
+      a.download = fileNames[type];
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('تم تصدير التقرير بنجاح');
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('فشل في تصدير التقرير');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function exportToExcel(type) {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('format', 'excel');
+      params.append('month', month);
+      params.append('year', year);
+      if (selectedDepartment) params.append('department_id', selectedDepartment);
+
+      const endpoints = {
+        salary: '/reports/salary',
+        incomeTax: '/reports/income-tax',
+      };
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}${endpoints[type]}?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json();
+      
+      if (!data.data || data.data.length === 0) {
+        toast.warning('لا توجد بيانات للتصدير');
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(data.data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Report');
+      
+      const fileNames = {
+        salary: `كشف_المرتبات_${month}_${year}.xlsx`,
+        incomeTax: `تقرير_ضريبة_الدخل_${year}.xlsx`,
+      };
+      
+      XLSX.writeFile(wb, fileNames[type]);
+      toast.success('تم تصدير ملف Excel بنجاح');
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error('فشل في تصدير ملف Excel');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     switch (activeTab) {
@@ -408,6 +509,9 @@ function ReportsPage() {
                 selectedEmployee={selectedEmployee}
                 setSelectedEmployee={setSelectedEmployee}
                 formatCurrency={formatCurrency}
+                onExportPDF={() => exportToPDF('salary')}
+                onExportExcel={() => exportToExcel('salary')}
+                exporting={exporting}
               />
             )}
             {activeTab === "incomeTax" && (
@@ -419,6 +523,9 @@ function ReportsPage() {
                 selectedDepartment={selectedDepartment}
                 setSelectedDepartment={setSelectedDepartment}
                 formatCurrency={formatCurrency}
+                onExportPDF={() => exportToPDF('incomeTax')}
+                onExportExcel={() => exportToExcel('incomeTax')}
+                exporting={exporting}
               />
             )}
             {activeTab === "salaryIncrease" && (
@@ -442,6 +549,8 @@ function ReportsPage() {
                 setSelectedDepartment={setSelectedDepartment}
                 expandedEmployee={expandedEmployee}
                 setExpandedEmployee={setExpandedEmployee}
+                onExportPDF={() => exportToPDF('leaveWarning')}
+                exporting={exporting}
               />
             )}
             {activeTab === "evaluation" && (
@@ -460,6 +569,8 @@ function ReportsPage() {
                 loading={loading}
                 year={year} setYear={setYear}
                 formatCurrency={formatCurrency}
+                onExportPDF={() => exportToPDF('department')}
+                exporting={exporting}
               />
             )}
             {activeTab === "history" && (
@@ -548,15 +659,40 @@ function StatCard({ icon, label, value, color, small }) {
   );
 }
 
-function FilterBar({ children }) {
+function FilterBar({ children, onExportPDF, onExportExcel, exporting }) {
   return (
     <div className="flex flex-wrap justify-between items-center mb-6 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-      {children}
+      <div className="flex-1 min-w-[200px]">{children[0]}</div>
+      <div className="flex flex-wrap gap-2 items-center">
+        {children.slice(1)}
+        {onExportPDF && (
+          <button
+            onClick={onExportPDF}
+            disabled={exporting}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+            title="تصدير PDF"
+          >
+            <DocumentArrowDownIcon className="h-5 w-5" />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
+        )}
+        {onExportExcel && (
+          <button
+            onClick={onExportExcel}
+            disabled={exporting}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+            title="تصدير Excel"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            <span className="hidden sm:inline">Excel</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function SalaryReport({ data, loading, month, setMonth, year, setYear, departments, selectedDepartment, setSelectedDepartment, employees, selectedEmployee, setSelectedEmployee, formatCurrency }) {
+function SalaryReport({ data, loading, month, setMonth, year, setYear, departments, selectedDepartment, setSelectedDepartment, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onExportPDF, onExportExcel, exporting }) {
   const totals = {
     base: data.reduce((s, e) => s + (e.base_salary || 0), 0),
     allowances: data.reduce((s, e) => s + (e.total_allowances || 0), 0),
@@ -571,7 +707,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
 
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <BanknotesIcon className="h-6 w-6 text-emerald-600" />
           كشف المرتبات الشهري - {selectedMonth} {year}
@@ -667,7 +803,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
   );
 }
 
-function TaxReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency }) {
+function TaxReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency, onExportPDF, onExportExcel, exporting }) {
   const totals = {
     monthly: data.reduce((s, e) => s + (e.monthly_salary || 0), 0),
     annual: data.reduce((s, e) => s + (e.annual_salary || 0), 0),
@@ -677,7 +813,7 @@ function TaxReport({ data, loading, year, setYear, departments, selectedDepartme
 
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <ScaleIcon className="h-6 w-6 text-orange-600" />
           تقرير ضريبة الدخل - سنة {year}
@@ -844,10 +980,10 @@ function IncreaseReport({ data, loading, year, setYear, departments, selectedDep
   );
 }
 
-function LeaveWarningReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, expandedEmployee, setExpandedEmployee }) {
+function LeaveWarningReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, expandedEmployee, setExpandedEmployee, onExportPDF, exporting }) {
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <ClipboardDocumentListIcon className="h-6 w-6 text-violet-600" />
           تقرير الإجازات والإنذارات - سنة {year}
@@ -1041,13 +1177,13 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
   );
 }
 
-function DepartmentReport({ data, loading, year, setYear, formatCurrency }) {
+function DepartmentReport({ data, loading, year, setYear, formatCurrency, onExportPDF, exporting }) {
   const totalEmployees = data.reduce((s, d) => s + (d.employee_count || 0), 0);
   const totalSalaries = data.reduce((s, d) => s + (d.total_salaries || 0), 0);
 
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <BuildingOfficeIcon className="h-6 w-6 text-cyan-600" />
           تقرير الأقسام - سنة {year}
