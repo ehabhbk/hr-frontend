@@ -851,8 +851,10 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
     gross: data.reduce((s, e) => s + (e.gross_salary || 0), 0),
     insurance: data.reduce((s, e) => s + (e.insurance_amount || 0), 0),
     deductions: data.reduce((s, e) => s + (e.deductions || 0), 0),
+    attendanceDeductions: data.reduce((s, e) => s + (e.attendance_deductions || 0), 0),
     advanceDeductions: data.reduce((s, e) => s + (e.advance_deductions || 0), 0),
     tax: data.reduce((s, e) => s + (e.income_tax || 0), 0),
+    totalDeductions: data.reduce((s, e) => s + (e.total_deductions || 0), 0),
     net: data.reduce((s, e) => s + (e.net_salary || 0), 0),
   };
 
@@ -932,6 +934,10 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
           <p className="text-xs text-yellow-600 font-medium">الخصومات</p>
           <p className="font-bold text-yellow-700 text-sm">{formatCurrency(totals.deductions)}</p>
         </div>
+        <div className="bg-amber-50 p-2 rounded-xl text-center border border-amber-100">
+          <p className="text-xs text-amber-600 font-medium">خصومات الحضور</p>
+          <p className="font-bold text-amber-700 text-sm">{formatCurrency(totals.attendanceDeductions)}</p>
+        </div>
         <div className="bg-pink-50 p-2 rounded-xl text-center border border-pink-100">
           <p className="text-xs text-pink-600 font-medium">السلف</p>
           <p className="font-bold text-pink-700 text-sm">{formatCurrency(totals.advanceDeductions)}</p>
@@ -967,6 +973,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <th className="p-2 border border-slate-600 bg-blue-700 text-right">المستحق</th>
                 <th className="p-2 border border-slate-600 bg-red-600 text-right">التأمين</th>
                 <th className="p-2 border border-slate-600 bg-yellow-600 text-right">الخصومات</th>
+                <th className="p-2 border border-slate-600 bg-amber-600 text-right">خصومات الحضور</th>
                 <th className="p-2 border border-slate-600 bg-pink-600 text-right">السلف</th>
                 <th className="p-2 border border-slate-600 bg-orange-600 text-right">الضريبة</th>
                 <th className="p-2 border border-slate-600 bg-indigo-600 text-right">صافي الراتب</th>
@@ -997,6 +1004,13 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                       <span>{formatCurrency(emp.deductions)}</span>
                     )}
                   </td>
+                  <td className="p-2 border border-slate-200 text-right text-amber-600">
+                    {(emp.attendance_deductions || 0) > 0 && (
+                      <span title={`تأخير: ${emp.attendance_details?.late_days || 0} يوم | خروج مبكر: ${emp.attendance_details?.early_leave_days || 0} يوم`}>
+                        {formatCurrency(emp.attendance_deductions)}
+                      </span>
+                    )}
+                  </td>
                   <td className="p-2 border border-slate-200 text-right text-pink-600">
                     {(emp.advance_deductions || 0) > 0 && (
                       <span title={emp.advances_list?.map(a => `${a.type}: ${formatCurrency(a.deducted)}`).join('\n')}>
@@ -1021,6 +1035,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.gross)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.insurance)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.deductions)}</td>
+                <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.attendanceDeductions)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.advanceDeductions)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.tax)}</td>
                 <td className="p-2 border border-slate-300 text-right bg-indigo-200">{formatCurrency(totals.net)}</td>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api, { API_BASE } from "../services/api";
 import Sidebar from "../components/Sidebar";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
 
@@ -146,10 +146,18 @@ function SettingsPage() {
     handleWarningStatus: false,
   });
 
+  const [confirmDialog, setConfirmDialog] = useState({
+    show: false,
+    title: "",
+    message: "",
+    onConfirm: null,
+  });
+
   const [shiftForm, setShiftForm] = useState({
     name: "",
     start_time: "08:00",
     end_time: "16:00",
+    is_overnight: false,
     color: "#3B82F6",
     working_hours: 8,
     week_days: [0, 1, 2, 3, 4],
@@ -251,13 +259,15 @@ function SettingsPage() {
       fd.append("activity", orgForm.activity);
       fd.append("employee_count", orgForm.employee_count);
       fd.append("foundation_year", orgForm.foundation_year);
+      fd.append("currency", orgForm.currency);
+      fd.append("currency_symbol", orgForm.currency_symbol);
       if (logoFile) fd.append("logo", logoFile);
       if (stampFile) fd.append("stamp", stampFile);
       const res = await api.post("/organization", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setOrg(res.data?.data || {});
-      toast.success("تم حفظ بيانات الشركة بنجاح ✅");
+      toast.success("تم حفظ بيانات المؤسسة بنجاح ✅");
     } catch (err) {
       toast.error("فشل حفظ البيانات ❌");
     } finally {
@@ -268,12 +278,26 @@ function SettingsPage() {
   async function saveAttendance() {
     setLoadingStates(prev => ({ ...prev, saveAttendance: true }));
     try {
-      await api.put("/settings/attendance", attendance);
-      toast.success("تم حفظ إعدادات الحضور ✅");
+      const res = await api.put("/settings/attendance", attendance);
+      // Recalculate all attendance records with new settings
+      await api.post("/attendance-records/recalculate");
+      toast.success("تم حفظ الإعدادات وإعادة حساب السجلات ✅");
     } catch (err) {
       toast.error("فشل حفظ الإعدادات ❌");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveAttendance: false }));
+    }
+  }
+  
+  async function recalculateRecords() {
+    setLoadingStates(prev => ({ ...prev, recalculate: true }));
+    try {
+      const res = await api.post("/attendance-records/recalculate");
+      toast.success(res.data?.message || "تم إعادة حساب السجلات ✅");
+    } catch (err) {
+      toast.error("فشل إعادة حساب السجلات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, recalculate: false }));
     }
   }
 
@@ -395,19 +419,38 @@ function SettingsPage() {
       const shiftData = {
         ...shiftForm,
         daily_hours: shiftForm.working_hours,
+        is_overnight: shiftForm.is_overnight || false,
         active: true,
       };
       await api.post("/work-shifts", shiftData);
       toast.success("تم إنشاء الوردية ✅");
       const res = await api.get("/work-shifts");
       setShifts(res.data?.data || []);
-      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
+      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
       toast.error("فشل إنشاء الوردية ❌");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveShift: false }));
     }
   }
+
+  const confirmDeleteShift = (id, name) => {
+    setConfirmDialog({
+      show: true,
+      title: "تأكيد حذف الوردية",
+      message: `هل أنت متأكد من حذف الوردية "${name}"؟ سيتم إلغاء تعيين جميع الموظفين منها.`,
+      onConfirm: () => deleteShift(id),
+    });
+  };
+
+  const confirmUnassign = (assignmentId, employeeName) => {
+    setConfirmDialog({
+      show: true,
+      title: "تأكيد إلغاء تعيين الموظف",
+      message: `هل أنت متأكد من إلغاء تعيين الموظف "${employeeName}" من الوردية؟`,
+      onConfirm: () => unassignEmployee(assignmentId),
+    });
+  };
 
   async function deleteShift(id) {
     setLoadingStates(prev => ({ ...prev, deleteShift: true }));
@@ -556,8 +599,9 @@ function SettingsPage() {
                 setAttendance={setAttendance}
                 warnings={warnings}
                 saveAttendance={saveAttendance}
+                recalculateRecords={recalculateRecords}
                 shifts={shifts}
-                loadingSave={loadingStates.saveAttendance}
+                loadingSave={loadingStates.saveAttendance || loadingStates.recalculate}
               />
             )}
             {activeTab === "leaves" && (
@@ -594,11 +638,12 @@ function SettingsPage() {
                 shiftForm={shiftForm}
                 setShiftForm={setShiftForm}
                 saveShift={saveShift}
-                deleteShift={deleteShift}
+                deleteShift={confirmDeleteShift}
+                confirmDeleteShift={confirmDeleteShift}
                 employees={employees}
                 shiftAssignments={shiftAssignments}
                 assignEmployee={assignEmployee}
-                unassignEmployee={unassignEmployee}
+                unassignEmployee={confirmUnassign}
                 loadingStates={loadingStates}
               />
             )}
@@ -636,60 +681,98 @@ function SettingsPage() {
           </div>
         </div>
       </main>
+      
+      <ToastContainer 
+        position="top-right" 
+        autoClose={3000} 
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        style={{ zIndex: 9999 }}
+      />
+
+      {confirmDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 text-right">
+              {confirmDialog.title}
+            </h3>
+            <p className="text-gray-600 mb-6 text-right">
+              {confirmDialog.message}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setConfirmDialog({ show: false, title: "", message: "", onConfirm: null })}
+                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmDialog.onConfirm) {
+                    confirmDialog.onConfirm();
+                  }
+                  setConfirmDialog({ show: false, title: "", message: "", onConfirm: null });
+                }}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+              >
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg, loadingSave, currencyOptions }) {
-  const selectedCurrency = currencyOptions.find(c => c.value === orgForm.currency) || currencyOptions[0];
+  const [customCurrency, setCustomCurrency] = useState({ name: "", symbol: "", code: "" });
+  const [showAddCurrency, setShowAddCurrency] = useState(false);
+  const [currencies, setCurrencies] = useState(currencyOptions);
+  
+  const selectedCurrency = currencies.find(c => c.value === orgForm.currency) || currencies[0];
+
+  const addCurrency = () => {
+    if (customCurrency.name && customCurrency.symbol && customCurrency.code) {
+      const newCurrency = {
+        value: customCurrency.code,
+        label: `${customCurrency.name} (${customCurrency.code})`,
+        symbol: customCurrency.symbol,
+        icon: "💱",
+        isCustom: true,
+      };
+      setCurrencies([...currencies, newCurrency]);
+      setOrgForm({ 
+        ...orgForm, 
+        currency: customCurrency.code,
+        currency_symbol: customCurrency.symbol
+      });
+      setCustomCurrency({ name: "", symbol: "", code: "" });
+      setShowAddCurrency(false);
+      toast.success("تم إضافة العملة بنجاح ✅");
+    }
+  };
+
+  const removeCurrency = (code) => {
+    const currency = currencies.find(c => c.value === code);
+    if (currency?.isCustom) {
+      setCurrencies(currencies.filter(c => c.value !== code));
+      if (orgForm.currency === code) {
+        setOrgForm({ ...orgForm, currency: "SDG", currency_symbol: "جنيه" });
+      }
+    }
+  };
 
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
         <span className="text-2xl">🏢</span> معلومات المؤسسة
       </h2>
-
-      {/* قسم العملة */}
-      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl mb-6 border-2 border-yellow-200">
-        <h3 className="font-bold text-lg text-orange-800 mb-4 flex items-center gap-2">
-          <span className="text-2xl">💰</span> العملة الرسمية
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium mb-2 text-right">اختر العملة</label>
-            <select
-              value={orgForm.currency}
-              onChange={(e) => {
-                const selected = currencyOptions.find(c => c.value === e.target.value);
-                setOrgForm({ 
-                  ...orgForm, 
-                  currency: e.target.value,
-                  currency_symbol: selected?.symbol || "جنيه"
-                });
-              }}
-              className="w-full border rounded-lg px-4 py-3 bg-white"
-            >
-              {currencyOptions.map(curr => (
-                <option key={curr.value} value={curr.value}>
-                  {curr.icon} {curr.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="bg-white p-4 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-4xl mb-2">{selectedCurrency.icon}</div>
-              <div className="text-2xl font-bold text-orange-700">{selectedCurrency.symbol}</div>
-              <div className="text-sm text-gray-500">الرمز المستخدم في التقارير</div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 bg-orange-100 p-3 rounded-lg">
-          <p className="text-sm text-orange-800">
-            <strong>💡 ملاحظة:</strong> هذه العملة ستُستخدم في جميع التقارير والعقود والمرتبات والسلفيات والضرائب.
-          </p>
-        </div>
-      </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">
         <div className="bg-blue-50 p-5 rounded-lg">
@@ -849,24 +932,129 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
         </div>
       </div>
 
-      <button 
-        onClick={saveOrg} 
-        disabled={loadingSave}
-        className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-400 flex items-center gap-2 justify-center"
-      >
-        {loadingSave ? (
-          <>
-            <span className="animate-spin">⟳</span> جاري الحفظ...
-          </>
-        ) : (
-          <>💾 حفظ جميع التغييرات</>
+      {/* قسم العملة - تحت الشعار والختم */}
+      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl mb-6 border-2 border-yellow-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-lg text-orange-800 flex items-center gap-2">
+            <span className="text-2xl">💰</span> العملة الرسمية
+          </h3>
+          <button
+            onClick={() => setShowAddCurrency(!showAddCurrency)}
+            className="bg-orange-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-orange-600"
+          >
+            {showAddCurrency ? "إلغاء" : "+ إضافة عملة"}
+          </button>
+        </div>
+        
+        {showAddCurrency && (
+          <div className="bg-white p-4 rounded-lg mb-4 border border-orange-200">
+            <h4 className="font-medium mb-3 text-right">إضافة عملة جديدة</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1 text-right">اسم العملة</label>
+                <input
+                  type="text"
+                  value={customCurrency.name}
+                  onChange={(e) => setCustomCurrency({ ...customCurrency, name: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                  placeholder="مثال: جنيه سوداني"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1 text-right">الرمز</label>
+                <input
+                  type="text"
+                  value={customCurrency.symbol}
+                  onChange={(e) => setCustomCurrency({ ...customCurrency, symbol: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                  placeholder="مثال: ج.س"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1 text-right">الكود</label>
+                <input
+                  type="text"
+                  value={customCurrency.code}
+                  onChange={(e) => setCustomCurrency({ ...customCurrency, code: e.target.value.toUpperCase() })}
+                  className="w-full border rounded-lg px-3 py-2 text-right"
+                  placeholder="مثال: SDG"
+                />
+              </div>
+            </div>
+            <button
+              onClick={addCurrency}
+              className="mt-3 bg-green-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-600"
+            >
+              إضافة
+            </button>
+          </div>
         )}
-      </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-right">اختر العملة</label>
+            <select
+              value={orgForm.currency}
+              onChange={(e) => {
+                const selected = currencies.find(c => c.value === e.target.value);
+                setOrgForm({ 
+                  ...orgForm, 
+                  currency: e.target.value,
+                  currency_symbol: selected?.symbol || "جنيه"
+                });
+              }}
+              className="w-full border rounded-lg px-4 py-3 bg-white"
+            >
+              {currencies.map(curr => (
+                <option key={curr.value} value={curr.value}>
+                  {curr.icon} {curr.label} {curr.isCustom && "✓"}
+                </option>
+              ))}
+            </select>
+            {selectedCurrency?.isCustom && (
+              <button
+                onClick={() => removeCurrency(orgForm.currency)}
+                className="mt-2 text-red-500 text-xs hover:underline"
+              >
+                حذف هذه العملة
+              </button>
+            )}
+          </div>
+          <div className="bg-white p-4 rounded-lg flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-4xl mb-2">{selectedCurrency?.icon || "💱"}</div>
+              <div className="text-2xl font-bold text-orange-700">{orgForm.currency_symbol || selectedCurrency?.symbol}</div>
+              <div className="text-sm text-gray-500">الرمز المستخدم في التقارير</div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 bg-orange-100 p-3 rounded-lg">
+          <p className="text-sm text-orange-800">
+            <strong>💡 ملاحظة:</strong> هذه العملة ستُستخدم في جميع التقارير والعقود والمرتبات والسلفيات والضرائب.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-center mt-6">
+        <button 
+          onClick={saveOrg} 
+          disabled={loadingSave}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-400 flex items-center gap-2"
+        >
+          {loadingSave ? (
+            <>
+              <span className="animate-spin">⟳</span> جاري الحفظ...
+            </>
+          ) : (
+            <>💾 حفظ التغييرات</>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
 
-function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, shifts, loadingSave }) {
+function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, recalculateRecords, shifts, loadingSave }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
@@ -1029,21 +1217,30 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, sh
         </div>
       </div>
 
-      <button 
-        onClick={saveAttendance} 
-        disabled={loadingSave}
-        className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium mb-6 disabled:bg-green-400 flex items-center gap-2 justify-center"
-      >
-        {loadingSave ? (
-          <>
-            <span className="animate-spin">⟳</span> جاري الحفظ...
-          </>
-        ) : (
-          <>💾 حفظ إعدادات الحضور</>
-        )}
-      </button>
+      <div className="flex gap-4 justify-center mt-6">
+        <button 
+          onClick={recalculateRecords} 
+          disabled={loadingSave}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-medium disabled:bg-purple-400 flex items-center gap-2"
+        >
+          <span>🔄</span> إعادة حساب السجلات
+        </button>
+        <button 
+          onClick={saveAttendance} 
+          disabled={loadingSave}
+          className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium disabled:bg-green-400 flex items-center gap-2 justify-center"
+        >
+          {loadingSave ? (
+            <>
+              <span className="animate-spin">⟳</span> جاري الحفظ...
+            </>
+          ) : (
+            <>💾 حفظ وتحديث السجلات</>
+          )}
+        </button>
+      </div>
 
-      <div className="bg-gray-50 p-5 rounded-lg">
+      <div className="bg-gray-50 p-5 rounded-lg mt-6">
         <h3 className="font-bold mb-4 text-right flex items-center gap-2">
           <span>📋</span> سجل الإنذارات ({warnings.length})
         </h3>
@@ -1349,10 +1546,10 @@ function AdvancesTab({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (SDG)</label>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (%)</label>
                 <input
                   type="number"
-                  value={shortAdvance.max_amount || 50000}
+                  value={shortAdvance.max_amount || 50}
                   onChange={(e) => updateShortAdvance('max_amount', parseInt(e.target.value))}
                   className="w-full border rounded-lg px-3 py-2 text-right"
                 />
@@ -1370,7 +1567,7 @@ function AdvancesTab({
             </div>
             <div className="bg-green-100 p-3 rounded-lg">
               <p className="text-sm text-green-800">
-                <strong>مثال:</strong> راتب 200,000 × {shortAdvance.max_percent || 50}% = {((200000 * (shortAdvance.max_percent || 50)) / 100).toLocaleString()} ج.س
+                <strong>مثال:</strong> راتب 200,000 × {shortAdvance.max_percent || 50}% = {((200000 * (shortAdvance.max_percent || 50)) / 100).toLocaleString()} ج.س (الحد الأقصى: {shortAdvance.max_amount || 50}%)
               </p>
             </div>
           </div>
@@ -1471,7 +1668,7 @@ function AdvancesTab({
           <div className="bg-white p-3 rounded-lg">
             <p className="text-2xl font-bold text-green-600">{shortAdvance.enabled ? "✅" : "❌"}</p>
             <p className="text-sm">سلفة قصيرة</p>
-            <p className="text-xs text-gray-500">حتى {shortAdvance.max_percent || 50}% من الراتب</p>
+            <p className="text-xs text-gray-500">حتى {shortAdvance.max_percent || 50}% ({shortAdvance.max_amount || 50}%)</p>
           </div>
           <div className="bg-white p-3 rounded-lg">
             <p className="text-2xl font-bold text-blue-600">{longAdvance.enabled ? "✅" : "❌"}</p>
@@ -1491,13 +1688,19 @@ function AdvancesTab({
         </div>
       </div>
 
-      <button
-        onClick={saveAdvanceSettings}
-        disabled={loadingStates?.saveAdvanceSettings}
-        className="w-full bg-yellow-600 text-white px-8 py-3 rounded-lg hover:bg-yellow-700 font-medium mb-6 disabled:bg-yellow-300"
-      >
-        {loadingStates?.saveAdvanceSettings ? "جاري الحفظ..." : "💾 حفظ إعدادات السلفيات"}
-      </button>
+      <div className="flex justify-center mb-6">
+        <button
+          onClick={saveAdvanceSettings}
+          disabled={loadingStates?.saveAdvanceSettings}
+          className="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700 font-medium disabled:bg-yellow-300 flex items-center gap-2"
+        >
+          {loadingStates?.saveAdvanceSettings ? (
+            <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+          ) : (
+            <>💾 حفظ إعدادات السلفيات</>
+          )}
+        </button>
+      </div>
 
       <h3 className="font-bold mb-4 text-right flex items-center gap-2">
         <span>📋</span> طلبات السلفيات ({advanceRequests.length})
@@ -1561,7 +1764,7 @@ function AdvancesTab({
   );
 }
 
-function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
+function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
   const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
 
   const DAYS = [
@@ -1650,6 +1853,37 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
                 />
               </div>
             </div>
+            
+            <div className="mt-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shiftForm.is_overnight || false}
+                  onChange={(e) => {
+                    const isOvernight = e.target.checked;
+                    let hours = 8;
+                    if (isOvernight) {
+                      hours = 24;
+                    } else {
+                      const [startH, startM] = (shiftForm.start_time || "08:00").split(":").map(Number);
+                      const [endH, endM] = (shiftForm.end_time || "16:00").split(":").map(Number);
+                      hours = (endH * 60 + endM - startH * 60 - startM) / 60;
+                      if (hours <= 0) hours = hours + 24;
+                    }
+                    setShiftForm({ ...shiftForm, is_overnight: isOvernight, working_hours: hours });
+                  }}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">الوردية تمر بعد منتصف الليل (24 ساعة)</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 mr-6">
+                {shiftForm.is_overnight 
+                  ? "مثال: من 08:00 صباحاً إلى 08:00 صباحاً (اليوم التالي) = 24 ساعة"
+                  : "الوقت ينتهي في نفس اليوم"
+                }
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-2 mt-3">
               <div>
                 <label className="block text-sm mb-1 text-right">ساعات العمل</label>
@@ -1732,11 +1966,11 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
                   <div>
                     <span className="font-medium">{s.name}</span>
                     <span className="text-sm text-gray-500 mr-2">
-                      {s.start_time} - {s.end_time}
+                      {s.start_time} - {s.end_time} {s.is_overnight ? "(24 س)" : ""}
                     </span>
                   </div>
                   <button
-                    onClick={() => deleteShift(s.id)}
+                    onClick={() => confirmDeleteShift(s.id, s.name)}
                     className="text-red-600 font-bold"
                   >
                     ×
@@ -1761,7 +1995,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
             <option value="">اختر الوردية</option>
             {shifts.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name} ({s.start_time} - {s.end_time})
+                {s.name} ({s.start_time} - {s.end_time}){s.is_overnight ? " [24 س]" : ""}
               </option>
             ))}
           </select>
@@ -1779,7 +2013,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, em
                     <div key={emp.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
                       <span className="text-sm">{emp.name}</span>
                       <button
-                        onClick={() => unassignEmployee(emp.assignmentId)}
+                        onClick={() => unassignEmployee(emp.assignmentId, emp.name)}
                         className="text-red-600 hover:bg-red-100 px-2 py-1 rounded text-xs"
                       >
                         إزالة

@@ -13,6 +13,7 @@ export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [devices, setDevices] = useState([]);
+  const [shifts, setShifts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const token = localStorage.getItem("token");
@@ -37,6 +38,7 @@ export default function Employees() {
     position_allowance: "",
     department_id: "",
     attendance_device_id: "",
+    work_shift_id: "",
     hire_date: "",
     base_salary: "",
     address: "",
@@ -176,6 +178,10 @@ export default function Employees() {
     api.get("/banks/custom", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setCustomBanks(res.data?.data || []))
       .catch(() => {});
+
+    api.get("/work-shifts", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setShifts(res.data?.data || []))
+      .catch((err) => console.error(err));
   };
 
   useEffect(() => {
@@ -211,6 +217,7 @@ export default function Employees() {
       position_allowance: employee.position_allowance || "",
       department_id: employee.department_id || "",
       attendance_device_id: employee.attendance_device_id || "",
+      work_shift_id: employee.work_shift_id || "",
       hire_date: employee.hire_date || "",
       base_salary: employee.base_salary || "",
       address: employee.address || "",
@@ -338,13 +345,16 @@ export default function Employees() {
       const scalarFields = [
         "file_number", "name", "email", "phone", "phone_country_code",
         "position", "position_grade", "position_allowance", "department_id",
-        "attendance_device_id", "hire_date", "base_salary", "address", "notes", "status",
+        "attendance_device_id", "work_shift_id", "hire_date", "base_salary", "address", "notes", "status",
         "insurance_type", "insurance_amount", "bank_name", "bank_account",
       ];
 
       scalarFields.forEach(key => {
         const val = editFormData[key];
-        if (val !== "" && val !== null && typeof val !== "undefined") {
+        // Always send work_shift_id, even if empty (to allow clearing)
+        if (key === 'work_shift_id') {
+          data.append(key, val || "");
+        } else if (val !== "" && val !== null && typeof val !== "undefined") {
           data.append(key, val);
         }
       });
@@ -680,6 +690,15 @@ export default function Employees() {
                         ))}
                       </div>
                     )}
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-semibold mb-1">الوردية</label>
+                    <select name="work_shift_id" value={String(editFormData.work_shift_id || "")} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                      <option value="">اختر الوردية</option>
+                      {shifts.map(shift => (
+                        <option key={shift.id} value={String(shift.id)}>{shift.name || `وردية #${shift.id}`}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
