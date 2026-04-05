@@ -100,6 +100,15 @@ export default function Employees() {
       return;
     }
 
+    // التحقق من تكرار رقم البصمة
+    const duplicateExists = (editFormData.fingerprints || []).some(
+      fp => fp.finger_id === newFingerprint.finger_id
+    );
+    if (duplicateExists) {
+      toast.error(`⚠️ رقم البصمة ${newFingerprint.finger_id} مضاف مسبقاً لهذا الموظف`);
+      return;
+    }
+
     const fingerId = fingerPositionToId(newFingerprint.finger_position, newFingerprint.finger);
 
     try {
@@ -122,12 +131,17 @@ export default function Employees() {
           attendance_device_id: editFormData.attendance_device_id,
         }, { headers: { Authorization: `Bearer ${token}` } });
 
+        // تحديث device_user_id للموظف
+        await api.put(`/employees/${editingEmployee.id}`, {
+          device_user_id: newFingerprint.finger_id,
+        }, { headers: { Authorization: `Bearer ${token}` } });
+
         const newFp = { 
           ...newFingerprint, 
           device_finger_id: fingerId,
           attendance_device_id: editFormData.attendance_device_id,
         };
-        setEditFormData(prev => ({ ...prev, fingerprints: [...(prev.fingerprints || []), newFp] }));
+        setEditFormData(prev => ({ ...prev, fingerprints: [...(prev.fingerprints || []), newFp], device_user_id: newFingerprint.finger_id }));
         setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
         toast.success("✅ تم تسجيل البصمة على الجهاز وقاعدة البيانات");
       } else {
@@ -135,7 +149,12 @@ export default function Employees() {
       }
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      toast.error("❌ فشل التواصل مع الجهاز أو قاعدة البيانات");
+      // التحقق من خطأ تكرار رقم البصمة من الخادم
+      if (error?.response?.data?.error === 'duplicate_device_user_id') {
+        toast.error(`⚠️ رقم البصمة ${newFingerprint.finger_id} مستخدم لموظف آخر`);
+      } else {
+        toast.error("❌ فشل التواصل مع الجهاز أو قاعدة البيانات");
+      }
     } finally {
       setEditLoading(false);
     }
@@ -207,6 +226,7 @@ export default function Employees() {
       department_id: employee.department_id || "",
       attendance_device_id: employee.attendance_device_id || "",
       work_shift_id: employee.work_shift_id || "",
+      device_user_id: employee.device_user_id || "",
       hire_date: employee.hire_date || "",
       base_salary: employee.base_salary || "",
       address: employee.address || "",
@@ -643,7 +663,14 @@ export default function Employees() {
                       </select>
                       <button
                         type="button"
-                        onClick={() => setShowFingerprintModal(true)}
+                        onClick={() => {
+                          if (!editFormData.file_number?.trim()) {
+                            toast.warning("⚠️ أدخل رقم الملف أولاً");
+                            return;
+                          }
+                          setNewFingerprint(prev => ({ ...prev, finger_id: editFormData.file_number.trim() }));
+                          setShowFingerprintModal(true);
+                        }}
                         className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
                       >
                         + بصمة
@@ -916,13 +943,16 @@ export default function Employees() {
               <h3 className="text-xl font-bold mb-4 text-green-800">إضافة بصمة</h3>
               
               <div className="space-y-4">
+                <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+                  💡 رقم البصمة = رقم الملف ({editFormData.file_number || "أدخل رقم الملف"})
+                </div>
                 <div>
                   <label className="block font-semibold mb-1">رقم البصمة</label>
                   <input
                     type="text"
                     value={newFingerprint.finger_id}
                     onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_id: e.target.value })}
-                    placeholder="أدخل رقم البصمة"
+                    placeholder="رقم البصمة (رقم الملف)"
                     className="w-full border p-2 rounded"
                   />
                 </div>

@@ -68,51 +68,100 @@ export default function AttendanceLogs() {
       if (filters.to_date) params.to_date = filters.to_date;
       if (filters.device_id) params.device_id = filters.device_id;
 
-      // Fetch device logs
-      const deviceRes = await api.get("/attendance-logs", {
-        params,
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const deviceLogs = deviceRes.data?.data?.data || deviceRes.data?.data || deviceRes.data || [];
-      
-      // Fetch manual records
+      // Fetch calculated attendance records (this has the correct late/on_time types)
       const recordsRes = await api.get("/attendance-records", {
         params,
         headers: { Authorization: `Bearer ${token}` }
       });
       const records = recordsRes.data?.data?.data || recordsRes.data?.data || recordsRes.data || [];
       
-      // Transform manual records to match device log format
-      const manualLogs = Array.isArray(records) ? records.map(r => ({
-        id: `manual-${r.id}`,
-        record_id: r.id,
-        device_user_id: r.employee?.device_user_id || '-',
-        employee_id: r.employee_id,
-        employee_name: r.employee?.name || '-',
-        device_id: null,
-        device_name: 'تسجيل يدوي',
-        device_host: null,
-        timestamp: r.check_in_time || r.check_out_time || r.date,
-        type: r.is_absent ? 'absence' : (r.check_in_type || (r.check_out_type ? 'checkout' : 'attendance')),
-        state: r.check_in_type === 'late' ? 3 : (r.check_in_type === 'early' ? 2 : 1),
-        deduction_amount: r.total_deduction || 0,
-        has_delay: r.has_delay || false,
-        excused: r.delay_excused || r.absence_excused || false,
-        is_absent: r.is_absent || false,
-        absence_excused: r.absence_excused || false,
-        is_manual: true,
-        check_in_type: r.check_in_type,
-        check_out_type: r.check_out_type,
-      })) : [];
+// Transform attendance records for display
+      const processedLogs = Array.isArray(records) ? records.flatMap(r => {
+        const logs = [];
+        const deviceName = r.device_name || r.employee?.attendance_device?.name || 
+                          r.employee?.attendanceDevice?.name || r.employee?.attendance_device?.host || '-';
+        
+        // Check-in record
+        if (r.check_in_time) {
+          logs.push({
+            id: `in-${r.id}`,
+            record_id: r.id,
+            device_user_id: r.employee?.device_user_id || '-',
+            employee_id: r.employee_id,
+            employee_name: r.employee?.name || '-',
+            device_id: r.employee?.attendance_device_id || null,
+            device_name: deviceName,
+            device_host: null,
+            timestamp: r.check_in_time,
+            type: r.check_in_type === 'late' ? 'attendance_late' : 
+                  r.check_in_type === 'early' ? 'attendance_early' : 'attendance',
+            state: r.check_in_type === 'late' ? 3 : (r.check_in_type === 'early' ? 2 : 1),
+            deduction_amount: r.delay_deduction || 0,
+            has_delay: r.has_delay || false,
+            excused: r.delay_excused || false,
+            is_manual: false,
+            check_in_type: r.check_in_type,
+            delay_minutes: r.check_in_delay_minutes || 0,
+          });
+        }
+        
+        // Check-out record
+        if (r.check_out_time) {
+          logs.push({
+            id: `out-${r.id}`,
+            record_id: r.id,
+            device_user_id: r.employee?.device_user_id || '-',
+            employee_id: r.employee_id,
+            employee_name: r.employee?.name || '-',
+            device_id: r.employee?.attendance_device_id || null,
+            device_name: deviceName,
+            device_host: null,
+            timestamp: r.check_out_time,
+            type: r.check_out_type === 'early' ? 'checkout_early' : 
+                  r.check_out_type === 'late' ? 'checkout_late' : 'checkout',
+            state: r.check_out_type === 'early' ? 5 : (r.check_out_type === 'late' ? 6 : 4),
+            deduction_amount: r.early_leave_deduction || 0,
+            has_delay: false,
+            excused: r.check_out_excused || false,
+            is_manual: false,
+            check_out_type: r.check_out_type,
+            early_minutes: r.check_out_early_minutes || 0,
+          });
+        }
+        
+        // Absence record
+        if (!r.check_in_time && r.is_absent) {
+          logs.push({
+            id: `abs-${r.id}`,
+            record_id: r.id,
+            device_user_id: r.employee?.device_user_id || '-',
+            employee_id: r.employee_id,
+            employee_name: r.employee?.name || '-',
+            device_id: r.employee?.attendance_device_id || null,
+            device_name: deviceName,
+            device_host: null,
+            timestamp: r.date,
+            type: 'absence',
+            state: 0,
+            deduction_amount: r.absence_deduction || 0,
+            has_delay: false,
+            excused: r.absence_excused || false,
+            is_manual: false,
+            is_absent: true,
+          });
+        }
+        
+        return logs;
+      }) : [];
       
-      // Merge and sort by timestamp
-      const allLogs = [...deviceLogs, ...manualLogs].sort((a, b) => {
+      // Sort by timestamp descending
+      processedLogs.sort((a, b) => {
         const dateA = new Date(a.timestamp || 0);
         const dateB = new Date(b.timestamp || 0);
         return dateB - dateA;
       });
       
-      setLogs(allLogs);
+      setLogs(processedLogs);
     } catch (e) {
       toast.error(e.message || "فشل في جلب السجلات");
     } finally {
@@ -127,9 +176,31 @@ export default function AttendanceLogs() {
         const res = await api.post(`/attendance-device/${deviceId}/sync`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        toast.success(`تم المزامنة بنجاح: ${res.data?.fetched || 0} سجل`);
+        const stored = res.data?.stored ?? 0;
+        const skipped = res.data?.skipped ?? 0;
+        
+        // Process device logs to calculate delays based on shifts
+        if (stored > 0) {
+          await api.post("/attendance-records/process-logs", {
+            device_id: deviceId
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+        
+        if (stored > 0) {
+          toast.success(`✅ تمت المزامنة بنجاح - ${stored} سجل جديد`);
+        } else if (skipped > 0) {
+          toast.info(`ℹ️ لا توجد سجلات جديدة (${skipped} سجل مكرر)`);
+        } else {
+          toast.info(`ℹ️ لا توجد سجلات جديدة للمزامنة`);
+        }
       } else {
         const res = await api.post("/attendance-device/sync-all", {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        // Process all device logs
+        await api.post("/attendance-records/process-logs", {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success(`تم المزامنة بنجاح`);
@@ -275,7 +346,7 @@ export default function AttendanceLogs() {
       d = new Date(timestamp);
     }
     const date = d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     return `${date} ${time}`;
   };
 
@@ -425,6 +496,8 @@ export default function AttendanceLogs() {
                           <td className="p-3">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${typeInfo.bg} ${typeInfo.text} ${typeInfo.border}`}>
                               {typeInfo.label}
+                              {row.delay_minutes > 0 && ` (${row.delay_minutes} د)`}
+                              {row.early_minutes > 0 && ` (${row.early_minutes} د)`}
                             </span>
                           </td>
                           <td className="p-3 text-red-600 font-medium">

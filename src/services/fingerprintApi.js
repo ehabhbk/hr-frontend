@@ -56,7 +56,14 @@ export async function testDevice(id) {
 
 export async function syncDevice(id) {
   try {
-    return unwrap(await api.post(`/attendance-device/${id}/sync`));
+    const response = await api.post(`/attendance-device/${id}/sync`);
+    const result = response.data;
+    return {
+      stored: result.stored ?? 0,
+      fetched: result.fetched ?? 0,
+      skipped: result.skipped ?? 0,
+      ok: result.ok ?? false,
+    };
   } catch (e) {
     throw normalizeError(e);
   }
@@ -113,6 +120,30 @@ export async function deleteFingerprintFromDatabase(employeeId, fingerprintId) {
 export async function getEmployeeFingerprints(employeeId) {
   try {
     return unwrap(await api.get(`/employees/${employeeId}/fingerprints`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function setDeviceTime(deviceId) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/set-time`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function downloadFingerprints(deviceId) {
+  try {
+    return unwrap(await api.get(`/attendance-device/${deviceId}/fingerprints`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function uploadFingerprints(deviceId) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/upload-fingerprints`));
   } catch (e) {
     throw normalizeError(e);
   }

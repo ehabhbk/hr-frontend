@@ -35,6 +35,7 @@ export default function AddEmployee() {
     position_allowance: "",
     department_id: "",
     attendance_device_id: "",
+    device_user_id: "",
     hire_date: "",
     base_salary: "",
     allowances: [],
@@ -187,6 +188,15 @@ export default function AddEmployee() {
       return;
     }
 
+    // التحقق من تكرار رقم البصمة
+    const duplicateExists = formData.fingerprints.some(
+      fp => fp.finger_id === newFingerprint.finger_id
+    );
+    if (duplicateExists) {
+      toast.error(`⚠️ رقم البصمة ${newFingerprint.finger_id} مضاف مسبقاً لهذا الموظف`);
+      return;
+    }
+
     const deviceId = formData.attendance_device_id;
     if (!deviceId) {
       toast.error("يرجى اختيار جهاز البصمة أولاً");
@@ -208,7 +218,11 @@ export default function AddEmployee() {
       });
 
       if (result.success) {
-        setFormData(prev => ({ ...prev, fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId }] }));
+        setFormData(prev => ({ 
+          ...prev, 
+          fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId }],
+          device_user_id: newFingerprint.finger_id 
+        }));
         setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
         toast.success("✅ " + (result.message || "تم تسجيل البصمة بنجاح"));
       } else {
@@ -216,7 +230,12 @@ export default function AddEmployee() {
       }
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      toast.error("❌ فشل التواصل مع الجهاز");
+      // التحقق من خطأ تكرار رقم البصمة من الخادم
+      if (error?.response?.data?.error === 'duplicate_device_user_id') {
+        toast.error(`⚠️ رقم البصمة ${newFingerprint.finger_id} مستخدم لموظف آخر: ${error.response.data.existing_employee_name || ''}`);
+      } else {
+        toast.error("❌ فشل التواصل مع الجهاز");
+      }
     } finally {
       setLoading(false);
     }
@@ -297,6 +316,7 @@ export default function AddEmployee() {
         "position_allowance",
         "department_id",
         "attendance_device_id",
+        "device_user_id",
         "hire_date",
         "base_salary",
         "address",
@@ -390,13 +410,14 @@ export default function AddEmployee() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* رقم الملف */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">رقم الملف</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">رقم الملف <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     name="file_number"
                     value={formData.file_number}
                     onChange={handleChange}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
                   />
                 </div>
 
@@ -622,7 +643,14 @@ export default function AddEmployee() {
                     </select>
                     <button
                       type="button"
-                      onClick={() => setShowFingerprintModal(true)}
+                      onClick={() => {
+                        if (!formData.file_number?.trim()) {
+                          toast.warning("⚠️ أدخل رقم الملف أولاً");
+                          return;
+                        }
+                        setNewFingerprint(prev => ({ ...prev, finger_id: formData.file_number.trim() }));
+                        setShowFingerprintModal(true);
+                      }}
                       className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
                     >
                       + بصمة
@@ -1153,13 +1181,16 @@ export default function AddEmployee() {
                 <h3 className="text-xl font-bold mb-4 text-indigo-800">إضافة بصمة</h3>
                 
                 <div className="space-y-4">
+                  <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+                    💡 رقم البصمة = رقم الملف ({formData.file_number || "أدخل رقم الملف"})
+                  </div>
                   <div>
                     <label className="block font-semibold mb-1">رقم البصمة</label>
                     <input
                       type="text"
                       value={newFingerprint.finger_id}
                       onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_id: e.target.value })}
-                      placeholder="أدخل رقم البصمة"
+                      placeholder="رقم البصمة (رقم الملف)"
                       className="w-full border p-2 rounded"
                     />
                   </div>

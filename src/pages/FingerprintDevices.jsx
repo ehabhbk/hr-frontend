@@ -11,6 +11,9 @@ import {
   syncDevice,
   testDevice,
   updateDevice,
+  setDeviceTime,
+  downloadFingerprints,
+  uploadFingerprints,
 } from "../services/fingerprintApi";
 
 export default function FingerprintDevices() {
@@ -129,9 +132,60 @@ export default function FingerprintDevices() {
     setBusyId(d.id);
     try {
       const res = await syncDevice(d.id);
-      toast.success(res?.message || "تمت المزامنة ✅");
+      const stored = res?.stored ?? 0;
+      const skipped = res?.skipped ?? 0;
+      
+      if (stored === 0 && skipped === 0) {
+        toast.info("ℹ️ لا توجد سجلات جديدة للمزامنة");
+      } else if (stored > 0) {
+        toast.success(`✅ تمت المزامنة بنجاح - ${stored} سجل جديد`);
+      } else {
+        toast.info(`ℹ️ لا توجد سجلات جديدة (${skipped} سجل مكرر)`);
+      }
     } catch (e) {
       toast.error(e.message || "فشل المزامنة");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doSetTime = async (d) => {
+    if (!d?.id) return;
+    if (!window.confirm("هل تريد ضبط وقت الجهاز على الوقت الحالي؟")) return;
+    setBusyId(d.id);
+    try {
+      const res = await setDeviceTime(d.id);
+      toast.success(res?.message || "تم ضبط الوقت بنجاح ✅");
+    } catch (e) {
+      toast.error(e.message || "فشل في ضبط الوقت");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doDownloadFingerprints = async (d) => {
+    if (!d?.id) return;
+    if (!window.confirm("هل تريد جلب البصمات من الجهاز؟")) return;
+    setBusyId(d.id);
+    try {
+      const res = await downloadFingerprints(d.id);
+      toast.success(res?.message || "تم جلب البصمات بنجاح ✅");
+    } catch (e) {
+      toast.error(e.message || "فشل في جلب البصمات");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doUploadFingerprints = async (d) => {
+    if (!d?.id) return;
+    if (!window.confirm("هل تريد رفع البصمات إلى الجهاز؟")) return;
+    setBusyId(d.id);
+    try {
+      const res = await uploadFingerprints(d.id);
+      toast.success(res?.message || "تم رفع البصمات بنجاح ✅");
+    } catch (e) {
+      toast.error(e.message || "فشل في رفع البصمات");
     } finally {
       setBusyId(null);
     }
@@ -216,7 +270,31 @@ export default function FingerprintDevices() {
                       type="button"
                       disabled={busyId === d.id}
                     >
-                      مزامنة
+                      مزامنة السجلات
+                    </button>
+                    <button
+                      onClick={() => doSetTime(d)}
+                      className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      ضبط الوقت
+                    </button>
+                    <button
+                      onClick={() => doDownloadFingerprints(d)}
+                      className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      جلب البصمات
+                    </button>
+                    <button
+                      onClick={() => doUploadFingerprints(d)}
+                      className="px-4 py-2 rounded bg-teal-600 text-white hover:bg-teal-700"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      رفع البصمات
                     </button>
                     <button
                       onClick={() => navigate("/attendance-logs")}
