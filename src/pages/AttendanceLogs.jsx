@@ -224,22 +224,23 @@ export default function AttendanceLogs() {
       if (filters.from_date) params.from_date = filters.from_date;
       if (filters.to_date) params.to_date = filters.to_date;
 
+      const token = localStorage.getItem("token");
+      
       const res = await api.get("/pdf/export/attendance", {
         params,
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob'
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          Accept: 'text/html'
+        }
       });
 
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `attendance-${filters.from_date || 'all'}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("تم تصدير PDF بنجاح");
+      // Open in new window
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(res.data);
+      printWindow.document.close();
+      toast.success("تم فتح التقرير للطباعة");
     } catch (e) {
-      toast.error("فشل في تصدير PDF");
+      toast.error("فشل في تصدير التقرير");
     }
   };
 
