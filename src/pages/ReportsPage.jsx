@@ -1720,6 +1720,24 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
     'both': 'تأمين صحي واجتماعي',
   };
   
+  const genderLabels = {
+    'male': 'ذكر',
+    'female': 'أنثى',
+  };
+  
+  const maritalStatusLabels = {
+    'single': 'أعزب/عزباء',
+    'married': 'متزوج/متزوجة',
+    'divorced': 'مطلق/مطلقة',
+    'widowed': 'أرمل/أرملة',
+  };
+  
+  const attendanceTypeLabels = {
+    'on_time': 'في الوقت',
+    'late': 'متأخر',
+    'early': 'مبكر',
+  };
+  
   const statusLabels = {
     'pending': 'قيد الانتظار',
     'approved': 'موافق عليها',
@@ -1788,13 +1806,13 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
             <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
               <div><span className="text-gray-500 text-sm">الاسم:</span> <span className="font-medium">{emp?.name}</span></div>
               <div><span className="text-gray-500 text-sm">رقم الموظف:</span> <span className="font-medium">{emp?.employee_number}</span></div>
-              <div><span className="text-gray-500 text-sm">الرقم الوطني:</span> <span className="font-medium">{emp?.national_id}</span></div>
-              <div><span className="text-gray-500 text-sm">تاريخ الميلاد:</span> <span className="font-medium">{formatDateDisplay(emp?.birth_date)}</span></div>
-              <div><span className="text-gray-500 text-sm">الجنس:</span> <span className="font-medium">{emp?.gender}</span></div>
-              <div><span className="text-gray-500 text-sm">الحالة الاجتماعية:</span> <span className="font-medium">{emp?.marital_status}</span></div>
-              <div><span className="text-gray-500 text-sm">البريد:</span> <span className="font-medium">{emp?.email}</span></div>
-              <div><span className="text-gray-500 text-sm">الهاتف:</span> <span className="font-medium">{emp?.phone}</span></div>
-              <div className="col-span-4"><span className="text-gray-500 text-sm">العنوان:</span> <span className="font-medium">{emp?.address}</span></div>
+              <div><span className="text-gray-500 text-sm">رقم الهوية:</span> <span className="font-medium">{emp?.id_number || '-'}</span></div>
+              <div><span className="text-gray-500 text-sm">تاريخ الميلاد:</span> <span className="font-medium">{formatDateDisplay(emp?.birth_date) || '-'}</span></div>
+              <div><span className="text-gray-500 text-sm">النوع:</span> <span className="font-medium">{genderLabels[emp?.gender] || emp?.gender || '-'}</span></div>
+              <div><span className="text-gray-500 text-sm">الحالة الاجتماعية:</span> <span className="font-medium">{maritalStatusLabels[emp?.marital_status] || emp?.marital_status || '-'}</span></div>
+              <div><span className="text-gray-500 text-sm">البريد:</span> <span className="font-medium">{emp?.email || '-'}</span></div>
+              <div><span className="text-gray-500 text-sm">الهاتف:</span> <span className="font-medium">{emp?.phone || '-'}</span></div>
+              <div className="col-span-4"><span className="text-gray-500 text-sm">العنوان:</span> <span className="font-medium">{emp?.address || '-'}</span></div>
             </div>
           </div>
 
@@ -1991,6 +2009,104 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
               </div>
             ) : (
               <div className="p-8 text-center text-gray-500">لا توجد إنذارات مسجلة</div>
+            )}
+          </div>
+
+          {/* Attendance Records Section */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-violet-700 text-white px-4 py-3 font-bold">
+              سابعا: سجل الحضور والانصراف المفصل
+            </div>
+            
+            {/* Attendance Summary */}
+            {data.attendance_summary && (
+              <div className="p-4 bg-violet-50 border-b border-violet-100">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white p-3 rounded-lg text-center">
+                    <p className="text-violet-600 text-sm">أيام العمل</p>
+                    <p className="font-bold text-violet-800 text-xl">{data.attendance_summary.working_days || 0}</p>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg text-center">
+                    <p className="text-green-600 text-sm">في الوقت</p>
+                    <p className="font-bold text-green-800 text-xl">{data.attendance_summary.on_time_days || 0}</p>
+                  </div>
+                  <div className="bg-red-50 p-3 rounded-lg text-center">
+                    <p className="text-red-600 text-sm">التأخير</p>
+                    <p className="font-bold text-red-800 text-xl">{data.attendance_summary.late_days || 0}</p>
+                  </div>
+                  <div className="bg-orange-50 p-3 rounded-lg text-center">
+                    <p className="text-orange-600 text-sm">الغياب</p>
+                    <p className="font-bold text-orange-800 text-xl">{data.attendance_summary.absent_days || 0}</p>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center">
+                    <p className="text-gray-600 text-sm">إجمالي الخصم</p>
+                    <p className="font-bold text-gray-800 text-xl">{formatCurrency(data.attendance_summary.total_deduction || 0)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {data.attendance && data.attendance.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-violet-100">
+                      <th className="p-2 border">#</th>
+                      <th className="p-2 border">التاريخ</th>
+                      <th className="p-2 border">وقت الحضور</th>
+                      <th className="p-2 border">نوع الحضور</th>
+                      <th className="p-2 border">وقت الانصراف</th>
+                      <th className="p-2 border">نوع الانصراف</th>
+                      <th className="p-2 border">ساعات العمل</th>
+                      <th className="p-2 border">الخصم</th>
+                      <th className="p-2 border">حالة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.attendance.map((record, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
+                        <td className="p-2 border text-center">{i + 1}</td>
+                        <td className="p-2 border text-center">{formatDateDisplay(record.date)}</td>
+                        <td className="p-2 border text-center">{record.check_in_time ? record.check_in_time.split(' ')[1]?.substring(0, 5) : '-'}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            record.check_in_type === 'late' ? 'bg-red-100 text-red-700' :
+                            record.check_in_type === 'early' ? 'bg-blue-100 text-blue-700' :
+                            record.check_in_type === 'on_time' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {attendanceTypeLabels[record.check_in_type] || record.check_in_type || '-'}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{record.check_out_time ? record.check_out_time.split(' ')[1]?.substring(0, 5) : '-'}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            record.check_out_type === 'early' ? 'bg-orange-100 text-orange-700' :
+                            record.check_out_type === 'late' ? 'bg-purple-100 text-purple-700' :
+                            record.check_out_type === 'on_time' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {record.check_out_type ? (record.check_out_type === 'early' ? 'مبكر' : record.check_out_type === 'late' ? 'متأخر' : 'في الوقت') : '-'}
+                          </span>
+                        </td>
+                        <td className="p-2 border text-center">{record.worked_hours || '-'}</td>
+                        <td className="p-2 border text-center font-bold text-red-600">
+                          {record.total_deduction > 0 ? formatCurrency(record.total_deduction) : '-'}
+                        </td>
+                        <td className="p-2 border text-center">
+                          {record.is_absent ? (
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-800">غياب</span>
+                          ) : record.delay_excused || record.absence_excused ? (
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-green-200 text-green-800">معذر</span>
+                          ) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">لا توجد سجلات حضور</div>
             )}
           </div>
 

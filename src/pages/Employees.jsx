@@ -33,6 +33,10 @@ export default function Employees() {
     email: "",
     phone: "",
     phone_country_code: "+249",
+    gender: "",
+    birth_date: "",
+    id_number: "",
+    marital_status: "",
     position: "",
     position_grade: "",
     position_allowance: "",
@@ -212,6 +216,10 @@ export default function Employees() {
       email: employee.email || "",
       phone: employee.phone || "",
       phone_country_code: employee.phone_country_code || "+249",
+      gender: employee.gender || "",
+      birth_date: employee.birth_date || "",
+      id_number: employee.id_number || "",
+      marital_status: employee.marital_status || "",
       position: employee.position || "",
       position_grade: employee.position_grade || "",
       position_allowance: employee.position_allowance || "",
@@ -344,6 +352,7 @@ export default function Employees() {
       const data = new FormData();
       const scalarFields = [
         "file_number", "name", "email", "phone", "phone_country_code",
+        "gender", "birth_date", "id_number", "marital_status",
         "position", "position_grade", "position_allowance", "department_id",
         "attendance_device_id", "work_shift_id", "hire_date", "base_salary", "address", "notes", "status",
         "insurance_type", "insurance_amount", "bank_name", "bank_account",
@@ -623,6 +632,34 @@ export default function Employees() {
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold mb-1">العنوان</label>
                     <input type="text" name="address" value={editFormData.address} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  
+                  {/* البيانات الشخصية */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">النوع</label>
+                    <select name="gender" value={editFormData.gender} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                      <option value="">اختر النوع</option>
+                      <option value="male">ذكر</option>
+                      <option value="female">أنثى</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">تاريخ الميلاد</label>
+                    <input type="date" name="birth_date" value={editFormData.birth_date} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">رقم الهوية</label>
+                    <input type="text" name="id_number" value={editFormData.id_number} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="رقم الهوية الوطنية" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">الحالة الاجتماعية</label>
+                    <select name="marital_status" value={editFormData.marital_status} onChange={handleEditChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                      <option value="">اختر الحالة</option>
+                      <option value="single">أعزب/عزباء</option>
+                      <option value="married">متزوج/متزوجة</option>
+                      <option value="divorced">مطلق/مطلقة</option>
+                      <option value="widowed">أرمل/أرملة</option>
+                    </select>
                   </div>
                 </div>
               </div>

@@ -31,8 +31,10 @@ export default function Employee() {
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showReturnAssetModal, setShowReturnAssetModal] = useState(false);
   const [selectedWarningReason, setSelectedWarningReason] = useState("");
   const [customWarningReason, setCustomWarningReason] = useState("");
+  const [returnAssetNote, setReturnAssetNote] = useState("");
   const [cvBlobUrl, setCvBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [vacationData, setVacationData] = useState({
@@ -154,6 +156,21 @@ export default function Employee() {
       })
       .catch(() => toast.error("❌ فشل إعطاء الإنذار"))
       .finally(() => setLoading(false));
+  };
+
+  const returnAsset = (assetId) => {
+    api
+      .post(`/employee-assets/${assetId}/return`, {
+        note: returnAssetNote || "تم الإرجاع للمؤسسة",
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        toast.success("✅ تم تسجيل إرجاع العهدة بنجاح");
+        setReturnAssetNote("");
+        refreshEmployee();
+      })
+      .catch(() => toast.error("❌ فشل في تسجيل الإرجاع"));
   };
 
   const cancelWarning = (warningId) => {
@@ -397,6 +414,29 @@ export default function Employee() {
                   </div>
                 )}
                 <div className="flex justify-between">
+                  <span className="text-gray-600">النوع:</span>
+                  <span className="font-semibold">
+                    {employee.gender === 'male' ? 'ذكر' : employee.gender === 'female' ? 'أنثى' : 'غير محدد'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">تاريخ الميلاد:</span>
+                  <span className="font-semibold">{employee.birth_date ? formatDateDisplay(employee.birth_date) : '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">رقم الهوية:</span>
+                  <span className="font-semibold">{employee.id_number || employee.national_id || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">الحالة الاجتماعية:</span>
+                  <span className="font-semibold">
+                    {employee.marital_status === 'single' ? 'أعزب/عزباء' :
+                     employee.marital_status === 'married' ? 'متزوج/متزوجة' :
+                     employee.marital_status === 'divorced' ? 'مطلق/مطلقة' :
+                     employee.marital_status === 'widowed' ? 'أرمل/أرملة' : (employee.marital_status || '-')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-600">تاريخ التعيين:</span>
                   <span className="font-semibold">{formatDateDisplay(employee.hire_date)}</span>
                 </div>
@@ -573,15 +613,27 @@ export default function Employee() {
                 <h3 className="text-xl font-bold text-purple-800 mb-4">📦 العهد</h3>
                 <div className="space-y-2">
                   {employee.assets.map((asset) => (
-                    <div key={asset.id} className="bg-white p-3 rounded-lg flex justify-between items-center">
+                    <div key={asset.id} className={`p-3 rounded-lg flex justify-between items-center ${
+                      asset.returned_date ? 'bg-gray-100 opacity-70' : 'bg-white'
+                    }`}>
                       <div>
                         <span className="font-semibold">{asset.name}</span>
                         <span className="text-sm text-gray-500 mr-2">
                           ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
                         </span>
                         {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
+                        {asset.returned_date && (
+                          <p className="text-xs text-green-600 font-medium">
+                            ✓ تم الإرجاع: {formatDateDisplay(asset.returned_date)}
+                          </p>
+                        )}
                       </div>
-                      <span className="text-purple-600 font-bold">{parseFloat(asset.value || 0).toLocaleString()} ج.س</span>
+                      <div className="text-left">
+                        <span className="text-purple-600 font-bold">{parseFloat(asset.value || 0).toLocaleString()} ج.س</span>
+                        {!asset.returned_date && (
+                          <span className="block text-xs text-gray-500">بانتظار الإرجاع</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -602,10 +654,10 @@ export default function Employee() {
           <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-6 mt-6`}>
             <div className="flex gap-4 mt-4 flex-wrap justify-center">
               <button
-                onClick={() => navigate(`/employees/${id}/edit`)}
+                onClick={() => setShowReturnAssetModal(true)}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
               >
-                ✏ استيضاح
+                ↩️ إرجاع عهد
               </button>
 
               <button
@@ -837,6 +889,88 @@ export default function Employee() {
                     ) : (
                       "تقديم الطلب"
                     )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* مودل إرجاع العهد */}
+          {showReturnAssetModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+              <div className="bg-white rounded-lg shadow-lg p-6 w-[600px]" dir="rtl">
+                <h2 className="text-xl font-bold mb-4 text-purple-800">↩️ إرجاع العهد للموظف</h2>
+                
+                {employee.assets && employee.assets.length > 0 ? (
+                  <>
+                    <p className="text-gray-600 mb-4">اختر العهدة التي تم إرجاعها للمؤسسة:</p>
+                    
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                      {employee.assets.map((asset) => (
+                        <div 
+                          key={asset.id} 
+                          className={`p-4 rounded-lg border-2 transition cursor-pointer ${
+                            asset.returned_date 
+                              ? 'border-gray-200 bg-gray-50 opacity-60' 
+                              : 'border-purple-300 bg-purple-50 hover:bg-purple-100'
+                          }`}
+                          onClick={() => {
+                            if (!asset.returned_date) {
+                              returnAsset(asset.id);
+                            }
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="font-bold text-lg">{asset.name}</span>
+                              <span className="text-sm text-gray-500 mr-2">
+                                ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
+                              </span>
+                              {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
+                              {asset.asset_number && <p className="text-xs text-gray-500">رقم العهدة: {asset.asset_number}</p>}
+                            </div>
+                            <div className="text-left">
+                              <span className="font-bold text-purple-600 text-lg">
+                                {parseFloat(asset.value || 0).toLocaleString()} ج.س
+                              </span>
+                              {asset.returned_date ? (
+                                <p className="text-xs text-green-600">✓ تم الإرجاع: {formatDateDisplay(asset.returned_date)}</p>
+                              ) : (
+                                <p className="text-xs text-gray-500">اضغط للإرجاع</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                      <label className="block text-sm font-medium mb-2">ملاحظة (اختياري):</label>
+                      <textarea
+                        value={returnAssetNote}
+                        onChange={(e) => setReturnAssetNote(e.target.value)}
+                        className="w-full border rounded p-2 text-sm"
+                        rows="2"
+                        placeholder="أضف ملاحظة عن حالة العهدة عند الإرجاع..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-4xl mb-2">📦</p>
+                    <p>لا توجد عهد مسجلة لهذا الموظف</p>
+                  </div>
+                )}
+
+                <div className="flex justify-between mt-6">
+                  <button
+                    onClick={() => {
+                      setShowReturnAssetModal(false);
+                      setReturnAssetNote("");
+                    }}
+                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                  >
+                    إغلاق
                   </button>
                 </div>
               </div>
