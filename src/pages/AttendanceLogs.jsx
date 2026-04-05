@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import api from "../services/api";
@@ -16,13 +16,7 @@ const TYPE_COLORS = {
 };
 
 export default function AttendanceLogs() {
-  const navigate = useNavigate();
-  const username = localStorage.getItem("username");
-  const avatar = localStorage.getItem("avatar");
   const token = localStorage.getItem("token");
-
-  const [openMenu, setOpenMenu] = useState(false);
-  const menuRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -47,23 +41,6 @@ export default function AttendanceLogs() {
     to_date: "",
     device_id: "",
   });
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("avatar");
-    navigate("/login");
-  };
 
   const loadDevices = async () => {
     try {
@@ -307,45 +284,7 @@ export default function AttendanceLogs() {
       <Sidebar />
 
       <div className="flex-1 flex flex-col main-content">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-xl font-semibold text-indigo-800">سجل الحضور والانصراف</h1>
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setOpenMenu(!openMenu)}
-              className="flex items-center gap-3 focus:outline-none"
-              type="button"
-            >
-              <img
-                src={avatar || "/default-avatar.png"}
-                alt="User Avatar"
-                className="w-10 h-10 rounded-full border"
-              />
-              <span className="text-gray-700 font-medium">{username}</span>
-            </button>
-
-            {openMenu && (
-              <div className="absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenMenu(false);
-                    navigate("/profilesettings");
-                  }}
-                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
-                >
-                  الملف الشخصي
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-right px-4 py-2 text-red-600 hover:bg-gray-100"
-                  type="button"
-                >
-                  تسجيل الخروج
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
+        <Topbar title="سجل الحضور والانصراف" />
 
         <div className="bg-gray-50 shadow-md p-4 flex flex-col gap-3 sticky top-16 z-40">
           <div className="flex flex-col md:flex-row md:items-end gap-3">

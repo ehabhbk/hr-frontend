@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import Sidebar from '../components/Sidebar';
+import Topbar from '../components/Topbar';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BASE_BANKS } from '../config/banks';
@@ -276,9 +277,7 @@ export default function BankExportPage() {
       <Sidebar />
       
       <div className="flex-1 flex flex-col main-content">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-2xl font-bold text-indigo-800">📤 تصدير كشف المرتبات البنكي</h1>
-        </header>
+        <Topbar title="تصدير كشف المرتبات البنكي" />
 
         <main className="flex-1 p-6">
           <div className="flex justify-between items-center mb-6">

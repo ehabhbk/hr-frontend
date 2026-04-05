@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { registerUserOnDevice, syncDevice } from "../services/fingerprintApi";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import CountUp from "react-countup";
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -17,12 +18,7 @@ export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const token = localStorage.getItem("token");
-  const username = localStorage.getItem("username");
-  const avatar = localStorage.getItem("avatar");
   const navigate = useNavigate();
-
-  const [openMenu, setOpenMenu] = useState(false);
-  const menuRef = useRef(null);
 
   // Edit modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -190,22 +186,7 @@ export default function Employees() {
 
   useEffect(() => {
     AOS.init({ duration: 1000, once: true });
-
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("avatar");
-    navigate("/login");
-  };
 
   // Open edit modal
   const openEditModal = async (employee) => {
@@ -445,56 +426,7 @@ export default function Employees() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col main-content">
-        {/* Navbar الأول ثابت */}
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-xl font-semibold text-indigo-800">قائمة الموظفين</h1>
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setOpenMenu(!openMenu)}
-              className="flex items-center gap-3 focus:outline-none"
-            >
-              <img
-                src={avatar}
-                alt="User Avatar"
-                className="w-10 h-10 rounded-full border"
-              />
-              <span className="text-gray-700 font-medium">{username}</span>
-            </button>
-
-            {openMenu && (
-              <div className="absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenMenu(false);
-                    navigate("/profilesettings");
-                  }}
-                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
-                >
-                  الملف الشخصي
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
-                >
-                  التقارير
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-right px-4 py-2 text-gray-700 hover:bg-gray-100"
-                >
-                  الإعدادات
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-right px-4 py-2 text-red-600 hover:bg-gray-100"
-                >
-                  تسجيل الخروج
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
+        <Topbar title="قائمة الموظفين" />
 
         {/* Toolbar الثاني ثابت تحت الـ Navbar */}
         <div className="bg-gray-50 shadow-md p-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-16 z-40">

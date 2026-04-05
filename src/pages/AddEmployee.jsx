@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { registerUserOnDevice } from "../services/fingerprintApi";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { getBankOptions } from "../config/banks";
@@ -45,6 +46,11 @@ export default function AddEmployee() {
     profile_photo: null,
     cv: null,
     contract_file: null,
+    // Personal Info
+    gender: "",
+    birth_date: "",
+    id_number: "",
+    marital_status: "",
     // Insurance
     insurance_type: "none",
     insurance_amount: 0,
@@ -296,6 +302,10 @@ export default function AddEmployee() {
         "address",
         "notes",
         "status",
+        "gender",
+        "birth_date",
+        "id_number",
+        "marital_status",
         "insurance_type",
         "insurance_amount",
         "bank_name",
@@ -358,15 +368,7 @@ export default function AddEmployee() {
       <Sidebar />
 
       <div className="flex-1 flex flex-col main-content">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-2xl font-bold text-indigo-800">إضافة موظف جديد</h1>
-          <button
-            onClick={() => navigate("/employees")}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-lg"
-          >
-            ⬅ رجوع للقائمة
-          </button>
-        </header>
+        <Topbar title="إضافة موظف جديد" />
 
         <div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
           <span className="text-indigo-800 font-bold text-xl">نموذج إضافة موظف</span>
@@ -460,6 +462,63 @@ export default function AddEmployee() {
                     onChange={handleChange}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
                   />
+                </div>
+
+                {/* النوع */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">النوع</label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">اختر النوع</option>
+                    <option value="male">ذكر</option>
+                    <option value="female">أنثى</option>
+                  </select>
+                </div>
+
+                {/* تاريخ الميلاد */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">تاريخ الميلاد</label>
+                  <input
+                    type="date"
+                    name="birth_date"
+                    value={formData.birth_date}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* رقم الهوية */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">رقم الهوية</label>
+                  <input
+                    type="text"
+                    name="id_number"
+                    value={formData.id_number}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="رقم الهوية الوطنية"
+                  />
+                </div>
+
+                {/* الحالة الاجتماعية */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">الحالة الاجتماعية</label>
+                  <select
+                    name="marital_status"
+                    value={formData.marital_status}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">اختر الحالة</option>
+                    <option value="single">أعزب/عزباء</option>
+                    <option value="married">متزوج/متزوجة</option>
+                    <option value="divorced">مطلق/مطلقة</option>
+                    <option value="widowed">أرمل/أرملة</option>
+                  </select>
                 </div>
               </div>
             </div>

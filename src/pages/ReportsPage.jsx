@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import * as XLSX from "xlsx";
@@ -558,7 +559,9 @@ function ReportsPage() {
       />
       <div className="flex min-h-screen bg-slate-100" dir="rtl">
       <Sidebar onCollapseChange={setSidebarCollapsed} />
-      <main className="flex-1 p-6 overflow-auto main-content">
+      <main className="flex-1 flex flex-col main-content">
+        <Topbar title="التقارير" />
+        <div className="flex-1 p-6 overflow-auto">
         <div className="max-w-full mr-auto">
           {/* Header */}
           <div className={`${currentTab?.gradient} text-white p-6 rounded-2xl mb-6 shadow-xl`}>
@@ -728,6 +731,7 @@ function ReportsPage() {
               />
             )}
           </div>
+        </div>
         </div>
       </main>
     </div>

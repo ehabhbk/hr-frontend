@@ -1,19 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import {
   UserGroupIcon,
   BuildingOfficeIcon,
   ExclamationTriangleIcon,
   UserMinusIcon,
-  UserCircleIcon,
-  DocumentIcon,
-  Cog6ToothIcon,
-  ArrowRightOnRectangleIcon,
   CalendarIcon,
   ClockIcon,
   BanknotesIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  DocumentIcon,
+  Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 import api from "../services/api";
 import { ToastContainer, toast } from "react-toastify";
@@ -21,12 +20,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { listDevices, syncDevice, syncAttendance } from "../services/fingerprintApi";
 
 export default function Dashboard() {
-  const [openMenu, setOpenMenu] = useState(false);
-  const menuRef = useRef(null);
   const navigate = useNavigate();
-
-  const username = localStorage.getItem("username");
-  const avatar = localStorage.getItem("avatar");
   const token = localStorage.getItem("token");
 
   const [dashboardData, setDashboardData] = useState(null);
@@ -38,16 +32,6 @@ export default function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [syncing, setSyncing] = useState(false);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     api.get("/dashboard")
@@ -98,13 +82,6 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("avatar");
-    navigate("/login");
-  };
-
   const handleQuickSync = async () => {
     setSyncing(true);
     try {
@@ -129,78 +106,10 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col main-content">
-        {/* Top Navbar */}
-        <header className="bg-white shadow-md p-4 flex justify-between items-center relative">
-          <h1 className="text-xl font-semibold text-indigo-800">لوحة التحكم</h1>
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setOpenMenu(!openMenu)}
-              className="flex items-center gap-3 focus:outline-none"
-            >
-              <img
-                src={avatar}
-                alt="User Avatar"
-                className="w-10 h-10 rounded-full border"
-              />
-              <span className="text-gray-700 font-medium">{username}</span>
-            </button>
-
-            {openMenu && (
-  <div className="absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg border">
-    <button
-      type="button"
-      onClick={() => {
-        setOpenMenu(false);
-        navigate("/profilesettings");
-      }}
-      className="w-full flex items-center justify-end px-4 py-2 text-gray-700 hover:bg-gray-100"
-    >
-      الملف الشخصي
-      <UserCircleIcon className="w-5 h-5 ml-2" />
-    </button>
-
-    <button
-      type="button"
-      className="w-full flex items-center justify-end px-4 py-2 text-gray-700 hover:bg-gray-100"
-    >
-      التقارير
-      <DocumentIcon className="w-5 h-5 ml-2" />
-    </button>
-
-    <button
-      type="button"
-      className="w-full flex items-center justify-end px-4 py-2 text-gray-700 hover:bg-gray-100"
-    >
-      الإعدادات
-      <Cog6ToothIcon className="w-5 h-5 ml-2" />
-    </button>
-
-    <button
-      onClick={handleLogout}
-      className="w-full flex items-center justify-end px-4 py-2 text-red-600 hover:bg-gray-100"
-    >
-      تسجيل الخروج
-      <ArrowRightOnRectangleIcon className="w-5 h-5 ml-2" />
-    </button>
-  </div>
-)}
-
-          </div>
-        </header>
+        <Topbar title="لوحة التحكم" />
 
         {/* محتوى الصفحة */}
         <main className="flex-1 p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <img
-              src={avatar}
-              alt="User Avatar"
-              className="w-12 h-12 rounded-full border"
-            />
-            <p className="text-gray-600 text-lg">
-              مرحباً <span className="font-semibold">{username}</span> 👋، سعيدون بعودتك إلى نظام جودة لإدارة الموارد البشرية
-            </p>
-          </div>
-
           <div className="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-indigo-800 font-semibold">مزامنة جهاز البصمة</div>
             <div className="flex flex-col md:flex-row gap-3 md:items-center">

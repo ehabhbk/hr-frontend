@@ -11,6 +11,7 @@ import Employee from "./pages/Employee";
 import ProfileSettings from "./pages/profilesettings";
 import FingerprintDevices from "./pages/FingerprintDevices";
 import AttendanceLogs from "./pages/AttendanceLogs";
+import Users from "./pages/Users";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SettingsPage from "./pages/SettingsPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -122,6 +123,16 @@ function App() {
           element={
             <ProtectedRoute>
               <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* إدارة المستخدمين */}
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <Users />
             </ProtectedRoute>
           }
         />

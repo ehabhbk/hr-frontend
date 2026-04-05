@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api, { API_BASE } from "../services/api";
 import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
@@ -556,13 +557,9 @@ function SettingsPage() {
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       <Sidebar />
-      <main className="flex-1 p-6 pl-8 main-content">
-        <div>
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-lg mb-6">
-            <h1 className="text-3xl font-bold">⚙️ لوحة الإعدادات</h1>
-            <p className="text-blue-200 mt-2">إدارة جميع إعدادات النظام من مكان واحد</p>
-          </div>
-
+      <main className="flex-1 flex flex-col main-content">
+        <Topbar title="لوحة الإعدادات" />
+        <div className="flex-1 p-6 pl-8">
           <div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
             {TABS.map((tab) => (
               <button
