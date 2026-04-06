@@ -2,6 +2,7 @@
   "name": "hr-frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@testing-library/dom": "^10.4.1",
@@ -23,37 +24,18 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "dev": "react-scripts start",
-    "build": "set BUILD_PATH=C:/hr/dist&& react-scripts build && echo Build completed! Files saved to C:/hr/dist",
-    "build:win": "react-scripts build && xcopy /E /I /Y build C:\\hr\\dist",
-    "service": "node service.js",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "proxy": "http://localhost:8000",
-  "homepage": "./",
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "service": "node service.js"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
-    "tailwindcss": "^3.4.16"
+    "tailwindcss": "^3.4.16",
+    "vite": "^6.0.0"
   }
 }

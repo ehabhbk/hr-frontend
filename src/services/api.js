@@ -1,11 +1,11 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: "http://localhost/hr-app/public/api",
   headers: { "Accept": "application/json" },
 });
 
-export const API_BASE = "http://localhost:8000";
+export const API_BASE = "http://localhost/hr-app/public/api";
 
 // Interceptor لإضافة التوكن في كل طلب
 api.interceptors.request.use(
