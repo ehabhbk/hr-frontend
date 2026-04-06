@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../services/api";
+import api, { API_BASE } from "../services/api";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
@@ -123,7 +123,7 @@ function ReportsPage() {
         leaveWarning: '/pdf/leave-warning-report',
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1/hr-app/public/api'}${endpoints[type]}?${params}`, {
+      const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Accept': 'application/pdf',
@@ -173,7 +173,7 @@ function ReportsPage() {
         incomeTax: '/reports/income-tax',
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1/hr-app/public/api'}${endpoints[type]}?${params}`, {
+      const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -383,7 +383,7 @@ function ReportsPage() {
     setExporting(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://127.0.0.1/hr-app/public/api'}/pdf/employee-detailed-report?employee_id=${selectedEmployee}`,
+        `${API_BASE}/pdf/employee-detailed-report?employee_id=${selectedEmployee}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -471,7 +471,7 @@ function ReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.post("http://127.0.0.1/hr-app/public/api/letters/export-pdf", {
+      const response = await axios.post(`${API_BASE}/letters/export-pdf`, {
         type: letterType,
         employee_id: parseInt(selectedEmployee),
         ...letterParams,
