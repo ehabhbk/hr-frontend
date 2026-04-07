@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api, { API_BASE } from "../services/api";
-import axios from "axios";
+import api, { API_BASE, downloadBlob } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
@@ -128,7 +127,6 @@ function ReportsPage() {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Accept': 'application/pdf',
         },
-        responseType: 'blob',
       });
 
       if (!response.ok) throw new Error('Export failed');
@@ -470,19 +468,24 @@ function ReportsPage() {
     }
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(`${API_BASE}/letters/export-pdf`, {
-        type: letterType,
-        employee_id: parseInt(selectedEmployee),
-        ...letterParams,
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        responseType: 'blob',
+      const formData = new FormData();
+      formData.append('type', letterType);
+      formData.append('employee_id', parseInt(selectedEmployee));
+      Object.keys(letterParams).forEach(key => {
+        formData.append(key, letterParams[key]);
       });
       
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const response = await fetch(`${API_BASE}/letters/export-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

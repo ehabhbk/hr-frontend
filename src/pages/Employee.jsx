@@ -93,18 +93,11 @@ export default function Employee() {
   // Fetch CV file when modal opens
   useEffect(() => {
     if (showCvModal && employee?.cv) {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-      
-      fetch(`http://localhost:8000/api/files/cv/${employee.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      api.get(`/files/cv/${employee.id}`, {
+        responseType: 'blob',
       })
         .then((res) => {
-          if (!res.ok) throw new Error("Failed to load");
-          return res.blob();
-        })
-        .then((blob) => {
-          const url = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(res.data);
           setCvBlobUrl(url);
         })
         .catch((err) => {
