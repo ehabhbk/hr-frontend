@@ -24,18 +24,43 @@ import {
   IdentificationIcon,
 } from "@heroicons/react/24/outline";
 
-const TABS = [
-  { key: "dashboard", label: "لوحة التحكم", icon: ViewColumnsIcon, color: "from-slate-600 to-slate-800", gradient: "bg-gradient-to-r from-slate-600 to-slate-800" },
-  { key: "salary", label: "كشف المرتبات", icon: BanknotesIcon, color: "from-emerald-500 to-green-600", gradient: "bg-gradient-to-r from-emerald-500 to-green-600" },
-  { key: "incomeTax", label: "ضريبة الدخل", icon: ScaleIcon, color: "from-orange-500 to-red-500", gradient: "bg-gradient-to-r from-orange-500 to-red-500" },
-  { key: "salaryIncrease", label: "الزيادة السنوية", icon: ArrowTrendingUpIcon, color: "from-blue-500 to-indigo-600", gradient: "bg-gradient-to-r from-blue-500 to-indigo-600" },
-  { key: "leaveWarning", label: "الإجازات والإنذارات", icon: ClipboardDocumentListIcon, color: "from-violet-500 to-purple-600", gradient: "bg-gradient-to-r from-violet-500 to-purple-600" },
-  { key: "employeeReport", label: "تقرير الموظف", icon: UserCircleIcon, color: "from-teal-500 to-cyan-600", gradient: "bg-gradient-to-r from-teal-500 to-cyan-600" },
-  { key: "evaluation", label: "تقييم الموظفين", icon: StarIcon, color: "from-amber-500 to-orange-500", gradient: "bg-gradient-to-r from-amber-500 to-orange-500" },
-  { key: "department", label: "تقارير الأقسام", icon: BuildingOfficeIcon, color: "from-cyan-500 to-teal-600", gradient: "bg-gradient-to-r from-cyan-500 to-teal-600" },
-  { key: "history", label: "سجل التقارير", icon: ClockIcon, color: "from-gray-500 to-gray-700", gradient: "bg-gradient-to-r from-gray-500 to-gray-700" },
-  { key: "letters", label: "الخطابات", icon: DocumentTextIcon, color: "from-pink-500 to-rose-600", gradient: "bg-gradient-to-r from-pink-500 to-rose-600" },
+const ALL_TABS = [
+  { key: "dashboard", label: "لوحة التحكم", icon: ViewColumnsIcon, color: "from-slate-600 to-slate-800", gradient: "bg-gradient-to-r from-slate-600 to-slate-800", permission: "reports.dashboard" },
+  { key: "salary", label: "كشف المرتبات", icon: BanknotesIcon, color: "from-emerald-500 to-green-600", gradient: "bg-gradient-to-r from-emerald-500 to-green-600", permission: "reports.salary" },
+  { key: "incomeTax", label: "ضريبة الدخل", icon: ScaleIcon, color: "from-orange-500 to-red-500", gradient: "bg-gradient-to-r from-orange-500 to-red-500", permission: "reports.income_tax" },
+  { key: "salaryIncrease", label: "الزيادة السنوية", icon: ArrowTrendingUpIcon, color: "from-blue-500 to-indigo-600", gradient: "bg-gradient-to-r from-blue-500 to-indigo-600", permission: "reports.salary_increase" },
+  { key: "leaveWarning", label: "الإجازات والإنذارات", icon: ClipboardDocumentListIcon, color: "from-violet-500 to-purple-600", gradient: "bg-gradient-to-r from-violet-500 to-purple-600", permission: "reports.leaves_warnings" },
+  { key: "employeeReport", label: "تقرير الموظف", icon: UserCircleIcon, color: "from-teal-500 to-cyan-600", gradient: "bg-gradient-to-r from-teal-500 to-cyan-600", permission: "reports.employee" },
+  { key: "evaluation", label: "تقييم الموظفين", icon: StarIcon, color: "from-amber-500 to-orange-500", gradient: "bg-gradient-to-r from-amber-500 to-orange-500", permission: "reports.evaluation" },
+  { key: "department", label: "تقارير الأقسام", icon: BuildingOfficeIcon, color: "from-cyan-500 to-teal-600", gradient: "bg-gradient-to-r from-cyan-500 to-teal-600", permission: "reports.department" },
+  { key: "history", label: "سجل التقارير", icon: ClockIcon, color: "from-gray-500 to-gray-700", gradient: "bg-gradient-to-r from-gray-500 to-gray-700", permission: "reports.history" },
+  { key: "letters", label: "الخطابات", icon: DocumentTextIcon, color: "from-pink-500 to-rose-600", gradient: "bg-gradient-to-r from-pink-500 to-rose-600", permission: "reports.letters" },
 ];
+
+function getPermissions() {
+  try {
+    const savedPerms = localStorage.getItem("permissions");
+    if (savedPerms) {
+      return JSON.parse(savedPerms);
+    }
+  } catch {}
+  return [];
+}
+
+function hasPermission(perm) {
+  const perms = getPermissions();
+  return perms.includes('*') || perms.includes(perm);
+}
+
+function getFilteredTabs() {
+  const perms = getPermissions();
+  if (perms.includes('*')) {
+    return ALL_TABS;
+  }
+  return ALL_TABS.filter(tab => hasPermission(tab.permission));
+}
+
+const TABS = getFilteredTabs();
 
 const LETTER_TYPES = [
   { key: "termination", label: "إنهاء خدمة", icon: "🚫" },
@@ -64,7 +89,7 @@ const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 function formatCurrency(num) {
-  return num ? num.toLocaleString("ar-EG", { minimumFractionDigits: 2 }) : "0.00";
+  return num ? num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00";
 }
 
 function formatDate(dateStr, includeTime = true) {
@@ -120,6 +145,9 @@ function ReportsPage() {
         salary: '/pdf/salary-report',
         incomeTax: '/pdf/income-tax-report',
         leaveWarning: '/pdf/leave-warning-report',
+        salaryIncrease: '/pdf/salary-increase-report',
+        department: '/pdf/department-report',
+        employee: '/pdf/employee-report',
       };
 
       const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
@@ -136,13 +164,17 @@ function ReportsPage() {
       const a = document.createElement('a');
       a.href = url;
       
+      const monthName = MONTHS.find(m => m.value === month)?.label || month;
       const fileNames = {
-        salary: `كشف_المرتبات_${MONTHS.find(m => m.value === month)?.label}_${year}.pdf`,
+        salary: `كشف_المرتبات_${monthName}_${year}.pdf`,
         incomeTax: `تقرير_ضريبة_الدخل_${year}.pdf`,
         leaveWarning: `تقرير_الإجازات_والإنذارات_${year}.pdf`,
+        salaryIncrease: `تقرير_الزيادة_السنوية_${year}.pdf`,
+        department: `تقرير_الأقسام_${year}.pdf`,
+        employee: `تقرير_الموظف_${selectedEmployee}_${year}.pdf`,
       };
       
-      a.download = fileNames[type];
+      a.download = fileNames[type] || `تقرير_${year}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -165,10 +197,15 @@ function ReportsPage() {
       params.append('month', month);
       params.append('year', year);
       if (selectedDepartment) params.append('department_id', selectedDepartment);
+      if (selectedEmployee) params.append('employee_id', selectedEmployee);
 
       const endpoints = {
         salary: '/reports/salary',
         incomeTax: '/reports/income-tax',
+        salaryIncrease: '/reports/salary-increase',
+        department: '/reports/department',
+        leaveWarning: '/reports/leaves-warnings',
+        employee: '/reports/employee',
       };
 
       const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
@@ -177,24 +214,29 @@ function ReportsPage() {
         },
       });
 
-      const data = await response.json();
+      const result = await response.json();
       
-      if (!data.data || data.data.length === 0) {
+      if (!result.data || result.data.length === 0) {
         toast.warning('لا توجد بيانات للتصدير');
         setExporting(false);
         return;
       }
 
-      const ws = XLSX.utils.json_to_sheet(data.data);
+      const ws = XLSX.utils.json_to_sheet(result.data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Report');
       
+      const monthName = MONTHS.find(m => m.value === month)?.label || month;
       const fileNames = {
-        salary: `كشف_المرتبات_${month}_${year}.xlsx`,
+        salary: `كشف_المرتبات_${monthName}_${year}.xlsx`,
         incomeTax: `تقرير_ضريبة_الدخل_${year}.xlsx`,
+        salaryIncrease: `تقرير_الزيادة_السنوية_${year}.xlsx`,
+        department: `تقرير_الأقسام_${year}.xlsx`,
+        leaveWarning: `تقرير_الإجازات_والإنذارات_${year}.xlsx`,
+        employee: `تقرير_الموظف_${selectedEmployee}_${year}.xlsx`,
       };
       
-      XLSX.writeFile(wb, fileNames[type]);
+      XLSX.writeFile(wb, fileNames[type] || `تقرير_${year}.xlsx`);
       toast.success('تم تصدير ملف Excel بنجاح ✅');
     } catch (err) {
       console.error('Excel export error:', err);
@@ -227,9 +269,12 @@ function ReportsPage() {
       ]);
       
       console.log("Employees response:", empRes.data);
-      setEmployees(empRes.data?.data || []);
-      setDepartments(deptRes.data?.data || []);
-      setSummary(summaryRes.data);
+      console.log("Departments response:", deptRes.data);
+      
+      // Backend returns { data: [...] }, so access res.data.data for the array
+      setEmployees(empRes.data?.data || empRes.data || []);
+      setDepartments(deptRes.data?.data || deptRes.data || []);
+      setSummary(summaryRes.data || null);
     } catch (err) {
       console.error("Failed to load initial data:", err);
       toast.error("فشل في تحميل البيانات");
@@ -504,6 +549,38 @@ function ReportsPage() {
     }
   }
 
+  async function exportLetterExcel() {
+    if (!letterData) {
+      toast.error("قم بإنشاء الخطاب أولاً");
+      return;
+    }
+    
+    try {
+      const letterName = LETTER_TYPES.find(t => t.key === letterType)?.label || letterType;
+      const data = [
+        { 'نوع الخطاب': letterName },
+        { 'المرجع': letterData.reference_number || '' },
+        { 'اسم الموظف': letterData.employee?.name || '' },
+        { 'الرقم الوظيفي': letterData.employee?.employee_number || '' },
+        { 'القسم': letterData.employee?.department || '' },
+        { 'الوظيفة': letterData.employee?.position || '' },
+        { 'التاريخ': new Date().toLocaleDateString('ar-EG') },
+        {},
+        { 'المحتوى': letterData.content?.body?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || '' },
+      ];
+      
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'الخطاب');
+      
+      XLSX.writeFile(wb, `خطاب_${letterName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success("تم تصدير الخطاب بنجاح ✅");
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast.error("فشل في تصدير ملف Excel ❌");
+    }
+  }
+
   function printReport(title) {
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
@@ -661,6 +738,9 @@ function ReportsPage() {
                 selectedDepartment={selectedDepartment}
                 setSelectedDepartment={setSelectedDepartment}
                 formatCurrency={formatCurrency}
+                onExportPDF={() => exportToPDF('salaryIncrease')}
+                onExportExcel={() => exportToExcel('salaryIncrease')}
+                exporting={exporting}
               />
             )}
             {activeTab === "leaveWarning" && (
@@ -674,6 +754,7 @@ function ReportsPage() {
                 expandedEmployee={expandedEmployee}
                 setExpandedEmployee={setExpandedEmployee}
                 onExportPDF={() => exportToPDF('leaveWarning')}
+                onExportExcel={() => exportToExcel('leaveWarning')}
                 exporting={exporting}
               />
             )}
@@ -688,6 +769,7 @@ function ReportsPage() {
                 formatCurrency={formatCurrency}
                 onLoadReport={loadEmployeeReport}
                 onExportPDF={exportEmployeeReportPDF}
+                onExportExcel={() => exportToExcel('employee')}
                 exporting={exporting}
               />
             )}
@@ -699,6 +781,9 @@ function ReportsPage() {
                 departments={departments}
                 selectedDepartment={selectedDepartment}
                 setSelectedDepartment={setSelectedDepartment}
+                onExportPDF={() => exportToPDF('evaluation')}
+                onExportExcel={() => exportToExcel('evaluation')}
+                exporting={exporting}
               />
             )}
             {activeTab === "department" && (
@@ -708,9 +793,11 @@ function ReportsPage() {
                 year={year} setYear={setYear}
                 formatCurrency={formatCurrency}
                 onExportPDF={() => exportToPDF('department')}
+                onExportExcel={() => exportToExcel('department')}
                 exporting={exporting}
               />
             )}
+
             {activeTab === "history" && (
               <ReportHistory data={reportHistory} loading={loading} />
             )}
@@ -730,6 +817,7 @@ function ReportsPage() {
                 generateLetter={generateLetter}
                 printLetter={printLetter}
                 exportLetterPdf={exportLetterPdf}
+                exportLetterExcel={exportLetterExcel}
                 LETTER_TYPES={LETTER_TYPES}
               />
             )}
@@ -860,6 +948,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
     deductions: data.reduce((s, e) => s + (e.deductions || 0), 0),
     attendanceDeductions: data.reduce((s, e) => s + (e.attendance_deductions || 0), 0),
     advanceDeductions: data.reduce((s, e) => s + (e.advance_deductions || 0), 0),
+    advanceCarryOver: data.reduce((s, e) => s + (e.advance_carry_over || 0), 0),
     tax: data.reduce((s, e) => s + (e.income_tax || 0), 0),
     totalDeductions: data.reduce((s, e) => s + (e.total_deductions || 0), 0),
     net: data.reduce((s, e) => s + (e.net_salary || 0), 0),
@@ -946,16 +1035,19 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
           <p className="font-bold text-amber-700 text-sm">{formatCurrency(totals.attendanceDeductions)}</p>
         </div>
         <div className="bg-pink-50 p-2 rounded-xl text-center border border-pink-100">
-          <p className="text-xs text-pink-600 font-medium">السلف</p>
+          <p className="text-xs text-pink-600 font-medium">خصم السلف</p>
           <p className="font-bold text-pink-700 text-sm">{formatCurrency(totals.advanceDeductions)}</p>
+          {totals.advanceCarryOver > 0 && (
+            <p className="text-xs text-red-500">↪ محمول: {formatCurrency(totals.advanceCarryOver)}</p>
+          )}
         </div>
         <div className="bg-orange-50 p-2 rounded-xl text-center border border-orange-100">
           <p className="text-xs text-orange-600 font-medium">الضريبة</p>
           <p className="font-bold text-orange-700 text-sm">{formatCurrency(totals.tax)}</p>
         </div>
-        <div className="bg-indigo-100 p-2 rounded-xl text-center border border-indigo-200">
-          <p className="text-xs text-indigo-600 font-medium">صافي المرتب</p>
-          <p className="font-bold text-indigo-700 text-sm">{formatCurrency(totals.net)}</p>
+        <div className={`p-2 rounded-xl text-center border ${totals.net < 0 ? 'bg-red-100 border-red-200' : 'bg-indigo-100 border-indigo-200'}`}>
+          <p className={`text-xs ${totals.net < 0 ? 'text-red-600' : 'text-indigo-600'} font-medium`}>صافي المرتب</p>
+          <p className={`font-bold text-sm ${totals.net < 0 ? 'text-red-700' : 'text-indigo-700'}`}>{formatCurrency(totals.net)}</p>
         </div>
       </div>
 
@@ -981,7 +1073,8 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <th className="p-2 border border-slate-600 bg-red-600 text-right">التأمين</th>
                 <th className="p-2 border border-slate-600 bg-yellow-600 text-right">الخصومات</th>
                 <th className="p-2 border border-slate-600 bg-amber-600 text-right">خصومات الحضور</th>
-                <th className="p-2 border border-slate-600 bg-pink-600 text-right">السلف</th>
+                <th className="p-2 border border-slate-600 bg-pink-600 text-right">خصم السلف</th>
+                <th className="p-2 border border-slate-600 bg-red-600 text-right">محمول للشهر القادم</th>
                 <th className="p-2 border border-slate-600 bg-orange-600 text-right">الضريبة</th>
                 <th className="p-2 border border-slate-600 bg-indigo-600 text-right">صافي الراتب</th>
               </tr>
@@ -1019,14 +1112,31 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                     )}
                   </td>
                   <td className="p-2 border border-slate-200 text-right text-pink-600">
-                    {(emp.advance_deductions || 0) > 0 && (
-                      <span title={emp.advances_list?.map(a => `${a.type}: ${formatCurrency(a.deducted)}`).join('\n')}>
+                    {(emp.advance_deductions || 0) > 0 ? (
+                      <span 
+                        className="cursor-pointer underline decoration-dotted"
+                        title={
+                          emp.advances_list?.map(a => 
+                            `سلفة ${a.type}: ${formatCurrency(a.amount)} (خصم: ${formatCurrency(a.deducted)}, متبقي: ${formatCurrency(a.remaining_after)})`
+                          ).join('\n')
+                        }
+                      >
                         {formatCurrency(emp.advance_deductions)}
+                        {(emp.advance_carry_over || 0) > 0 && (
+                          <span className="text-xs block text-red-500" title={`يخصم من الشهر القادم`}>
+                            ↪ {formatCurrency(emp.advance_carry_over)}
+                          </span>
+                        )}
                       </span>
-                    )}
+                    ) : '-'}
+                  </td>
+                  <td className="p-2 border border-slate-200 text-right text-red-600">
+                    {(emp.advance_carry_over || 0) > 0 ? formatCurrency(emp.advance_carry_over) : '-'}
                   </td>
                   <td className="p-2 border border-slate-200 text-right text-orange-600">{formatCurrency(emp.income_tax)}</td>
-                  <td className="p-2 border border-slate-200 text-right font-bold bg-indigo-50">{formatCurrency(emp.net_salary)}</td>
+                  <td className={`p-2 border border-slate-200 text-right font-bold ${(emp.net_salary || 0) < 0 ? 'bg-red-100 text-red-600' : 'bg-indigo-50'}`}>
+                    {formatCurrency(emp.net_salary)}
+                  </td>
                 </tr>
               ))}
               <tr className="bg-emerald-50 font-bold">
@@ -1044,8 +1154,9 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.deductions)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.attendanceDeductions)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.advanceDeductions)}</td>
+                <td className="p-2 border border-slate-300 text-right text-red-600">{formatCurrency(totals.advanceCarryOver)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.tax)}</td>
-                <td className="p-2 border border-slate-300 text-right bg-indigo-200">{formatCurrency(totals.net)}</td>
+                <td className={`p-2 border border-slate-300 text-right ${totals.net < 0 ? 'bg-red-200' : 'bg-indigo-200'}`}>{formatCurrency(totals.net)}</td>
               </tr>
             </tbody>
           </table>
@@ -1154,13 +1265,13 @@ function TaxReport({ data, loading, year, setYear, departments, selectedDepartme
   );
 }
 
-function IncreaseReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency }) {
+function IncreaseReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency, onExportPDF, onExportExcel, exporting }) {
   const totalIncrease = data.reduce((s, e) => s + (e.increase_amount || 0), 0);
   const avgPercent = data.length > 0 ? (data.reduce((s, e) => s + parseFloat(e.increase_percent || 0), 0) / data.length).toFixed(2) : 0;
 
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <ArrowTrendingUpIcon className="h-6 w-6 text-blue-600" />
           تقرير الزيادة السنوية - سنة {year}
@@ -1232,10 +1343,10 @@ function IncreaseReport({ data, loading, year, setYear, departments, selectedDep
   );
 }
 
-function LeaveWarningReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, expandedEmployee, setExpandedEmployee, onExportPDF, exporting }) {
+function LeaveWarningReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, expandedEmployee, setExpandedEmployee, onExportPDF, onExportExcel, exporting }) {
   return (
     <div>
-      <FilterBar onExportPDF={onExportPDF} exporting={exporting}>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <ClipboardDocumentListIcon className="h-6 w-6 text-violet-600" />
           تقرير الإجازات والإنذارات - سنة {year}
@@ -1320,7 +1431,7 @@ function LeaveWarningReport({ data, loading, year, setYear, departments, selecte
   );
 }
 
-function EvaluationReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment }) {
+function EvaluationReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, onExportPDF, onExportExcel, exporting }) {
   if (!data) return <LoadingSpinner />;
 
   const getScoreColor = (score) => {
@@ -1331,7 +1442,7 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
 
   return (
     <div>
-      <FilterBar>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <StarIcon className="h-6 w-6 text-amber-600" />
           تقرير تقييم الموظفين - سنة {year}
@@ -1429,13 +1540,13 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
   );
 }
 
-function DepartmentReport({ data, loading, year, setYear, formatCurrency, onExportPDF, exporting }) {
+function DepartmentReport({ data, loading, year, setYear, formatCurrency, onExportPDF, onExportExcel, exporting }) {
   const totalEmployees = data.reduce((s, d) => s + (d.employee_count || 0), 0);
   const totalSalaries = data.reduce((s, d) => s + (d.total_salaries || 0), 0);
 
   return (
     <div>
-      <FilterBar onExportPDF={onExportPDF} exporting={exporting}>
+      <FilterBar onExportPDF={onExportPDF} onExportExcel={onExportExcel} exporting={exporting}>
         <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
           <BuildingOfficeIcon className="h-6 w-6 text-cyan-600" />
           تقرير الأقسام - سنة {year}
@@ -1518,7 +1629,7 @@ function ReportHistory({ data, loading }) {
   );
 }
 
-function LettersSection({ employees, departments, letterType, setLetterType, selectedEmployee, setSelectedEmployee, letterData, setLetterData, letterParams, setLetterParams, loading, generateLetter, printLetter, exportLetterPdf, LETTER_TYPES }) {
+function LettersSection({ employees, departments, letterType, setLetterType, selectedEmployee, setSelectedEmployee, letterData, setLetterData, letterParams, setLetterParams, loading, generateLetter, printLetter, exportLetterPdf, exportLetterExcel, LETTER_TYPES }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-slate-700 flex items-center gap-2">
@@ -1689,7 +1800,14 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
                   className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-medium hover:from-red-600 hover:to-red-700 transition flex items-center gap-2"
                 >
                   <DocumentArrowDownIcon className="h-5 w-5" />
-                  تصدير PDF
+                  PDF
+                </button>
+                <button
+                  onClick={exportLetterExcel}
+                  className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-600 hover:to-green-700 transition flex items-center gap-2"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5" />
+                  Excel
                 </button>
                 <button
                   onClick={printLetter}
@@ -1719,7 +1837,7 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
   );
 }
 
-function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onLoadReport, onExportPDF, exporting }) {
+function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onLoadReport, onExportPDF, onExportExcel, exporting }) {
   const insuranceLabels = {
     'none': 'بدون تأمين',
     'health': 'تأمين صحي',
@@ -1784,7 +1902,15 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-5 w-5" />
-            تصدير PDF
+            PDF
+          </button>
+          <button
+            onClick={onExportExcel}
+            disabled={!selectedEmployee || exporting}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            Excel
           </button>
         </div>
       </div>

@@ -14,9 +14,37 @@ import {
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
 
+function getPermissions() {
+  try {
+    const savedPerms = localStorage.getItem("permissions");
+    if (savedPerms) {
+      return JSON.parse(savedPerms);
+    }
+  } catch {}
+  return [];
+}
+
+function hasPermission(perm) {
+  const perms = getPermissions();
+  return perms.includes('*') || perms.includes(perm);
+}
+
 export default function Sidebar({ sticky = false, onCollapseChange }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [, setPermVersion] = useState(0);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setPermVersion(v => v + 1);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    const interval = setInterval(handleStorageChange, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -66,16 +94,27 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   }, [isCollapsed]);
 
   const items = useMemo(
-    () => [
-      { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard" },
-      { label: "الموظفين", icon: UserGroupIcon, path: "/employees" },
-      { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments" },
-      { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices" },
-      { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs" },
-      { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports" },
-      { label: "التقارير", icon: ChartBarIcon, path: "/reports" },
-      { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings" },
-    ],
+    () => {
+      const perms = getPermissions();
+      const isAdmin = perms.includes('*');
+      
+      const allItems = [
+        { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
+        { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
+        { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
+        { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
+        { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
+        { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
+        { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
+        { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
+      ];
+      
+      if (isAdmin) {
+        return allItems;
+      }
+      
+      return allItems.filter(item => hasPermission(item.permission));
+    },
     []
   );
 

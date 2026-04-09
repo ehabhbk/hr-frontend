@@ -1,21 +1,46 @@
 import React, { useState, useEffect } from "react";
-import api, { API_BASE } from "../services/api";
+import api, { API_BASE, getStorageUrl } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
 
-const TABS = [
-  { key: "organization", label: "معلومات المؤسسة", icon: "🏢" },
-  { key: "attendance", label: "الحضور والإنذارات", icon: "⏰" },
-  { key: "leaves", label: "الإجازات", icon: "🏖️" },
-  { key: "advances", label: "السلفيات", icon: "💰" },
-  { key: "shifts", label: "الورديات", icon: "👥" },
-  { key: "financials", label: "المالية", icon: "💵" },
-  { key: "whatsapp", label: "واتساب", icon: "📱" },
-  { key: "roles", label: "الصلاحيات", icon: "🔐" },
+const ALL_TABS = [
+  { key: "organization", label: "معلومات المؤسسة", icon: "🏢", permission: "settings.organization" },
+  { key: "attendance", label: "الحضور والإنذارات", icon: "⏰", permission: "settings.attendance" },
+  { key: "leaves", label: "الإجازات", icon: "🏖️", permission: "settings.leaves" },
+  { key: "advances", label: "السلفيات", icon: "💰", permission: "settings.advances" },
+  { key: "shifts", label: "الورديات", icon: "👥", permission: "settings.shifts" },
+  { key: "financials", label: "المالية", icon: "💵", permission: "settings.financials" },
+  { key: "whatsapp", label: "واتساب", icon: "📱", permission: "settings.whatsapp" },
+  { key: "roles", label: "الصلاحيات", icon: "🔐", permission: "roles.view" },
 ];
+
+function getPermissions() {
+  try {
+    const savedPerms = localStorage.getItem("permissions");
+    if (savedPerms) {
+      return JSON.parse(savedPerms);
+    }
+  } catch {}
+  return [];
+}
+
+function hasPermission(perm) {
+  const perms = getPermissions();
+  return perms.includes('*') || perms.includes(perm);
+}
+
+function getFilteredTabs() {
+  const perms = getPermissions();
+  if (perms.includes('*')) {
+    return ALL_TABS;
+  }
+  return ALL_TABS.filter(tab => hasPermission(tab.permission));
+}
+
+const TABS = getFilteredTabs();
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState("organization");
@@ -79,20 +104,20 @@ function SettingsPage() {
 
   const [advanceSettings, setAdvanceSettings] = useState({
     enabled: true,
-    // سلفة قصيرة - من المرتب الشهري
+    // سلفة قصيرة - من إجمالي المرتب الشهري
     short_advance: {
       enabled: true,
-      max_percent: 50, // نسبة من المرتب الأساسي
+      max_percent: 50, // نسبة من إجمالي المرتب
       max_amount: 50000, // الحد الأقصى بالجنيه
       min_service_months: 0, // لا تشترط مدة خدمة
-      deduction_percent: 100, // نسبة خصم الراتب (100% يعني تخصم كلها)
+      deduction_percent: 100, // نسبة خصم من إجمالي المرتب (100% يعني تخصم كلها)
     },
     // سلفة طويلة - تقسط على أشهر
     long_advance: {
       enabled: true,
-      max_percent: 100, // نسبة من المرتب الأساسي
+      max_percent: 100, // نسبة من إجمالي المرتب
       max_amount: 500000, // الحد الأقصى بالجنيه
-      min_amount: 10000, // الحد الأدنى للجنيه
+      min_amount: 10000, // الحد الأدنى بالجنيه
       min_service_months: 6, // أشهر الخدمة المطلوبة
       max_installments: 12, // أقساط شهرية
       min_installments: 3, // أقساط شهرية
@@ -173,7 +198,22 @@ function SettingsPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [orgRes, leavesRes, advancesRes, rolesRes, warningsRes, empsRes, shiftsRes, attendanceRes, leaveSettingsRes, advanceSettingsRes, taxRes, salaryIncRes, whatsappRes, shiftAssignRes] = await Promise.all([
+      const [
+        orgRes,
+        leavesRes,
+        advancesRes,
+        rolesRes,
+        warningsRes,
+        empsRes,
+        shiftsRes,
+        attendanceRes,
+        leaveSettingsRes,
+        advanceSettingsRes,
+        taxRes,
+        salaryIncRes,
+        whatsappRes,
+        shiftAssignRes
+      ] = await Promise.all([
         api.get("/organization"),
         api.get("/leaves/requests"),
         api.get("/advances/requests"),
@@ -189,6 +229,11 @@ function SettingsPage() {
         api.get("/settings/whatsapp"),
         api.get("/shift-assignments?permanent=1"),
       ]);
+
+      console.log("Organization:", orgRes.data?.data);
+      console.log("Leave requests:", leavesRes.data?.data);
+      console.log("Advance requests:", advancesRes.data?.data);
+      console.log("Roles:", rolesRes.data?.data);
 
       if (orgRes.data?.data) {
         setOrg(orgRes.data.data);
@@ -207,12 +252,12 @@ function SettingsPage() {
         });
       }
 
-      setLeaveRequests(leavesRes.data?.data || []);
-      setAdvanceRequests(advancesRes.data?.data || []);
-      setRoles(rolesRes.data?.data || []);
-      setWarnings(warningsRes.data?.data || []);
-      setEmployees(empsRes.data?.data || []);
-      setShifts(shiftsRes.data?.data || []);
+      setLeaveRequests(leavesRes.data?.data || leavesRes.data || []);
+      setAdvanceRequests(advancesRes.data?.data || advancesRes.data || []);
+      setRoles(rolesRes.data?.data || rolesRes.data || []);
+      setWarnings(warningsRes.data?.data || warningsRes.data || []);
+      setEmployees(empsRes.data?.data || empsRes.data || []);
+      setShifts(shiftsRes.data?.data || shiftsRes.data || []);
       
       if (attendanceRes.data?.data) {
         const attData = attendanceRes.data.data;
@@ -895,7 +940,7 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
               />
               {org.logo_url && (
                 <div className="mt-3 text-center">
-                  <img src={org.logo_url.startsWith('http') ? org.logo_url : API_BASE + org.logo_url} alt="Logo" className="h-24 mx-auto rounded-lg shadow" />
+                  <img src={getStorageUrl(org.logo_url)} alt="Logo" className="h-24 mx-auto rounded-lg shadow" onError={(e) => { e.target.style.display = 'none'; console.error('Logo failed to load:', org.logo_url); }} />
                   <p className="text-sm text-gray-500 mt-1">الشعار الحالي</p>
                 </div>
               )}
@@ -910,7 +955,7 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
               />
               {org.stamp_url && (
                 <div className="mt-3 text-center">
-                  <img src={org.stamp_url.startsWith('http') ? org.stamp_url : API_BASE + org.stamp_url} alt="Stamp" className="h-24 mx-auto rounded-lg shadow" />
+                  <img src={getStorageUrl(org.stamp_url)} alt="Stamp" className="h-24 mx-auto rounded-lg shadow" onError={(e) => { e.target.style.display = 'none'; console.error('Stamp failed to load:', org.stamp_url); }} />
                   <p className="text-sm text-gray-500 mt-1">الختم الحالي</p>
                 </div>
               )}
@@ -920,8 +965,12 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
 
         <div className="bg-indigo-50 p-5 rounded-lg flex items-center justify-center">
           <div className="text-center">
-            <div className="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-5xl">🏢</span>
+            <div className="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+              {org.logo_url ? (
+                <img src={getStorageUrl(org.logo_url)} alt="Logo Preview" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+              ) : (
+                <span className="text-5xl">🏢</span>
+              )}
             </div>
             <p className="text-indigo-600 font-medium">معاينة الشعار والختم</p>
             <p className="text-sm text-gray-500 mt-1">سيظهران في التقارير والخطابات</p>
@@ -1534,7 +1583,7 @@ function AdvancesTab({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-right">النسبة من المرتب (%)</label>
+                <label className="block text-sm font-medium mb-1 text-right">النسبة من إجمالي المرتب (%)</label>
                 <input
                   type="number"
                   value={shortAdvance.max_percent || 50}
@@ -1543,17 +1592,17 @@ function AdvancesTab({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (%)</label>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى بالجنيه</label>
                 <input
                   type="number"
-                  value={shortAdvance.max_amount || 50}
+                  value={shortAdvance.max_amount || 50000}
                   onChange={(e) => updateShortAdvance('max_amount', parseInt(e.target.value))}
                   className="w-full border rounded-lg px-3 py-2 text-right"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-right">نسبة الخصم من الراتب (%)</label>
+              <label className="block text-sm font-medium mb-1 text-right">نسبة الخصم من إجمالي المرتب (%)</label>
               <input
                 type="number"
                 value={shortAdvance.deduction_percent || 100}
@@ -1591,7 +1640,7 @@ function AdvancesTab({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-right">النسبة من المرتب (%)</label>
+                <label className="block text-sm font-medium mb-1 text-right">النسبة من إجمالي المرتب (%)</label>
                 <input
                   type="number"
                   value={longAdvance.max_percent || 100}
@@ -1600,7 +1649,7 @@ function AdvancesTab({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى (SDG)</label>
+                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى بالجنيه</label>
                 <input
                   type="number"
                   value={longAdvance.max_amount || 500000}

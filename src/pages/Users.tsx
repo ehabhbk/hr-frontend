@@ -25,7 +25,7 @@ export default function Users() {
     setLoading(true);
     try {
       const res = await api.get("/users");
-      setUsers(Array.isArray(res.data) ? res.data : res.data?.data || []);
+      setUsers(res.data?.data || res.data || []);
     } catch (e) {
       toast.error("فشل في جلب المستخدمين");
     } finally {
@@ -36,9 +36,10 @@ export default function Users() {
   const loadRoles = async () => {
     try {
       const res = await api.get("/roles");
-      setRoles(Array.isArray(res.data) ? res.data : res.data?.data || []);
+      console.log("Roles response:", res.data);
+      setRoles(res.data?.data || res.data || []);
     } catch (e) {
-      console.error("Failed to load roles");
+      console.error("Failed to load roles:", e);
     }
   };
 
