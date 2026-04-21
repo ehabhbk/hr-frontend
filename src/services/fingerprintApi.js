@@ -1,7 +1,10 @@
 import api from "./api";
 
 function unwrap(res) {
-  return res?.data?.data ?? res?.data;
+  if (res?.data?.data !== undefined) {
+    return res.data.data;
+  }
+  return res?.data ?? res;
 }
 
 function normalizeError(err) {
@@ -24,7 +27,15 @@ export async function listDevices() {
 
 export async function createDevice(payload) {
   try {
-    return unwrap(await api.post("/attendance-device/", payload));
+    const devicePayload = {
+      name: payload.name,
+      host: payload.ip || payload.host,
+      port: payload.port,
+      device_id: payload.device_id,
+      password: payload.password,
+      enabled: true,
+    };
+    return unwrap(await api.post("/attendance-device", devicePayload));
   } catch (e) {
     throw normalizeError(e);
   }
@@ -32,7 +43,14 @@ export async function createDevice(payload) {
 
 export async function updateDevice(id, payload) {
   try {
-    return unwrap(await api.put(`/attendance-device/${id}`, payload));
+    const devicePayload = {
+      name: payload.name,
+      host: payload.ip || payload.host,
+      port: payload.port,
+      device_id: payload.device_id,
+      password: payload.password,
+    };
+    return unwrap(await api.put(`/attendance-device/${id}`, devicePayload));
   } catch (e) {
     throw normalizeError(e);
   }

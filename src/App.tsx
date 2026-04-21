@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -17,8 +17,29 @@ import SettingsPage from "./pages/SettingsPage";
 import ReportsPage from "./pages/ReportsPage";
 import BankExportPage from "./pages/BankExportPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import api from "./services/api";
 
 function App() {
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      api.get("/me")
+        .then(res => {
+          const data = res.data;
+          if (data?.permissions) {
+            localStorage.setItem("permissions", JSON.stringify(data.permissions));
+          }
+          if (data?.roles) {
+            localStorage.setItem("user_roles", JSON.stringify(data.roles));
+          }
+          console.log("User permissions loaded:", data?.permissions);
+        })
+        .catch(err => {
+          console.warn("Failed to load user permissions:", err);
+        });
+    }
+  }, []);
+
   return (
     <Router>
       <ToastContainer

@@ -5,6 +5,7 @@ import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
+import { getPermissions } from "../utils/auth";
 
 const ALL_TABS = [
   { key: "organization", label: "معلومات المؤسسة", icon: "🏢", permission: "settings.organization" },
@@ -13,6 +14,7 @@ const ALL_TABS = [
   { key: "advances", label: "السلفيات", icon: "💰", permission: "settings.advances" },
   { key: "shifts", label: "الورديات", icon: "👥", permission: "settings.shifts" },
   { key: "financials", label: "المالية", icon: "💵", permission: "settings.financials" },
+  { key: "settlements", label: "التسوية والمعاشات", icon: "📋", permission: "settings.settlements" },
   { key: "whatsapp", label: "واتساب", icon: "📱", permission: "settings.whatsapp" },
   { key: "roles", label: "الصلاحيات", icon: "🔐", permission: "roles.view" },
 ];
@@ -157,6 +159,44 @@ function SettingsPage() {
     message_template_leave_end: "عزيزي {name}، نذكّركم بأن إجازتكم ستنتهي غداً. نرجو العودة في الموعد المحدد.",
   });
 
+  const [settlements, setSettlements] = useState({
+    service_end_bonus: {
+      enabled: true,
+      months_per_year: 1,
+      max_months: 0,
+      description: "مكافأة نهاية الخدمة - شهر لكل سنة خدمة",
+    },
+    severance_pay: {
+      enabled: true,
+      first_5_years_months: 1,
+      after_5_years_months: 2,
+      max_years: 12,
+      description: "مكافأة إنهاء الخدمة حسب قانون العمل",
+    },
+    notice_period: {
+      enabled: true,
+      min_days: 30,
+      by_service_years: { "0-5": 30, "5-10": 60, "10+": 90 },
+      description: "فترة الإخطار المسبقة",
+    },
+    annual_leave_encashment: {
+      enabled: true,
+      max_days_per_year: 0,
+      min_service_months: 0,
+      description: "استبدال الإجازات السنوية نقداً",
+    },
+    ticket_allowance: {
+      enabled: true,
+      amount_per_year: 0,
+      description: "بدل تذكرة السفر السنوي",
+    },
+  });
+
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employeeSettlement, setEmployeeSettlement] = useState(null);
+  const [allSettlements, setAllSettlements] = useState([]);
+  const [settlementTotals, setSettlementTotals] = useState(null);
+
   const [loadingStates, setLoadingStates] = useState({
     saveOrg: false,
     saveAttendance: false,
@@ -167,9 +207,11 @@ function SettingsPage() {
     saveSalaryIncrease: false,
     saveTax: false,
     saveWhatsApp: false,
+    saveSettlements: false,
     handleLeaveStatus: false,
     handleAdvanceStatus: false,
     handleWarningStatus: false,
+    calculateSettlement: false,
   });
 
   const [confirmDialog, setConfirmDialog] = useState({
@@ -212,7 +254,8 @@ function SettingsPage() {
         taxRes,
         salaryIncRes,
         whatsappRes,
-        shiftAssignRes
+        shiftAssignRes,
+        settlementsRes
       ] = await Promise.all([
         api.get("/organization"),
         api.get("/leaves/requests"),
@@ -228,12 +271,24 @@ function SettingsPage() {
         api.get("/settings/salary-increase"),
         api.get("/settings/whatsapp"),
         api.get("/shift-assignments?permanent=1"),
+        api.get("/settlements"),
       ]);
 
       console.log("Organization:", orgRes.data?.data);
       console.log("Leave requests:", leavesRes.data?.data);
       console.log("Advance requests:", advancesRes.data?.data);
       console.log("Roles:", rolesRes.data?.data);
+      console.log("Settlements:", settlementsRes.data?.data);
+
+      if (settlementsRes.data?.data) {
+        const settlementData = settlementsRes.data.data;
+        setSettlements(prev => ({
+          ...prev,
+          ...Object.fromEntries(
+            Object.entries(settlementData).map(([key, value]) => [key, { ...prev[key], ...value }])
+          ),
+        }));
+      }
 
       if (orgRes.data?.data) {
         setOrg(orgRes.data.data);
@@ -456,6 +511,64 @@ function SettingsPage() {
       toast.success("تم إرسال رسالة الاختبار");
     } catch (err) {
       toast.error("فشل إرسال الاختبار");
+    }
+  }
+
+  async function saveSettlements() {
+    setLoadingStates(prev => ({ ...prev, saveSettlements: true }));
+    try {
+      await api.put("/settlements", settlements);
+      toast.success("تم حفظ إعدادات التسوية والمعاشات ✅");
+    } catch (err) {
+      toast.error("فشل حفظ الإعدادات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveSettlements: false }));
+    }
+  }
+
+  async function calculateEmployeeSettlement(empId) {
+    if (!empId) {
+      setEmployeeSettlement(null);
+      return;
+    }
+    setLoadingStates(prev => ({ ...prev, calculateSettlement: true }));
+    try {
+      const res = await api.get(`/settlements/calculate/${empId}`);
+      setEmployeeSettlement(res.data?.data);
+      setSelectedEmployee(empId);
+    } catch (err) {
+      toast.error("فشل حساب التسوية ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, calculateSettlement: false }));
+    }
+  }
+
+  async function calculateAllSettlements() {
+    setLoadingStates(prev => ({ ...prev, calculateSettlement: true }));
+    try {
+      const res = await api.get("/settlements/calculate");
+      setAllSettlements(res.data?.data || []);
+      setSettlementTotals(res.data?.totals);
+    } catch (err) {
+      toast.error("فشل حساب التسويات ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, calculateSettlement: false }));
+    }
+  }
+
+  async function exportSettlementPDF(empId) {
+    try {
+      const res = await api.get(`/settlements/export/${empId}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `تسوية_موظف_${empId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("تم تحميل ملف التسوية ✅");
+    } catch (err) {
+      toast.error("فشل تحميل ملف التسوية ❌");
     }
   }
 
@@ -717,6 +830,24 @@ function SettingsPage() {
                 saveWhatsApp={saveWhatsApp}
                 testWhatsApp={testWhatsApp}
                 loadingSave={loadingStates.saveWhatsApp}
+              />
+            )}
+            {activeTab === "settlements" && (
+              <SettlementsTab
+                settlements={settlements}
+                setSettlements={setSettlements}
+                employees={employees}
+                selectedEmployee={selectedEmployee}
+                setSelectedEmployee={setSelectedEmployee}
+                employeeSettlement={employeeSettlement}
+                allSettlements={allSettlements}
+                settlementTotals={settlementTotals}
+                saveSettlements={saveSettlements}
+                calculateEmployeeSettlement={calculateEmployeeSettlement}
+                calculateAllSettlements={calculateAllSettlements}
+                exportSettlementPDF={exportSettlementPDF}
+                loadingSave={loadingStates.saveSettlements}
+                loadingCalc={loadingStates.calculateSettlement}
               />
             )}
             {activeTab === "roles" && <RolesTab roles={roles} />}
@@ -2483,12 +2614,645 @@ function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp, loadin
   );
 }
 
-function RolesTab({ roles }) {
+function SettlementsTab({
+  settlements,
+  setSettlements,
+  employees,
+  selectedEmployee,
+  setSelectedEmployee,
+  employeeSettlement,
+  allSettlements,
+  settlementTotals,
+  saveSettlements,
+  calculateEmployeeSettlement,
+  calculateAllSettlements,
+  exportSettlementPDF,
+  loadingSave,
+  loadingCalc
+}) {
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined) return '0';
+    return new Intl.NumberFormat('ar-SD', { minimumFractionDigits: 2 }).format(amount);
+  };
+
+  const updateSettlement = (key, field, value) => {
+    setSettlements(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value }
+    }));
+  };
+
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6">🔐 الأدوار والصلاحيات</h2>
+      <h2 className="text-xl font-bold mb-6">📋 التسوية والمعاشات</h2>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Settings */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl shadow p-5">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <span className="text-xl">🏆</span>
+              مكافأة نهاية الخدمة
+            </h3>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 bg-green-50 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settlements.service_end_bonus?.enabled ?? true}
+                  onChange={(e) => updateSettlement('service_end_bonus', 'enabled', e.target.checked)}
+                  className="w-5 h-5"
+                />
+                <span>تفعيل مكافأة نهاية الخدمة</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">الأشهر لكل سنة خدمة</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="12"
+                    value={settlements.service_end_bonus?.months_per_year ?? 1}
+                    onChange={(e) => updateSettlement('service_end_bonus', 'months_per_year', parseInt(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.service_end_bonus?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">الحد الأقصى للأشهر (0=بدون حد)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.service_end_bonus?.max_months ?? 0}
+                    onChange={(e) => updateSettlement('service_end_bonus', 'max_months', parseInt(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.service_end_bonus?.enabled}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                مثال: إذا كان الراتب 10,000 وعدد الأشهر = 1، فالمكافأة = 10,000 × 1 = 10,000 جنيه لكل سنة
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-5">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <span className="text-xl">⚖️</span>
+              تعويض إنهاء الخدمة (حسب قانون العمل)
+            </h3>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settlements.severance_pay?.enabled ?? true}
+                  onChange={(e) => updateSettlement('severance_pay', 'enabled', e.target.checked)}
+                  className="w-5 h-5"
+                />
+                <span>تفعيل تعويض إنهاء الخدمة</span>
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">الأشهر (أول 5 سنوات)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.severance_pay?.first_5_years_months ?? 1}
+                    onChange={(e) => updateSettlement('severance_pay', 'first_5_years_months', parseFloat(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.severance_pay?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">الأشهر (بعد 5 سنوات)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.severance_pay?.after_5_years_months ?? 2}
+                    onChange={(e) => updateSettlement('severance_pay', 'after_5_years_months', parseFloat(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.severance_pay?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">الحد الأقصى للسنوات</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.severance_pay?.max_years ?? 12}
+                    onChange={(e) => updateSettlement('severance_pay', 'max_years', parseInt(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.severance_pay?.enabled}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                مثال: 1 شهر للسنة الأولى، 2 شهر بعد 5 سنوات (حسب قانون العمل)
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-5">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <span className="text-xl">📢</span>
+              فترة الإخطار المسبقة
+            </h3>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settlements.notice_period?.enabled ?? true}
+                  onChange={(e) => updateSettlement('notice_period', 'enabled', e.target.checked)}
+                  className="w-5 h-5"
+                />
+                <span>تفعيل تعويض فترة الإخطار</span>
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">أقل من 5 سنوات (أيام)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.notice_period?.by_service_years?.["0-5"] ?? 30}
+                    onChange={(e) => updateSettlement('notice_period', 'by_service_years', { ...settlements.notice_period?.by_service_years, "0-5": parseInt(e.target.value) || 0 })}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.notice_period?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">5-10 سنوات (أيام)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.notice_period?.by_service_years?.["5-10"] ?? 60}
+                    onChange={(e) => updateSettlement('notice_period', 'by_service_years', { ...settlements.notice_period?.by_service_years, "5-10": parseInt(e.target.value) || 0 })}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.notice_period?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">أكثر من 10 سنوات (أيام)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.notice_period?.by_service_years?.["10+"] ?? 90}
+                    onChange={(e) => updateSettlement('notice_period', 'by_service_years', { ...settlements.notice_period?.by_service_years, "10+": parseInt(e.target.value) || 0 })}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.notice_period?.enabled}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow p-5">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <span className="text-xl">🏖️</span>
+              استبدال الإجازات النقدية
+            </h3>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settlements.annual_leave_encashment?.enabled ?? true}
+                  onChange={(e) => updateSettlement('annual_leave_encashment', 'enabled', e.target.checked)}
+                  className="w-5 h-5"
+                />
+                <span>تفعيل استبدال الإجازات</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">الحد الأقصى للأيام (0=بدون حد)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.annual_leave_encashment?.max_days_per_year ?? 0}
+                    onChange={(e) => updateSettlement('annual_leave_encashment', 'max_days_per_year', parseInt(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.annual_leave_encashment?.enabled}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">الحد الأدنى لخدمة (أشهر)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settlements.annual_leave_encashment?.min_service_months ?? 0}
+                    onChange={(e) => updateSettlement('annual_leave_encashment', 'min_service_months', parseInt(e.target.value) || 0)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={!settlements.annual_leave_encashment?.enabled}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={saveSettlements}
+            disabled={loadingSave}
+            className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 flex items-center justify-center gap-2 font-medium"
+          >
+            {loadingSave ? (
+              <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+            ) : (
+              <>💾 حفظ الإعدادات</>
+            )}
+          </button>
+        </div>
+
+        {/* Right: Calculator */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl shadow p-5">
+            <h3 className="font-bold text-lg mb-4">🧮 حساب تسوية موظف</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">اختر الموظف</label>
+              <select
+                value={selectedEmployee || ""}
+                onChange={(e) => {
+                  setSelectedEmployee(e.target.value);
+                  calculateEmployeeSettlement(e.target.value);
+                }}
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="">-- اختر موظف --</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.position || 'بدون مسمى'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {employeeSettlement && (
+              <div className="mt-4 space-y-4">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h4 className="font-bold mb-3">معلومات الخدمة</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>سنوات الخدمة: <strong>{employeeSettlement.years_of_service} سنة</strong></div>
+                    <div>أشهر الخدمة: <strong>{employeeSettlement.months_of_service} شهر</strong></div>
+                    <div>تاريخ التعيين: <strong>{employeeSettlement.hire_date}</strong></div>
+                    <div>تاريخ الانتهاء: <strong>{employeeSettlement.service_end_date}</strong></div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-bold mb-3">المستحقات</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>مكافأة إنهاء الخدمة:</span>
+                      <strong className="text-green-600">{formatCurrency(employeeSettlement.severance_pay)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>تعويض فترة الإخطار ({employeeSettlement.notice_period_days} يوم):</span>
+                      <strong className="text-green-600">{formatCurrency(employeeSettlement.notice_period_amount)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>استبدال الإجازات ({employeeSettlement.unused_leave_days} يوم):</span>
+                      <strong className="text-green-600">{formatCurrency(employeeSettlement.unused_leave_amount)}</strong>
+                    </div>
+                    <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                      <span>إجمالي المستحقات:</span>
+                      <span className="text-green-600">{formatCurrency(employeeSettlement.total_due)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {employeeSettlement.total_deduct > 0 && (
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3">الخصومات</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>سلفيات مستحقة الخصم:</span>
+                        <strong className="text-red-600">{formatCurrency(employeeSettlement.remaining_advances)}</strong>
+                      </div>
+                      <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                        <span>إجمالي الخصومات:</span>
+                        <span className="text-red-600">{formatCurrency(employeeSettlement.total_deduct)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-indigo-100 p-4 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-lg">صافي التسوية:</span>
+                    <span className="font-bold text-2xl text-indigo-700">{formatCurrency(employeeSettlement.net_settlement)}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => selectedEmployee && exportSettlementPDF(selectedEmployee)}
+                  className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                >
+                  📄 تحميل تسوية PDF
+                </button>
+              </div>
+            )}
+
+            {!employeeSettlement && (
+              <p className="text-gray-500 text-center py-4">اختر موظفاً لحساب تسويته</p>
+            )}
+          </div>
+
+          <button
+            onClick={calculateAllSettlements}
+            disabled={loadingCalc}
+            className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center gap-2 font-medium"
+          >
+            {loadingCalc ? (
+              <><span className="animate-spin">⟳</span> جاري الحساب...</>
+            ) : (
+              <>📊 حساب تسويات جميع الموظفين</>
+            )}
+          </button>
+
+          {allSettlements.length > 0 && (
+            <div className="bg-white rounded-xl shadow p-5">
+              <h3 className="font-bold text-lg mb-4">📊 ملخص التسويات ({settlementTotals?.total_employees} موظف)</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="p-2 text-right">#</th>
+                      <th className="p-2 text-right">الاسم</th>
+                      <th className="p-2 text-right">سنوات الخدمة</th>
+                      <th className="p-2 text-right">صافي التسوية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSettlements.map((s, i) => (
+                      <tr key={s.employee_id} className="border-t">
+                        <td className="p-2">{i + 1}</td>
+                        <td className="p-2 font-medium">{s.employee_name}</td>
+                        <td className="p-2">{s.years_of_service} سنة</td>
+                        <td className="p-2 font-bold text-indigo-600">{formatCurrency(s.net_settlement)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-indigo-100 font-bold">
+                      <td colspan="3" className="p-2">الإجمالي</td>
+                      <td className="p-2">{formatCurrency(settlementTotals?.total_net)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const AVAILABLE_PERMISSIONS = [
+  { key: 'employees.view', label: 'عرض الموظفين', module: 'employees' },
+  { key: 'employees.create', label: 'إضافة موظف', module: 'employees' },
+  { key: 'employees.edit', label: 'تعديل موظف', module: 'employees' },
+  { key: 'employees.delete', label: 'حذف موظف', module: 'employees' },
+  { key: 'departments.view', label: 'عرض الأقسام', module: 'departments' },
+  { key: 'departments.create', label: 'إضافة قسم', module: 'departments' },
+  { key: 'departments.edit', label: 'تعديل قسم', module: 'departments' },
+  { key: 'departments.delete', label: 'حذف قسم', module: 'departments' },
+  { key: 'attendance.view', label: 'عرض الحضور', module: 'attendance' },
+  { key: 'attendance.manage', label: 'إدارة الحضور', module: 'attendance' },
+  { key: 'attendance.sync', label: 'مزامنة الحضور', module: 'attendance' },
+  { key: 'leaves.view', label: 'عرض الإجازات', module: 'leaves' },
+  { key: 'leaves.approve', label: 'موافقة على إجازات', module: 'leaves' },
+  { key: 'leaves.reject', label: 'رفض إجازات', module: 'leaves' },
+  { key: 'leaves.manage', label: 'إدارة الإجازات', module: 'leaves' },
+  { key: 'leaves.request', label: 'طلب إجازة', module: 'leaves' },
+  { key: 'advances.view', label: 'عرض السلفيات', module: 'advances' },
+  { key: 'advances.approve', label: 'موافقة على سلفية', module: 'advances' },
+  { key: 'advances.reject', label: 'رفض سلفية', module: 'advances' },
+  { key: 'advances.manage', label: 'إدارة السلفيات', module: 'advances' },
+  { key: 'advances.request', label: 'طلب سلفة', module: 'advances' },
+  { key: 'warnings.view', label: 'عرض الإنذارات', module: 'warnings' },
+  { key: 'warnings.create', label: 'إنشاء إنذار', module: 'warnings' },
+  { key: 'warnings.manage', label: 'إدارة الإنذارات', module: 'warnings' },
+  { key: 'reports.view', label: 'عرض التقارير', module: 'reports' },
+  { key: 'reports.export', label: 'تصدير التقارير', module: 'reports' },
+  { key: 'reports.print', label: 'طباعة التقارير', module: 'reports' },
+  { key: 'letters.view', label: 'عرض الخطابات', module: 'letters' },
+  { key: 'letters.create', label: 'إنشاء خطاب', module: 'letters' },
+  { key: 'letters.print', label: 'طباعة خطاب', module: 'letters' },
+  { key: 'letters.delete', label: 'حذف خطاب', module: 'letters' },
+  { key: 'bank.view', label: 'عرض التصدير البنكي', module: 'bank' },
+  { key: 'bank.export', label: 'تصدير بنكي', module: 'bank' },
+  { key: 'settings.view', label: 'عرض الإعدادات', module: 'settings' },
+  { key: 'settings.edit', label: 'تعديل الإعدادات', module: 'settings' },
+  { key: 'settings.settlements', label: 'إعدادات التسوية', module: 'settings' },
+  { key: 'settings.financials', label: 'الإعدادات المالية', module: 'settings' },
+  { key: 'settings.organization', label: 'معلومات المؤسسة', module: 'settings' },
+  { key: 'settings.attendance', label: 'إعدادات الحضور', module: 'settings' },
+  { key: 'settings.leaves', label: 'إعدادات الإجازات', module: 'settings' },
+  { key: 'settings.advances', label: 'إعدادات السلفيات', module: 'settings' },
+  { key: 'settings.shifts', label: 'إعدادات الورديات', module: 'settings' },
+  { key: 'settings.whatsapp', label: 'إعدادات الواتساب', module: 'settings' },
+  { key: 'roles.view', label: 'عرض الأدوار', module: 'roles' },
+  { key: 'roles.edit', label: 'تعديل الأدوار', module: 'roles' },
+  { key: 'roles.manage', label: 'إدارة الأدوار', module: 'roles' },
+  { key: 'users.view', label: 'عرض المستخدمين', module: 'users' },
+  { key: 'users.create', label: 'إضافة مستخدم', module: 'users' },
+  { key: 'users.edit', label: 'تعديل مستخدم', module: 'users' },
+  { key: 'users.delete', label: 'حذف مستخدم', module: 'users' },
+  { key: 'notifications.view', label: 'عرض الإشعارات', module: 'notifications' },
+  { key: 'notifications.send', label: 'إرسال إشعارات', module: 'notifications' },
+  { key: 'profile.view', label: 'عرض الملف', module: 'profile' },
+  { key: 'profile.edit', label: 'تعديل الملف', module: 'profile' },
+];
+
+function RolesTab({ roles }) {
+  const [editingRole, setEditingRole] = useState<number | null>(null);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [newRoleForm, setNewRoleForm] = useState({ name: '', display_name: '', description: '', color: '#6366f1' });
+
+  const userPerms = getPermissions();
+  const canEdit = userPerms.includes('*') || userPerms.includes('roles.edit') || userPerms.includes('roles.manage');
+  const canCreate = canEdit;
+
+  const createRole = async () => {
+    if (!newRoleForm.name?.trim() || !newRoleForm.display_name?.trim()) {
+      toast.error("الاسم والاسم المعروض مطلوبان");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/roles", {
+        ...newRoleForm,
+        permissions: selectedPerms.length > 0 ? selectedPerms : ['*'],
+      });
+      toast.success("تم إنشاء الدور بنجاح ✅");
+      setShowAddRole(false);
+      setNewRoleForm({ name: '', display_name: '', description: '', color: '#6366f1' });
+      setSelectedPerms([]);
+      // Refresh
+      const res = await api.get("/roles");
+      const updatedRoles = res.data?.data || res.data || [];
+      setRoles(updatedRoles);
+    } catch (err) {
+      console.error("Create role error:", err);
+      toast.error(err.response?.data?.message || "فشل إنشاء الدور ❌");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (role: any) => {
+    let perms = role.permissions || [];
+    if (typeof perms === 'string') perms = [perms];
+    setSelectedPerms(perms);
+    setEditingRole(role.id);
+  };
+
+  const togglePerm = (perm: string) => {
+    if (perm === '*') {
+      setSelectedPerms(selectedPerms.includes('*') ? [] : ['*']);
+    } else {
+      if (selectedPerms.includes(perm)) {
+        setSelectedPerms(selectedPerms.filter(p => p !== perm));
+      } else {
+        setSelectedPerms([...selectedPerms, perm]);
+      }
+    }
+  };
+
+  const saveRole = async (roleId: number) => {
+    setSaving(true);
+    try {
+      const currentRole = roles.find(r => r.id === roleId);
+      await api.put(`/roles/${roleId}`, { 
+        permissions: selectedPerms,
+        display_name: currentRole?.display_name || '',
+      });
+      toast.success("تم حفظ الصلاحيات بنجاح ✅");
+      setEditingRole(null);
+      const res = await api.get("/roles");
+      const updatedRoles = res.data?.data || res.data || [];
+      setRoles(updatedRoles);
+    } catch (err) {
+      console.error("Save role error:", err);
+      toast.error(err.response?.data?.message || "فشل حفظ الصلاحيات ❌");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold">🔐 الأدوار والصلاحيات</h2>
+        <div className="flex gap-2">
+          {canCreate && (
+            <button
+              onClick={() => setShowAddRole(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              ➕ إضافة دور
+            </button>
+          )}
+          {canEdit && (
+            <span className="px-3 py-2 bg-green-100 text-green-800 rounded-full text-sm">✓ تعديل</span>
+          )}
+        </div>
+      </div>
+
+      {showAddRole && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">إضافة دور جديد</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">الاسم (إنجليزي)</label>
+                <input
+                  type="text"
+                  value={newRoleForm.name}
+                  onChange={(e) => setNewRoleForm({...newRoleForm, name: e.target.value})}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="manager"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">الاسم المعروض (عربي)</label>
+                <input
+                  type="text"
+                  value={newRoleForm.display_name}
+                  onChange={(e) => setNewRoleForm({...newRoleForm, display_name: e.target.value})}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="مدير"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">الوصف</label>
+                <input
+                  type="text"
+                  value={newRoleForm.description}
+                  onChange={(e) => setNewRoleForm({...newRoleForm, description: e.target.value})}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">اللون</label>
+                <input
+                  type="color"
+                  value={newRoleForm.color}
+                  onChange={(e) => setNewRoleForm({...newRoleForm, color: e.target.value})}
+                  className="w-full h-10 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">الصلاحيات</label>
+                <div className="max-h-40 overflow-y-auto border rounded p-2">
+                  <label className="flex items-center gap-2 p-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedPerms.includes('*')}
+                      onChange={() => setSelectedPerms(selectedPerms.includes('*') ? [] : ['*'])}
+                    />
+                    <span className="font-bold text-red-600">كل الصلاحيات</span>
+                  </label>
+                  {AVAILABLE_PERMISSIONS.slice(0, 20).map(perm => (
+                    <label key={perm.key} className="flex items-center gap-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedPerms.includes(perm.key)}
+                        onChange={() => {
+                          if (selectedPerms.includes(perm.key)) {
+                            setSelectedPerms(selectedPerms.filter(p => p !== perm.key));
+                          } else {
+                            setSelectedPerms([...selectedPerms, perm.key]);
+                          }
+                        }}
+                        disabled={selectedPerms.includes('*')}
+                      />
+                      <span className="text-sm">{perm.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={createRole}
+                disabled={saving}
+                className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {saving ? '...' : '➕ إنشاء'}
+              </button>
+              <button
+                onClick={() => { setShowAddRole(false); setSelectedPerms([]); }}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {roles.map((role) => (
           <div
             key={role.id}
@@ -2502,21 +3266,75 @@ function RolesTab({ roles }) {
               >
                 {role.display_name?.charAt(0)}
               </div>
-              <div>
+              <div className="flex-1">
                 <h4 className="font-bold">{role.display_name}</h4>
                 <p className="text-sm text-gray-500">{role.description}</p>
               </div>
+              {canEdit && editingRole !== role.id && (
+                <button
+                  onClick={() => startEdit(role)}
+                  className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+                >
+                  ✏️ تعديل
+                </button>
+              )}
             </div>
-            <div className="flex justify-between items-center pt-3 border-t">
-              <span className="text-sm text-gray-600">الصلاحيات:</span>
-              <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
-                {role.permissions?.[0] === "*" ? "كاملة" : `${role.permissions?.length || 0}`}
-              </span>
-            </div>
+
+            {editingRole === role.id ? (
+              <div className="mt-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedPerms.includes('*')}
+                      onChange={() => togglePerm('*')}
+                      className="w-4 h-4"
+                    />
+                    <span className="font-bold text-red-600">كل الصلاحيات (*)</span>
+                  </label>
+                </div>
+                <div className="max-h-60 overflow-y-auto border rounded p-2">
+                  {AVAILABLE_PERMISSIONS.map(perm => (
+                    <label key={perm.key} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedPerms.includes(perm.key)}
+                        onChange={() => togglePerm(perm.key)}
+                        disabled={selectedPerms.includes('*')}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">{perm.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => saveRole(role.id)}
+                    disabled={saving}
+                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {saving ? '...' : '💾 حفظ'}
+                  </button>
+                  <button
+                    onClick={() => setEditingRole(null)}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center pt-3 border-t">
+                <span className="text-sm text-gray-600">الصلاحيات:</span>
+                <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                  {role.permissions?.[0] === "*" ? "كاملة" : `${role.permissions?.length || 0} صلاحية`}
+                </span>
+              </div>
+            )}
           </div>
         ))}
         {roles.length === 0 && (
-          <div className="col-span-3 text-center py-12 text-gray-500">لا توجد أدوار محددة</div>
+          <div className="col-span-2 text-center py-12 text-gray-500">لا توجد أدوار محددة</div>
         )}
       </div>
     </div>
