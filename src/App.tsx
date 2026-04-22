@@ -20,24 +20,48 @@ import NotificationsPage from "./pages/NotificationsPage";
 import api from "./services/api";
 
 function App() {
-  useEffect(() => {
+  const loadPermissions = () => {
     const token = localStorage.getItem("token");
+    console.log('App - checking token:', token ? 'EXISTS' : 'NOT FOUND');
+    
     if (token) {
       api.get("/me")
         .then(res => {
           const data = res.data;
+          console.log('/me response:', data);
+          
+          if (data?.error) {
+            console.error('/me returned error:', data.message || data.error);
+            return;
+          }
+          
           if (data?.permissions) {
             localStorage.setItem("permissions", JSON.stringify(data.permissions));
+            console.log('Saved permissions to localStorage:', data.permissions);
           }
           if (data?.roles) {
             localStorage.setItem("user_roles", JSON.stringify(data.roles));
           }
-          console.log("User permissions loaded:", data?.permissions);
         })
         .catch(err => {
-          console.warn("Failed to load user permissions:", err);
+          console.error("Failed to load user permissions:", err.response?.data || err.message);
         });
     }
+  };
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'token' && e.newValue) {
+        console.log('Token changed, reloading permissions');
+        loadPermissions();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   return (

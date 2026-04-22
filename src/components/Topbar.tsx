@@ -1,31 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserCircleIcon, ArrowRightOnRectangleIcon, UserPlusIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
-import api from "../services/api";
+import { UserCircleIcon, ArrowRightOnRectangleIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 
 export default function Topbar({ title }) {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const menuRef = useRef(null);
   const username = localStorage.getItem("username");
   const avatar = localStorage.getItem("avatar") || "/default-avatar.png";
   const token = localStorage.getItem("token");
 
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        const res = await api.get("/me");
-        const user = res.data;
-        if (user.role?.name === "admin" || user.is_admin || user.isAdmin) {
-          setIsAdmin(true);
-        }
-      } catch (err) {
-        console.error("Error fetching user role:", err);
-      }
-    };
-    fetchUserRole();
+  // Check if admin from localStorage permissions
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
   }, [token]);
+
+  const isAdmin = permissions.includes('*');
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -41,6 +36,7 @@ export default function Topbar({ title }) {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
     localStorage.removeItem("avatar");
+    localStorage.removeItem("permissions");
     navigate("/login");
   };
 
@@ -60,7 +56,7 @@ export default function Topbar({ title }) {
           <span className="text-gray-700 font-medium">{username}</span>
         </button>
 
-        {openMenu && (
+{openMenu && (
           <div className="absolute left-0 mt-2 w-56 bg-white shadow-lg rounded-lg border z-50">
             <button
               type="button"
@@ -85,19 +81,8 @@ export default function Topbar({ title }) {
                   }}
                   className="w-full flex items-center justify-end px-4 py-3 text-gray-700 hover:bg-gray-100"
                 >
-                  إضافة مستخدم
+                  المستخدمين
                   <UserPlusIcon className="w-5 h-5 ml-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenMenu(false);
-                    navigate("/settings?tab=roles");
-                  }}
-                  className="w-full flex items-center justify-end px-4 py-3 text-gray-700 hover:bg-gray-100"
-                >
-                  الصلاحيات
-                  <ShieldCheckIcon className="w-5 h-5 ml-3" />
                 </button>
               </>
             )}

@@ -18,9 +18,15 @@ function getPermissions() {
   try {
     const savedPerms = localStorage.getItem("permissions");
     if (savedPerms) {
-      return JSON.parse(savedPerms);
+      const perms = JSON.parse(savedPerms);
+      console.log('Sidebar reading permissions:', perms, 'savedPerms raw:', savedPerms);
+      return perms;
+    } else {
+      console.log('Sidebar: no permissions in localStorage');
     }
-  } catch {}
+  } catch (e) {
+    console.error('Failed to read permissions:', e);
+  }
   return [];
 }
 
@@ -32,7 +38,7 @@ function hasPermission(perm) {
 export default function Sidebar({ sticky = false, onCollapseChange }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [, setPermVersion] = useState(0);
+  const [permVersion, setPermVersion] = useState(0);
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -93,11 +99,32 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
     }
   }, [isCollapsed]);
 
-  const items = useMemo(
+const items = useMemo(
     () => {
       const perms = getPermissions();
       const isAdmin = perms.includes('*');
       
+      console.log('=== Sidebar Permission Check ===');
+      console.log('perms from localStorage:', perms);
+      console.log('isAdmin (*):', isAdmin);
+      console.log('==================================');
+      
+      // Admin sees all items
+      if (isAdmin) {
+        console.log('Returning ALL items (admin)');
+        return [
+          { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
+          { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
+          { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
+          { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
+          { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
+          { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
+          { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
+          { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
+        ];
+      }
+      
+      // For non-admin: filter based on permissions
       const allItems = [
         { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
         { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
@@ -109,13 +136,13 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
         { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
       ];
       
-      if (isAdmin) {
-        return allItems;
-      }
+      const filtered = allItems.filter(item => hasPermission(item.permission));
+      console.log('Filtered items:', filtered.map(i => i.label));
+      console.log('==================================');
       
-      return allItems.filter(item => hasPermission(item.permission));
+      return filtered;
     },
-    []
+    [permVersion]
   );
 
   const isActive = (path) => location.pathname === path;

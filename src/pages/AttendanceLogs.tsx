@@ -505,7 +505,7 @@ export default function AttendanceLogs() {
                             {row.deduction_amount > 0 ? Number(row.deduction_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
                           </td>
                           <td className="p-3">
-                            {(row.has_delay || row.is_absent) && !row.excused && (
+                            {((row.has_delay || row.is_absent || row.check_out_type === 'early') && !row.excused) && (
                               <button
                                 onClick={() => {
                                   setSelectedRecord(row);
@@ -683,18 +683,28 @@ export default function AttendanceLogs() {
                 <button
                   onClick={async () => {
                     try {
-                      const recordId = selectedRecord.is_absent 
-                        ? selectedRecord.record_id || selectedRecord.id.replace('manual-', '')
-                        : selectedRecord.id.replace('manual-', '');
+                      // Extract actual record ID from display ID (in-14, out-14, abs-14)
+                      const actualRecordId = selectedRecord.record_id || selectedRecord.id.replace(/^(in|out|abs)-/, '');
                       
-                      let endpoint = `/attendance-records/${recordId}`;
+                      let endpoint = `/attendance-records/${actualRecordId}`;
+                      
+                      // Determine excuse type based on record type and ID prefix
+                      const recordId = selectedRecord.id || '';
+                      
                       if (selectedRecord.is_absent) {
+                        // Absence - use excuse-absence
                         endpoint += '/excuse-absence';
+                      } else if (recordId.startsWith('out-')) {
+                        // Checkout record (early leave) - use excuse-early-leave
+                        endpoint += '/excuse-early-leave';
                       } else if (selectedRecord.is_manual) {
                         endpoint += '/excuse';
                       } else {
-                        endpoint = `/attendance-logs/${selectedRecord.id}/excuse`;
+                        // Check-in record (delay) - use excuse-delay
+                        endpoint += '/excuse-delay';
                       }
+                      
+                      console.log('Excuse endpoint:', endpoint, 'record:', selectedRecord);
                       
                       await api.post(endpoint, {
                         reason: excuseReason || "عذر مقبول"
@@ -707,7 +717,8 @@ export default function AttendanceLogs() {
                       setExcuseReason("");
                       loadLogs();
                     } catch (err) {
-                      toast.error("فشل في قبول العذر");
+                      console.error('Excuse error:', err);
+                      toast.error("فشل في قبول العذر: " + (err.response?.data?.message || err.message));
                     }
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"

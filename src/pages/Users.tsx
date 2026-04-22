@@ -13,18 +13,34 @@ export default function Users() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [roles, setRoles] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState({
     username: "",
+    full_name: "",
     email: "",
     password: "",
     role_id: "",
+    department_id: "",
   });
   const [saving, setSaving] = useState(false);
 
-  const loadUsers = async () => {
+  // Check if current user is admin
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const isAdmin = permissions.includes('*');
+
+  const loadUsers = async (deptId = null) => {
     setLoading(true);
     try {
-      const res = await api.get("/users");
+      const params = deptId ? `?department_id=${deptId}` : '';
+      const res = await api.get(`/users${params}`);
       setUsers(res.data?.data || res.data || []);
     } catch (e) {
       toast.error("فشل في جلب المستخدمين");
@@ -36,21 +52,30 @@ export default function Users() {
   const loadRoles = async () => {
     try {
       const res = await api.get("/roles");
-      console.log("Roles response:", res.data);
       setRoles(res.data?.data || res.data || []);
     } catch (e) {
       console.error("Failed to load roles:", e);
     }
   };
 
+  const loadDepartments = async () => {
+    try {
+      const res = await api.get("/departments");
+      setDepartments(res.data?.data || res.data || []);
+    } catch (e) {
+      console.error("Failed to load departments:", e);
+    }
+  };
+
   useEffect(() => {
     loadUsers();
     loadRoles();
+    loadDepartments();
   }, []);
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ username: "", email: "", password: "", role_id: "" });
+    setForm({ username: "", full_name: "", email: "", password: "", role_id: "", department_id: "" });
     setShowModal(true);
   };
 
@@ -58,11 +83,23 @@ export default function Users() {
     setEditing(user);
     setForm({
       username: user.username || "",
+      full_name: user.full_name || "",
       email: user.email || "",
       password: "",
       role_id: user.role_id || user.role?.id || "",
+      department_id: user.department_id || user.department?.id || "",
     });
     setShowModal(true);
+  };
+
+  const handleRoleChange = (roleId) => {
+    const role = roles.find(r => r.id == roleId);
+    setForm(f => ({ 
+      ...f, 
+      role_id: roleId,
+      // Clear department if role is not department_supervisor
+      department_id: role?.name === 'department_supervisor' ? f.department_id : "" 
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -80,8 +117,10 @@ export default function Users() {
     try {
       const payload = {
         username: form.username.trim(),
+        full_name: form.full_name?.trim() || undefined,
         email: form.email.trim(),
         role_id: form.role_id || undefined,
+        department_id: form.department_id || undefined,
         ...(form.password?.trim() ? { password: form.password } : {}),
       };
 
@@ -114,14 +153,12 @@ export default function Users() {
 
   const getRoleDisplay = (user) => {
     if (!user.role) return "—";
-    const role = user.role;
-    return role.display_name || role.name || "—";
+    return user.role.display_name || user.role.name || "—";
   };
 
-  const getRoleColor = (user) => {
-    if (!user.role) return "bg-gray-100 text-gray-600";
-    const color = user.role.color || "#6366f1";
-    return `text-white`;
+  const getDepartmentDisplay = (user) => {
+    if (!user.department) return "—";
+    return user.department.name || user.department.name_ar || "—";
   };
 
   return (
@@ -150,57 +187,50 @@ export default function Users() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-right px-6 py-3 text-gray-600 font-medium">المستخدم</th>
-                    <th className="text-right px-6 py-3 text-gray-600 font-medium">البريد الإلكتروني</th>
-                    <th className="text-right px-6 py-3 text-gray-600 font-medium">الصلاحية</th>
-                    <th className="text-right px-6 py-3 text-gray-600 font-medium">الحالة</th>
-                    <th className="text-right px-6 py-3 text-gray-600 font-medium">الإجراءات</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">الاسم</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">اسم المستخدم</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">البريد الإلكتروني</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">الدور</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">القسم</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">الحالة</th>
+                    <th className="text-right px-4 py-3 text-gray-600 font-medium">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id} className="border-t hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                            {user.username?.charAt(0)?.toUpperCase() || "?"}
-                          </div>
-                          <span className="font-medium text-gray-800">{user.username}</span>
-                        </div>
+                      <td className="px-4 py-3 font-medium text-gray-800">
+                        {user.full_name || user.name || "—"}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{user.email}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3 text-gray-600">{user.username}</td>
+                      <td className="px-4 py-3 text-gray-600">{user.email}</td>
+                      <td className="px-4 py-3">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleColor(user)}`}
-                          style={{
-                            backgroundColor: user.role?.color || "#6366f1",
-                          }}
+                          className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: user.role?.color || "#6366f1" }}
                         >
                           {getRoleDisplay(user)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            user.is_active === false
-                              ? "bg-red-100 text-red-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
+                      <td className="px-4 py-3 text-gray-600">{getDepartmentDisplay(user)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          user.is_active === false ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                        }`}>
                           {user.is_active === false ? "غير نشط" : "نشط"}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button
                             onClick={() => openEdit(user)}
-                            className="px-3 py-1 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200"
+                            className="px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 text-sm"
                           >
                             تعديل
                           </button>
                           <button
                             onClick={() => handleDelete(user)}
-                            className="px-3 py-1 text-red-600 hover:bg-red-50 rounded border border-red-200"
+                            className="px-2 py-1 text-red-600 hover:bg-red-50 rounded border border-red-200 text-sm"
                           >
                             حذف
                           </button>
@@ -210,7 +240,7 @@ export default function Users() {
                   ))}
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="text-center py-10 text-gray-500">
+                      <td colSpan="7" className="text-center py-10 text-gray-500">
                         لا يوجد مستخدمين بعد
                       </td>
                     </tr>
@@ -222,12 +252,22 @@ export default function Users() {
         </main>
 
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold text-gray-800 mb-6">
                 {editing ? "تعديل مستخدم" : "إضافة مستخدم جديد"}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">الاسم الكامل</label>
+                  <input
+                    type="text"
+                    value={form.full_name}
+                    onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="الاسم الكامل"
+                  />
+                </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">اسم المستخدم</label>
                   <input
@@ -264,13 +304,13 @@ export default function Users() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-medium mb-2">الصلاحية</label>
+                  <label className="block text-gray-700 font-medium mb-2">الدور</label>
                   <select
                     value={form.role_id}
-                    onChange={(e) => setForm((f) => ({ ...f, role_id: e.target.value }))}
+                    onChange={(e) => handleRoleChange(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">اختر الصلاحية</option>
+                    <option value="">اختر الدور</option>
                     {roles.map((role) => (
                       <option key={role.id} value={role.id}>
                         {role.display_name || role.name}
@@ -278,6 +318,24 @@ export default function Users() {
                     ))}
                   </select>
                 </div>
+                {/* Show department only if role is department_supervisor */}
+                {roles.find(r => r.id == form.role_id)?.name === 'department_supervisor' && (
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-2">القسم</label>
+                    <select
+                      value={form.department_id}
+                      onChange={(e) => setForm((f) => ({ ...f, department_id: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">اختر القسم</option>
+                      {departments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name || dept.name_ar}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"

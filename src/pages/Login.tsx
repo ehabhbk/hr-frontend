@@ -21,21 +21,40 @@ export default function Login() {
     if (Object.keys(newErrors).length === 0) {
       setLoading(true);
       try {
+        console.log('Attempting login with username:', username);
         const response = await api.post("/login", { username, password });
+        console.log('Login response:', response.data);
 
         if (response.data.token) {
+          console.log('Login SUCCESS, token: ' + response.data.token.substring(0, 20) + '...');
+          
+          const perms = response.data.permissions || [];
+          console.log('Permissions from login:', perms);
+          
+          // Save token
           localStorage.setItem("token", response.data.token);
+          
+          // Save permissions from login response directly
+          if (perms.length > 0) {
+            localStorage.setItem("permissions", JSON.stringify(perms));
+            console.log('Saved permissions:', perms);
+          } else {
+            console.warn('WARNING: Empty permissions from login!');
+            localStorage.setItem("permissions", JSON.stringify([]));
+          }
 
           if (response.data.user) {
             localStorage.setItem("username", response.data.user.username);
             localStorage.setItem("avatar", response.data.user.avatar || "/default-avatar.png");
           }
 
-          navigate("/dashboard");
+          // Reload to apply permissions immediately
+          window.location.href = "/dashboard";
         } else {
           setErrors({ general: "بيانات الدخول غير صحيحة" });
         }
       } catch (error) {
+        console.error('Login error:', error.response?.data || error.message);
         setErrors({ general: "فشل تسجيل الدخول - تأكد من اسم المستخدم وكلمة المرور" });
       } finally {
         setLoading(false);

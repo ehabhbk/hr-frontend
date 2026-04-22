@@ -5,7 +5,7 @@ import Topbar from "../components/Topbar";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
-import { getPermissions } from "../utils/auth";
+import { getCurrentPermissions } from "../utils/auth";
 
 const ALL_TABS = [
   { key: "organization", label: "معلومات المؤسسة", icon: "🏢", permission: "settings.organization" },
@@ -29,7 +29,7 @@ function getPermissions() {
   return [];
 }
 
-function hasPermission(perm) {
+function hasCurrentPermission(perm) {
   const perms = getPermissions();
   return perms.includes('*') || perms.includes(perm);
 }
@@ -37,15 +37,31 @@ function hasPermission(perm) {
 function getFilteredTabs() {
   const perms = getPermissions();
   if (perms.includes('*')) {
+    console.log('Admin user - showing all tabs');
     return ALL_TABS;
   }
-  return ALL_TABS.filter(tab => hasPermission(tab.permission));
+  return ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
 }
 
-const TABS = getFilteredTabs();
+// Dynamic tabs - recalculated on each render
+function useSettingsTabs() {
+  const perms = getPermissions();
+  const isAdmin = perms.includes('*');
+  
+  console.log('Settings tabs - perms:', perms, 'isAdmin:', isAdmin);
+  
+  // Admin sees all tabs
+  if (isAdmin) {
+    console.log('Admin - showing all settings tabs');
+    return ALL_TABS;
+  }
+  
+  return ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
+}
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState("organization");
+  const tabs = useSettingsTabs();
   const [, setLoading] = useState(false);
 
   const [org, setOrg] = useState({});
@@ -719,7 +735,7 @@ function SettingsPage() {
         <Topbar title="لوحة الإعدادات" />
         <div className="flex-1 p-6 pl-8">
           <div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}

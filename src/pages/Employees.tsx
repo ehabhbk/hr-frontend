@@ -182,9 +182,13 @@ export default function Employees() {
   }, [token]);
 
   const loadData = () => {
+    console.log('Loading employees...');
     api.get("/employees", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setEmployees(res.data.data))
-      .catch((err) => console.error(err));
+      .then((res) => {
+        console.log('Employees API response:', res.data);
+        setEmployees(res.data.data || res.data);
+      })
+      .catch((err) => console.error('Employees error:', err));
     
     api.get("/departments", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setDepartments(res.data.data || []))
