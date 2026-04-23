@@ -66,6 +66,16 @@ function getFirstAllowedTab() {
 }
 
 function SettingsPage() {
+  // Debug: Check permissions on mount
+  useEffect(() => {
+    const perms = localStorage.getItem("permissions");
+    console.log('SettingsPage - permissions in localStorage:', perms);
+    const parsed = perms ? JSON.parse(perms) : [];
+    console.log('SettingsPage - parsed permissions:', parsed);
+    console.log('SettingsPage - is admin (*):', parsed.includes('*'));
+    console.log('SettingsPage - has settings.financials:', parsed.includes('settings.financials'));
+  }, []);
+  
   const tabs = useSettingsTabs();
   const firstAllowedTab = getFirstAllowedTab();
   
@@ -3052,60 +3062,108 @@ function SettlementsTab({
 }
 
 const AVAILABLE_PERMISSIONS = [
+  // Employees
   { key: 'employees.view', label: 'عرض الموظفين', module: 'employees' },
   { key: 'employees.create', label: 'إضافة موظف', module: 'employees' },
   { key: 'employees.edit', label: 'تعديل موظف', module: 'employees' },
   { key: 'employees.delete', label: 'حذف موظف', module: 'employees' },
+  { key: 'employees.terminate', label: 'إنهاء خدمة الموظف', module: 'employees' },
+  { key: 'employees.restore', label: 'استعادة موظف', module: 'employees' },
+  { key: 'employees.evaluate', label: 'تقييم موظف', module: 'employees' },
+  // Departments
   { key: 'departments.view', label: 'عرض الأقسام', module: 'departments' },
   { key: 'departments.create', label: 'إضافة قسم', module: 'departments' },
   { key: 'departments.edit', label: 'تعديل قسم', module: 'departments' },
   { key: 'departments.delete', label: 'حذف قسم', module: 'departments' },
+  // Attendance
   { key: 'attendance.view', label: 'عرض الحضور', module: 'attendance' },
   { key: 'attendance.manage', label: 'إدارة الحضور', module: 'attendance' },
   { key: 'attendance.sync', label: 'مزامنة الحضور', module: 'attendance' },
+  { key: 'attendance.excuse', label: 'قبول عذر', module: 'attendance' },
+  // Devices
+  { key: 'devices.view', label: 'عرض الأجهزة', module: 'devices' },
+  { key: 'devices.manage', label: 'إدارة الأجهزة', module: 'devices' },
+  // Leaves
   { key: 'leaves.view', label: 'عرض الإجازات', module: 'leaves' },
   { key: 'leaves.approve', label: 'موافقة على إجازات', module: 'leaves' },
   { key: 'leaves.reject', label: 'رفض إجازات', module: 'leaves' },
   { key: 'leaves.manage', label: 'إدارة الإجازات', module: 'leaves' },
   { key: 'leaves.request', label: 'طلب إجازة', module: 'leaves' },
+  // Advances
   { key: 'advances.view', label: 'عرض السلفيات', module: 'advances' },
   { key: 'advances.approve', label: 'موافقة على سلفية', module: 'advances' },
   { key: 'advances.reject', label: 'رفض سلفية', module: 'advances' },
   { key: 'advances.manage', label: 'إدارة السلفيات', module: 'advances' },
   { key: 'advances.request', label: 'طلب سلفة', module: 'advances' },
+  // Warnings
   { key: 'warnings.view', label: 'عرض الإنذارات', module: 'warnings' },
   { key: 'warnings.create', label: 'إنشاء إنذار', module: 'warnings' },
+  { key: 'warnings.delete', label: 'حذف إنذار', module: 'warnings' },
   { key: 'warnings.manage', label: 'إدارة الإنذارات', module: 'warnings' },
+  // Incentives
+  { key: 'incentives.view', label: 'عرض الحوافز', module: 'incentives' },
+  { key: 'incentives.manage', label: 'إدارة الحوافز', module: 'incentives' },
+  // Reports
   { key: 'reports.view', label: 'عرض التقارير', module: 'reports' },
   { key: 'reports.export', label: 'تصدير التقارير', module: 'reports' },
   { key: 'reports.print', label: 'طباعة التقارير', module: 'reports' },
+  { key: 'reports.dashboard', label: 'لوحة التقارير', module: 'reports' },
+  { key: 'reports.salary', label: 'كشف المرتبات', module: 'reports' },
+  { key: 'reports.income_tax', label: 'ضريبة الدخل', module: 'reports' },
+  { key: 'reports.salary_increase', label: 'الزيادة السنوية', module: 'reports' },
+  { key: 'reports.leaves_warnings', label: 'الإجازات والإنذارات', module: 'reports' },
+  { key: 'reports.employee', label: 'تقرير الموظف', module: 'reports' },
+  { key: 'reports.evaluation', label: 'تقييم الموظفين', module: 'reports' },
+  { key: 'reports.department', label: 'تقارير الأقسام', module: 'reports' },
+  { key: 'reports.history', label: 'سجل التقارير', module: 'reports' },
+  { key: 'reports.letters', label: 'الخطابات', module: 'reports' },
+  // Letters
   { key: 'letters.view', label: 'عرض الخطابات', module: 'letters' },
   { key: 'letters.create', label: 'إنشاء خطاب', module: 'letters' },
   { key: 'letters.print', label: 'طباعة خطاب', module: 'letters' },
   { key: 'letters.delete', label: 'حذف خطاب', module: 'letters' },
+  // Bank
   { key: 'bank.view', label: 'عرض التصدير البنكي', module: 'bank' },
   { key: 'bank.export', label: 'تصدير بنكي', module: 'bank' },
+  // Assets
+  { key: 'assets.view', label: 'عرض الأصول', module: 'assets' },
+  { key: 'assets.manage', label: 'إدارة الأصول', module: 'assets' },
+  { key: 'assets.return', label: 'تسليم أصول', module: 'assets' },
+  // Settings
   { key: 'settings.view', label: 'عرض الإعدادات', module: 'settings' },
   { key: 'settings.edit', label: 'تعديل الإعدادات', module: 'settings' },
-  { key: 'settings.settlements', label: 'إعدادات التسوية', module: 'settings' },
-  { key: 'settings.financials', label: 'الإعدادات المالية', module: 'settings' },
   { key: 'settings.organization', label: 'معلومات المؤسسة', module: 'settings' },
   { key: 'settings.attendance', label: 'إعدادات الحضور', module: 'settings' },
   { key: 'settings.leaves', label: 'إعدادات الإجازات', module: 'settings' },
   { key: 'settings.advances', label: 'إعدادات السلفيات', module: 'settings' },
   { key: 'settings.shifts', label: 'إعدادات الورديات', module: 'settings' },
+  { key: 'settings.financials', label: 'الإعدادات المالية', module: 'settings' },
+  { key: 'settings.settlements', label: 'إعدادات التسوية', module: 'settings' },
   { key: 'settings.whatsapp', label: 'إعدادات الواتساب', module: 'settings' },
+  // Roles
   { key: 'roles.view', label: 'عرض الأدوار', module: 'roles' },
   { key: 'roles.edit', label: 'تعديل الأدوار', module: 'roles' },
   { key: 'roles.manage', label: 'إدارة الأدوار', module: 'roles' },
+  // Users
   { key: 'users.view', label: 'عرض المستخدمين', module: 'users' },
   { key: 'users.create', label: 'إضافة مستخدم', module: 'users' },
   { key: 'users.edit', label: 'تعديل مستخدم', module: 'users' },
   { key: 'users.delete', label: 'حذف مستخدم', module: 'users' },
+  // Notifications
   { key: 'notifications.view', label: 'عرض الإشعارات', module: 'notifications' },
   { key: 'notifications.send', label: 'إرسال إشعارات', module: 'notifications' },
+  // Profile
   { key: 'profile.view', label: 'عرض الملف', module: 'profile' },
   { key: 'profile.edit', label: 'تعديل الملف', module: 'profile' },
+  // Menu
+  { key: 'menu.dashboard', label: 'قائمة لوحة التحكم', module: 'menu' },
+  { key: 'menu.employees', label: 'قائمة الموظفين', module: 'menu' },
+  { key: 'menu.departments', label: 'قائمة الأقسام', module: 'menu' },
+  { key: 'menu.fingerprint', label: 'قائمة البصمة', module: 'menu' },
+  { key: 'menu.attendance', label: 'قائمة الحضور', module: 'menu' },
+  { key: 'menu.bank', label: 'قائمة التصدير البنكي', module: 'menu' },
+  { key: 'menu.reports', label: 'قائمة التقارير', module: 'menu' },
+  { key: 'menu.settings', label: 'قائمة الإعدادات', module: 'menu' },
 ];
 
 function RolesTab({ roles }) {
@@ -3127,7 +3185,10 @@ function RolesTab({ roles }) {
     setSaving(true);
     try {
       await api.post("/roles", {
-        ...newRoleForm,
+        name: newRoleForm.name,
+        name_ar: newRoleForm.display_name,
+        description: newRoleForm.description,
+        color: newRoleForm.color,
         permissions: selectedPerms.length > 0 ? selectedPerms : ['*'],
       });
       toast.success("تم إنشاء الدور بنجاح ✅");
@@ -3171,7 +3232,7 @@ function RolesTab({ roles }) {
       const currentRole = roles.find(r => r.id === roleId);
       await api.put(`/roles/${roleId}`, { 
         permissions: selectedPerms,
-        display_name: currentRole?.display_name || '',
+        name_ar: currentRole?.display_name || '',
       });
       toast.success("تم حفظ الصلاحيات بنجاح ✅");
       setEditingRole(null);
@@ -3184,6 +3245,56 @@ function RolesTab({ roles }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteRole = async (roleId: number) => {
+    if (!window.confirm("هل أنت متأكد من حذف هذا الدور؟")) return;
+    setSaving(true);
+    try {
+      console.log('Deleting role:', roleId);
+      const res = await api.delete(`/roles/${roleId}`);
+      console.log('Delete response:', res.data);
+      toast.success("تم حذف الدور بنجاح ✅");
+      const rolesRes = await api.get("/roles");
+      const updatedRoles = rolesRes.data?.data || rolesRes.data || [];
+      setRoles(updatedRoles);
+    } catch (err) {
+      console.error("Delete role error:", err);
+      toast.error(err.response?.data?.message || err.response?.data?.error || "فشل حذف الدور ❌");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Group permissions by module
+  const groupedPermissions = React.useMemo(() => {
+    const groups: Record<string, typeof AVAILABLE_PERMISSIONS> = {};
+    AVAILABLE_PERMISSIONS.forEach(perm => {
+      if (!groups[perm.module]) groups[perm.module] = [];
+      groups[perm.module].push(perm);
+    });
+    return groups;
+  }, []);
+
+  const moduleLabels: Record<string, string> = {
+    employees: '👥 الموظفين',
+    departments: '🏢 الأقسام',
+    attendance: '⏰ الحضور',
+    devices: '🔐 الأجهزة',
+    leaves: '🏖️ الإجازات',
+    advances: '💰 السلفيات',
+    warnings: '⚠️ الإنذارات',
+    incentives: '🎁 الحوافز',
+    reports: '📊 التقارير',
+    letters: '📝 الخطابات',
+    bank: '🏦 التصدير البنكي',
+    assets: '📦 الأصول',
+    settings: '⚙️ الإعدادات',
+    roles: '🔐 الأدوار',
+    users: '👤 المستخدمين',
+    notifications: '🔔 الإشعارات',
+    profile: '👤 الملف',
+    menu: '📋 القوائم',
   };
 
   return (
@@ -3250,8 +3361,8 @@ function RolesTab({ roles }) {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">الصلاحيات</label>
-                <div className="max-h-40 overflow-y-auto border rounded p-2">
-                  <label className="flex items-center gap-2 p-1">
+                <div className="border rounded p-2 max-h-60 overflow-y-auto">
+                  <label className="flex items-center gap-2 p-1 mb-2 border-b">
                     <input
                       type="checkbox"
                       checked={selectedPerms.includes('*')}
@@ -3259,22 +3370,29 @@ function RolesTab({ roles }) {
                     />
                     <span className="font-bold text-red-600">كل الصلاحيات</span>
                   </label>
-                  {AVAILABLE_PERMISSIONS.slice(0, 20).map(perm => (
-                    <label key={perm.key} className="flex items-center gap-2 p-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedPerms.includes(perm.key)}
-                        onChange={() => {
-                          if (selectedPerms.includes(perm.key)) {
-                            setSelectedPerms(selectedPerms.filter(p => p !== perm.key));
-                          } else {
-                            setSelectedPerms([...selectedPerms, perm.key]);
-                          }
-                        }}
-                        disabled={selectedPerms.includes('*')}
-                      />
-                      <span className="text-sm">{perm.label}</span>
-                    </label>
+                  {Object.entries(groupedPermissions).map(([module, perms]) => (
+                    <div key={module} className="mb-3">
+                      <div className="font-bold text-sm bg-gray-100 px-2 py-1 rounded mb-1">
+                        {moduleLabels[module] || module}
+                      </div>
+                      {perms.map(perm => (
+                        <label key={perm.key} className="flex items-center gap-2 p-1 hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={selectedPerms.includes(perm.key)}
+                            onChange={() => {
+                              if (selectedPerms.includes(perm.key)) {
+                                setSelectedPerms(selectedPerms.filter(p => p !== perm.key));
+                              } else {
+                                setSelectedPerms([...selectedPerms, perm.key]);
+                              }
+                            }}
+                            disabled={selectedPerms.includes('*')}
+                          />
+                          <span className="text-sm">{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -3340,17 +3458,24 @@ function RolesTab({ roles }) {
                   </label>
                 </div>
                 <div className="max-h-60 overflow-y-auto border rounded p-2">
-                  {AVAILABLE_PERMISSIONS.map(perm => (
-                    <label key={perm.key} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedPerms.includes(perm.key)}
-                        onChange={() => togglePerm(perm.key)}
-                        disabled={selectedPerms.includes('*')}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm">{perm.label}</span>
-                    </label>
+                  {Object.entries(groupedPermissions).map(([module, perms]) => (
+                    <div key={module} className="mb-3">
+                      <div className="font-bold text-sm bg-gray-100 px-2 py-1 rounded mb-1">
+                        {moduleLabels[module] || module}
+                      </div>
+                      {perms.map(perm => (
+                        <label key={perm.key} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedPerms.includes(perm.key)}
+                            onChange={() => togglePerm(perm.key)}
+                            disabled={selectedPerms.includes('*')}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm">{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </div>
                 <div className="flex gap-2 mt-3">
@@ -3361,6 +3486,15 @@ function RolesTab({ roles }) {
                   >
                     {saving ? '...' : '💾 حفظ'}
                   </button>
+                  {role.name !== 'admin' && (
+                    <button
+                      onClick={() => deleteRole(role.id)}
+                      disabled={saving}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                    >
+                      🗑️ حذف
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingRole(null)}
                     className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
