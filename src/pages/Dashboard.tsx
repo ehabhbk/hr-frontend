@@ -23,6 +23,28 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
+  // Check permissions
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+// Permission checks
+  const canViewEmployees = permissions.includes('*') || permissions.includes('employees.view');
+  const canViewDepartments = permissions.includes('*') || permissions.includes('departments.view');
+  const canViewAttendance = permissions.includes('*') || permissions.includes('attendance.view');
+  const canViewPayroll = permissions.includes('*') || permissions.includes('payroll.view') || permissions.includes('reports.salary');
+  const canSyncDevices = permissions.includes('*') || permissions.includes('devices.manage') || permissions.includes('attendance.sync');
+  const canManageDevices = permissions.includes('*') || permissions.includes('devices.manage');
+  const canCreateEmployee = permissions.includes('*') || permissions.includes('employees.create');
+  const canViewReports = permissions.includes('*') || permissions.includes('reports.view');
+  const canViewBank = permissions.includes('*') || permissions.includes('bank.view');
+  const canViewSettings = permissions.includes('*') || permissions.includes('settings.view');
+
   const [dashboardData, setDashboardData] = useState(null);
   const [employeeCount, setEmployeeCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
@@ -110,6 +132,8 @@ export default function Dashboard() {
 
         {/* محتوى الصفحة */}
         <main className="flex-1 p-6">
+          {/* مزامنة جهاز البصمة - إظهار فقط لمن عنده الصلاحية */}
+          {canSyncDevices && (
           <div className="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-indigo-800 font-semibold">مزامنة جهاز البصمة</div>
             <div className="flex flex-col md:flex-row gap-3 md:items-center">
@@ -137,110 +161,131 @@ export default function Dashboard() {
               >
                 {syncing ? "جارٍ المزامنة..." : "مزامنة الآن"}
               </button>
-              <button
-                onClick={() => navigate("/fingerprint-devices")}
-                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
-                type="button"
-                disabled={syncing}
-              >
-                إدارة الأجهزة
-              </button>
-              <button
-                onClick={() => navigate("/attendance-logs")}
-                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
-                type="button"
-                disabled={syncing}
-              >
-                عرض السجلات
-              </button>
+{canManageDevices && (
+                <button
+                  onClick={() => navigate("/fingerprint-devices")}
+                  className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+                  type="button"
+                  disabled={syncing}
+                >
+                  إدارة الأجهزة
+                </button>
+                )}
+                {canManageDevices && (
+                <button
+                  onClick={() => navigate("/attendance-logs")}
+                  className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+                  type="button"
+                  disabled={syncing}
+                >
+                  عرض السجلات
+                </button>
+                )}
             </div>
           </div>
+          )}
 
           {/* بطاقات الملخص */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div
-              onClick={() => navigate("/employees")}
-              className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
-            >
-              <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                <UserGroupIcon className="h-6 w-6 text-indigo-600" />
-                عدد الموظفين
-              </h2>
-              <p className="text-2xl font-bold text-indigo-600 mt-2">{employeeCount}</p>
-            </div>
+            {canViewEmployees && (
+              <div
+                onClick={() => navigate("/employees")}
+                className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
+              >
+                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                  <UserGroupIcon className="h-6 w-6 text-indigo-600" />
+                  عدد الموظفين
+                </h2>
+                <p className="text-2xl font-bold text-indigo-600 mt-2">{employeeCount}</p>
+              </div>
+            )}
 
-            <div
-              onClick={() => navigate("/departments")}
-              className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
-            >
-              <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                <BuildingOfficeIcon className="h-6 w-6 text-green-600" />
-                عدد الأقسام
-              </h2>
-              <p className="text-2xl font-bold text-green-600 mt-2">{departmentCount}</p>
-            </div>
+            {canViewDepartments && (
+              <div
+                onClick={() => navigate("/departments")}
+                className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
+              >
+                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                  <BuildingOfficeIcon className="h-6 w-6 text-green-600" />
+                  عدد الأقسام
+                </h2>
+                <p className="text-2xl font-bold text-green-600 mt-2">{departmentCount}</p>
+              </div>
+            )}
 
-            <div className="bg-white shadow-md rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                <UserMinusIcon className="h-6 w-6 text-red-600" />
-                عدد الموظفين المفصولين
-              </h2>
-              <p className="text-2xl font-bold text-red-600 mt-2">{terminatedCount}</p>
-            </div>
+            {canViewEmployees && (
+              <div className="bg-white shadow-md rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                  <UserMinusIcon className="h-6 w-6 text-red-600" />
+                  عدد الموظفين المفصولين
+                </h2>
+                <p className="text-2xl font-bold text-red-600 mt-2">{terminatedCount}</p>
+              </div>
+            )}
 
-            <div className="bg-white shadow-md rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
-                عدد الموظفين الحاصلين على إنذارات
-              </h2>
-              <p className="text-2xl font-bold text-yellow-600 mt-2">{employeesWithWarningsCount}</p>
-            </div>
+            {canViewEmployees && (
+              <div className="bg-white shadow-md rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                  <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
+                  عدد الموظفين الحاصلين على إنذارات
+                </h2>
+                <p className="text-2xl font-bold text-yellow-600 mt-2">{employeesWithWarningsCount}</p>
+              </div>
+            )}
           </div>
 
-          {/* Dashboard API Stats */}
+          {/* Dashboard API Stats - show based on permissions */}
           {dashboardData && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md rounded-lg p-6">
-                <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                  <CalendarIcon className="h-5 w-5" />
-                  التعيينات هذا الشهر
-                </h2>
-                <p className="text-3xl font-bold mt-2">{dashboardData.stats.new_hires_this_month}</p>
-              </div>
+              {canViewEmployees && (
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md rounded-lg p-6">
+                  <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
+                    <CalendarIcon className="h-5 w-5" />
+                    التعيينات هذا الشهر
+                  </h2>
+                  <p className="text-3xl font-bold mt-2">{dashboardData.stats.new_hires_this_month}</p>
+                </div>
+              )}
 
-              <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-md rounded-lg p-6">
-                <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                  <CheckCircleIcon className="h-5 w-5" />
-                  الحاضرون اليوم
-                </h2>
-                <p className="text-3xl font-bold mt-2">{dashboardData.attendance.present_today}</p>
-                <p className="text-xs opacity-75 mt-1">
-                  معدل الحضور: {dashboardData.attendance.attendance_rate}%
-                </p>
-              </div>
+              {canViewAttendance && (
+                <>
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-md rounded-lg p-6">
+                    <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
+                      <CheckCircleIcon className="h-5 w-5" />
+                      الحاضرون اليوم
+                    </h2>
+                    <p className="text-3xl font-bold mt-2">{dashboardData.attendance.present_today}</p>
+                    <p className="text-xs opacity-75 mt-1">
+                      معدل الحضور: {dashboardData.attendance.attendance_rate}%
+                    </p>
+                  </div>
 
-              <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md rounded-lg p-6">
-                <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                  <ClockIcon className="h-5 w-5" />
-                  المتأخرون اليوم
-                </h2>
-                <p className="text-3xl font-bold mt-2">{dashboardData.attendance.late_today}</p>
-              </div>
+                  <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md rounded-lg p-6">
+                    <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
+                      <ClockIcon className="h-5 w-5" />
+                      المتأخرون اليوم
+                    </h2>
+                    <p className="text-3xl font-bold mt-2">{dashboardData.attendance.late_today}</p>
+                  </div>
+                </>
+              )}
 
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md rounded-lg p-6">
-                <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                  <BanknotesIcon className="h-5 w-5" />
-                  إجمالي المرتبات
-                </h2>
-                <p className="text-2xl font-bold mt-2">
-                  {new Intl.NumberFormat('ar-SD').format(dashboardData.payroll.total_gross)}
-                </p>
-                <p className="text-xs opacity-75">جنيه سوداني</p>
-              </div>
+              {canViewPayroll && (
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md rounded-lg p-6">
+                  <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
+                    <BanknotesIcon className="h-5 w-5" />
+                    إجمالي المرتبات
+                  </h2>
+                  <p className="text-2xl font-bold mt-2">
+                    {new Intl.NumberFormat('ar-SD').format(dashboardData.payroll.total_gross)}
+                  </p>
+                  <p className="text-xs opacity-75">جنيه سوداني</p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Pending Requests */}
+          {/* Pending Requests - show based on permissions */}
           {dashboardData && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-white shadow-md rounded-lg p-6">
@@ -318,6 +363,7 @@ export default function Dashboard() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {canCreateEmployee && (
             <button
               onClick={() => navigate("/add-employee")}
               className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
@@ -325,6 +371,8 @@ export default function Dashboard() {
               <UserGroupIcon className="h-5 w-5" />
               إضافة موظف
             </button>
+            )}
+            {canViewReports && (
             <button
               onClick={() => navigate("/reports")}
               className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
@@ -332,6 +380,8 @@ export default function Dashboard() {
               <DocumentIcon className="h-5 w-5" />
               التقارير
             </button>
+            )}
+            {canViewBank && (
             <button
               onClick={() => navigate("/bank-exports")}
               className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
@@ -339,6 +389,8 @@ export default function Dashboard() {
               <BanknotesIcon className="h-5 w-5" />
               التصدير البنكي
             </button>
+            )}
+            {canViewSettings && (
             <button
               onClick={() => navigate("/settings")}
               className="bg-gray-600 text-white p-4 rounded-lg hover:bg-gray-700 transition flex items-center justify-center gap-2"
@@ -346,6 +398,7 @@ export default function Dashboard() {
               <Cog6ToothIcon className="h-5 w-5" />
               الإعدادات
             </button>
+            )}
           </div>
         </main>
 

@@ -18,6 +18,18 @@ const TYPE_COLORS = {
 export default function AttendanceLogs() {
   const token = localStorage.getItem("token");
 
+  // Check permissions
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const canExcuse = permissions.includes('*') || permissions.includes('attendance.excuse') || permissions.includes('attendance.manage');
+
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -505,7 +517,7 @@ export default function AttendanceLogs() {
                             {row.deduction_amount > 0 ? Number(row.deduction_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
                           </td>
                           <td className="p-3">
-                            {((row.has_delay || row.is_absent || row.check_out_type === 'early') && !row.excused) && (
+                            {canExcuse && ((row.has_delay || row.is_absent || row.check_out_type === 'early') && !row.excused) && (
                               <button
                                 onClick={() => {
                                   setSelectedRecord(row);

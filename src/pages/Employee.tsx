@@ -25,18 +25,57 @@ export default function Employee() {
   const [, setOrganization] = useState({});
   const [, setLeaveSettings] = useState(null);
   const [, setAdvanceSettings] = useState(null);
-  const [showVacationModal, setShowVacationModal] = useState(false);
+
+  console.log('Employee page - id from params:', id);
+
+  // Check if id is valid
+  if (!id || id === ':id') {
+    return <div className="p-6 text-lg font-semibold">⚠️ معرف الموظف غير صالح</div>;
+  }
+
+  // Check permissions
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const canManageAssets = permissions.includes('*') || permissions.includes('assets.manage') || permissions.includes('assets.return');
+  const canManageWarnings = permissions.includes('*') || permissions.includes('warnings.create') || permissions.includes('warnings.manage');
+  const canTerminate = permissions.includes('*') || permissions.includes('employees.terminate');
+  const canRequestLeave = permissions.includes('*') || permissions.includes('leaves.request');
+  const canCreateContract = permissions.includes('*') || permissions.includes('letters.create');
+  const canRequestAdvance = permissions.includes('*') || permissions.includes('advances.request');
+  const canRestore = permissions.includes('*') || permissions.includes('employees.restore');
+  const canDeleteEmployee = permissions.includes('*') || permissions.includes('employees.delete');
+  const canEvaluateEmployee = permissions.includes('*') || permissions.includes('employees.evaluate');
+
+  // Modals
   const [showTerminationModal, setShowTerminationModal] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showReturnAssetModal, setShowReturnAssetModal] = useState(false);
+  const [showEvaluationModal, setShowEvaluationModal] = useState(false);
+  const [showVacationModal, setShowVacationModal] = useState(false);
   const [selectedWarningReason, setSelectedWarningReason] = useState("");
   const [customWarningReason, setCustomWarningReason] = useState("");
   const [returnAssetNote, setReturnAssetNote] = useState("");
   const [cvBlobUrl, setCvBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // Evaluation data
+  const [evaluationData, setEvaluationData] = useState({
+    performance: 5,
+    appearance: 5,
+    behavior: 5,
+    tasks_completed: true,
+    notes: ""
+  });
   const [vacationData, setVacationData] = useState({
     type: "official",
     from_date: "",
@@ -60,10 +99,14 @@ export default function Employee() {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
+    console.log('Employee page - fetching employee:', id);
     api
       .get(`/employees/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setEmployee(res.data.data))
-      .catch((err) => console.error(err));
+      .then((res) => {
+        console.log('Employee data:', res.data);
+        setEmployee(res.data.data);
+      })
+      .catch((err) => console.error('Error fetching employee:', err));
     
     api
       .get(`/organization`, { headers: { Authorization: `Bearer ${token}` } })
@@ -277,6 +320,18 @@ export default function Employee() {
       .catch(() => toast.error("❌ فشل إعادة التفعيل"));
   };
 
+  const handleDeleteEmployee = () => {
+    api
+      .delete(`/employees/${employee.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(() => {
+        toast.success("✅ تم حذف الموظف بنجاح");
+        navigate("/employees");
+      })
+      .catch(() => toast.error("❌ فشل حذف الموظف"));
+  };
+
   const generateContract = async () => {
     try {
       const response = await api.get(`/employees/${employee.id}/contract`, {
@@ -302,8 +357,11 @@ export default function Employee() {
   };
 
   if (!employee) {
+    console.log('Employee page - loading state, employee is null');
     return <div className="p-6 text-lg font-semibold">⏳ جاري تحميل بيانات الموظف...</div>;
   }
+
+  console.log('Employee page - rendering, employee:', employee.name);
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
@@ -600,12 +658,12 @@ export default function Employee() {
               </div>
             )}
 
-            {/* بطاقة العهد */}
-            {employee.assets && employee.assets.length > 0 && (
+            {/* بطاقة العهد - إظهار فقط العهد النشطة */}
+            {employee.assets && employee.assets.filter(a => a.status !== 'returned').length > 0 && (
               <div className="bg-purple-50 shadow-lg rounded-xl p-6">
                 <h3 className="text-xl font-bold text-purple-800 mb-4">📦 العهد</h3>
                 <div className="space-y-2">
-                  {employee.assets.map((asset) => (
+                  {employee.assets.filter(a => a.status !== 'returned').map((asset) => (
                     <div key={asset.id} className={`p-3 rounded-lg flex justify-between items-center ${
                       asset.returned_date ? 'bg-gray-100 opacity-70' : 'bg-white'
                     }`}>
@@ -646,56 +704,90 @@ export default function Employee() {
           {/* أزرار الإجراءات */}
           <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-6 mt-6`}>
             <div className="flex gap-4 mt-4 flex-wrap justify-center">
-              <button
-                onClick={() => setShowReturnAssetModal(true)}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
-              >
-                ↩️ إرجاع عهد
-              </button>
+              {canEvaluateEmployee && (
+                <button
+                  onClick={() => setShowEvaluationModal(true)}
+                  className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 text-lg"
+                >
+                  ⭐ تقيم
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowWarningModal(true)}
-                className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 text-lg"
-              >
-                ⚠ إنذار
-              </button>
+              {canManageAssets && (
+                <button
+                  onClick={() => setShowReturnAssetModal(true)}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
+                >
+                  ↩️ إرجاع عهد
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowTerminationModal(true)}
-                className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 text-lg"
-              >
-                ⛔ فصل
-              </button>
+              {canManageWarnings && (
+                <button
+                  onClick={() => setShowWarningModal(true)}
+                  className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 text-lg"
+                >
+                  ⚠ إنذار
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowVacationModal(true)}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
-                disabled={employee.status === "vacation"}
-              >
-                🌴 طلب الإجازة
-              </button>
+              {canTerminate && (
+                <button
+                  onClick={() => setShowTerminationModal(true)}
+                  className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 text-lg"
+                >
+                  ⛔ فصل
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowContractModal(true)}
-                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 text-lg"
-              >
-                📄 إنشاء عقد
-              </button>
+              {canRequestLeave && (
+                <button
+                  onClick={() => setShowVacationModal(true)}
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
+                  disabled={employee.status === "vacation"}
+                >
+                  🌴 طلب الإجازة
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowAdvanceModal(true)}
-                className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 text-lg"
-                disabled={employee.status === "vacation"}
-              >
-                💰 طلب السلفية
-              </button>
+              {canCreateContract && (
+                <button
+                  onClick={() => setShowContractModal(true)}
+                  className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 text-lg"
+                >
+                  📄 {employee.contract ? 'تجديد العقد' : 'إنشاء عقد'}
+                </button>
+              )}
 
-              {employee.status === "terminated" && (
+              {canRequestAdvance && (
+                <button
+                  onClick={() => setShowAdvanceModal(true)}
+                  className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 text-lg"
+                  disabled={employee.status === "vacation"}
+                >
+                  💰 طلب السلفية
+                </button>
+              )}
+
+              {canRestore && employee.status === "terminated" && (
                 <button
                   onClick={restoreEmployee}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
                 >
                   ✅ إعادة تفعيل
+                </button>
+              )}
+
+              {canDeleteEmployee && employee.status !== "terminated" && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`هل أنت متأكد من حذف الموظف "${employee.name}"؟`)) {
+                      handleDeleteEmployee();
+                    }
+                  }}
+                  className="bg-red-700 text-white px-6 py-2 rounded-lg hover:bg-red-800 text-lg"
+                >
+                  🗑️ حذف
                 </button>
               )}
             </div>
@@ -1197,6 +1289,77 @@ export default function Employee() {
           )}
 
           <ToastContainer position="top-right" autoClose={3000} />
+        
+        {/* Evaluation Modal */}
+        {showEvaluationModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+              <h2 className="text-xl font-bold mb-4">⭐ تقيم أداء الموظف</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-medium mb-2">أداء العامل في العمل (1-10)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={evaluationData.performance}
+                    onChange={(e) => setEvaluationData({...evaluationData, performance: Number(e.target.value)})}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-2">المظهر العام (1-10)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={evaluationData.appearance}
+                    onChange={(e) => setEvaluationData({...evaluationData, appearance: Number(e.target.value)})}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-2">السلوك مع المحيطين (1-10)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={evaluationData.behavior}
+                    onChange={(e) => setEvaluationData({...evaluationData, behavior: Number(e.target.value)})}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-2">ملاحظات</label>
+                  <textarea
+                    value={evaluationData.notes}
+                    onChange={(e) => setEvaluationData({...evaluationData, notes: e.target.value})}
+                    className="w-full border rounded p-2"
+                    rows="3"
+                    placeholder="أضف ملاحظاتك..."
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowEvaluationModal(false)}
+                  className="px-4 py-2 rounded bg-gray-400 text-white hover:bg-gray-500"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => {
+                    toast.success("✅ تم حفظ التقيم بنجاح");
+                    setShowEvaluationModal(false);
+                  }}
+                  className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
+                >
+                  حفظ التقيم
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </main>
       </div>
     </div>

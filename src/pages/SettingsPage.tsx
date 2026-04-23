@@ -37,7 +37,6 @@ function hasCurrentPermission(perm) {
 function getFilteredTabs() {
   const perms = getPermissions();
   if (perms.includes('*')) {
-    console.log('Admin user - showing all tabs');
     return ALL_TABS;
   }
   return ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
@@ -48,20 +47,51 @@ function useSettingsTabs() {
   const perms = getPermissions();
   const isAdmin = perms.includes('*');
   
-  console.log('Settings tabs - perms:', perms, 'isAdmin:', isAdmin);
-  
   // Admin sees all tabs
   if (isAdmin) {
-    console.log('Admin - showing all settings tabs');
     return ALL_TABS;
   }
   
   return ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
 }
 
+// Get first allowed tab for redirect
+function getFirstAllowedTab() {
+  const perms = getPermissions();
+  if (perms.includes('*')) {
+    return ALL_TABS[0]?.key || 'organization';
+  }
+  const allowedTabs = ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
+  return allowedTabs[0]?.key || null;
+}
+
 function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("organization");
   const tabs = useSettingsTabs();
+  const firstAllowedTab = getFirstAllowedTab();
+  
+  // Get URL query params
+  const getUrlTab = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab');
+  };
+  const urlTab = getUrlTab();
+  
+  // Determine active tab
+  const [activeTab, setActiveTab] = useState(() => {
+    // If there's a URL tab and it's in allowed tabs, use it
+    if (urlTab && tabs.some(t => t.key === urlTab)) {
+      return urlTab;
+    }
+    // Otherwise use first allowed tab
+    return firstAllowedTab || 'organization';
+  });
+
+  // Redirect if current tab is not allowed
+  useEffect(() => {
+    if (urlTab && !tabs.some(t => t.key === urlTab) && firstAllowedTab) {
+      window.location.href = `/settings?tab=${firstAllowedTab}`;
+    }
+  }, []);
   const [, setLoading] = useState(false);
 
   const [org, setOrg] = useState({});

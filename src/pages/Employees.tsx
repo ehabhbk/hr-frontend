@@ -20,6 +20,20 @@ export default function Employees() {
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
 
+  // Check permissions
+  const permissions = React.useMemo(() => {
+    try {
+      const perms = localStorage.getItem("permissions");
+      return perms ? JSON.parse(perms) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const canEditEmployee = permissions.includes('*') || permissions.includes('employees.edit');
+  const canDeleteEmployee = permissions.includes('*') || permissions.includes('employees.delete');
+  const canCreateEmployee = permissions.includes('*') || permissions.includes('employees.create');
+
   // Edit modal states
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -530,12 +544,14 @@ export default function Employees() {
                   >
                     التفاصيل
                   </button>
-                  <button
-                    onClick={() => openEditModal(emp)}
-                    className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600"
-                  >
-                    تعديل
-                  </button>
+                  {canEditEmployee && (
+                    <button
+                      onClick={() => openEditModal(emp)}
+                      className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600"
+                    >
+                      تعديل
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
