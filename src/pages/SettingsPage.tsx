@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import api, { API_BASE, getStorageUrl } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
@@ -22,11 +23,14 @@ const ALL_TABS = [
 function getPermissions() {
   try {
     const savedPerms = localStorage.getItem("permissions");
-    if (savedPerms) {
-      return JSON.parse(savedPerms);
-    }
-  } catch {}
-  return [];
+    const perms = savedPerms ? JSON.parse(savedPerms) : [];
+    console.log('SettingsPage - loaded permissions:', perms);
+    console.log('SettingsPage - is admin (*):', perms.includes('*'));
+    return perms;
+  } catch {
+    console.log('SettingsPage - failed to parse permissions');
+    return [];
+  }
 }
 
 function hasCurrentPermission(perm) {
@@ -44,6 +48,17 @@ function getFilteredTabs() {
 
 // Dynamic tabs - recalculated on each render
 function useSettingsTabs() {
+  const [permVersion, setPermVersion] = React.useState(0);
+  
+  // Refresh permissions when window gets focus
+  React.useEffect(() => {
+    const handleFocus = () => {
+      setPermVersion(v => v + 1);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+  
   const perms = getPermissions();
   const isAdmin = perms.includes('*');
   
@@ -52,6 +67,7 @@ function useSettingsTabs() {
     return ALL_TABS;
   }
   
+  // Filter tabs based on permissions
   return ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
 }
 
@@ -62,29 +78,16 @@ function getFirstAllowedTab() {
     return ALL_TABS[0]?.key || 'organization';
   }
   const allowedTabs = ALL_TABS.filter(tab => hasCurrentPermission(tab.permission));
-  return allowedTabs[0]?.key || null;
+  return allowedTabs[0]?.key || 'organization';
 }
 
 function SettingsPage() {
-  // Debug: Check permissions on mount
-  useEffect(() => {
-    const perms = localStorage.getItem("permissions");
-    console.log('SettingsPage - permissions in localStorage:', perms);
-    const parsed = perms ? JSON.parse(perms) : [];
-    console.log('SettingsPage - parsed permissions:', parsed);
-    console.log('SettingsPage - is admin (*):', parsed.includes('*'));
-    console.log('SettingsPage - has settings.financials:', parsed.includes('settings.financials'));
-  }, []);
+  // Get tab from URL params (e.g., /settings/financials)
+  const { tab: urlTab } = useParams();
+  const navigate = useNavigate();
   
   const tabs = useSettingsTabs();
   const firstAllowedTab = getFirstAllowedTab();
-  
-  // Get URL query params
-  const getUrlTab = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab');
-  };
-  const urlTab = getUrlTab();
   
   // Determine active tab
   const [activeTab, setActiveTab] = useState(() => {
@@ -94,14 +97,14 @@ function SettingsPage() {
     }
     // Otherwise use first allowed tab
     return firstAllowedTab || 'organization';
-  });
-
-  // Redirect if current tab is not allowed
-  useEffect(() => {
-    if (urlTab && !tabs.some(t => t.key === urlTab) && firstAllowedTab) {
-      window.location.href = `/settings?tab=${firstAllowedTab}`;
-    }
-  }, []);
+});
+  
+  // Update URL when tab changes
+  const handleTabChange = (tabKey: string) => {
+    setActiveTab(tabKey);
+    navigate(`/settings/${tabKey}`);
+  };
+  
   const [, setLoading] = useState(false);
 
   const [org, setOrg] = useState({});
@@ -778,7 +781,7 @@ function SettingsPage() {
             {tabs.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   activeTab === tab.key ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-700"
                 }`}

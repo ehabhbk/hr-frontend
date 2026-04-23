@@ -53,8 +53,14 @@ function App() {
     loadPermissions();
   }, []);
 
+  // Reload permissions when they change in localStorage
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'permissions' && e.newValue) {
+        console.log('Permissions changed in localStorage, reloading...');
+        // Force page refresh
+        window.location.reload();
+      }
       if (e.key === 'token' && e.newValue) {
         console.log('Token changed, reloading permissions');
         loadPermissions();
@@ -141,10 +147,26 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/settings/:tab"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* التقارير */}
         <Route
           path="/reports"
+          element={
+            <ProtectedRoute>
+              <ReportsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/:tab"
           element={
             <ProtectedRoute>
               <ReportsPage />

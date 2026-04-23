@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import api, { API_BASE, downloadBlob } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
@@ -54,13 +55,16 @@ function hasPermission(perm) {
 
 function getFilteredTabs() {
   const perms = getPermissions();
-  if (perms.includes('*')) {
+  const isAdmin = perms.includes('*');
+  
+  // Admin sees all tabs
+  if (isAdmin) {
     return ALL_TABS;
   }
+  
+  // Filter tabs based on permissions
   return ALL_TABS.filter(tab => hasPermission(tab.permission));
 }
-
-const TABS = getFilteredTabs();
 
 const LETTER_TYPES = [
   { key: "termination", label: "إنهاء خدمة", icon: "🚫" },
@@ -97,7 +101,27 @@ function formatDate(dateStr, includeTime = true) {
 }
 
 function ReportsPage() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Get tab from URL params
+  const { tab: urlTab } = useParams();
+  const navigate = useNavigate();
+  
+  // Get tabs directly (fresh on each render)
+  const TABS = getFilteredTabs();
+  
+  // Use URL tab or default to dashboard
+  const [activeTab, setActiveTab] = useState(() => {
+    if (urlTab && TABS.some(t => t.key === urlTab)) {
+      return urlTab;
+    }
+    return "dashboard";
+  });
+  
+  // Update URL when tab changes
+  const handleTabChange = (tabKey: string) => {
+    setActiveTab(tabKey);
+    navigate(`/reports/${tabKey}`);
+  };
+  
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [salaryReport, setSalaryReport] = useState([]);
@@ -678,7 +702,7 @@ function ReportsPage() {
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabChange(tab.key)}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${
                     activeTab === tab.key
                       ? `${tab.gradient} text-white shadow-lg`
