@@ -94,11 +94,18 @@ export default function Users() {
 
   const handleRoleChange = (roleId) => {
     const role = roles.find(r => r.id == roleId);
+    const roleName = (role?.name_ar || role?.name || '').toLowerCase();
+    const isDepartmentRelated = 
+      roleName.includes('مشرف') && roleName.includes('قسم') ||
+      roleName.includes('supervisor') && roleName.includes('department') ||
+      roleName.includes('department_supervisor') ||
+      roleName.includes('department_manager');
+    
     setForm(f => ({ 
       ...f, 
       role_id: roleId,
-      // Clear department if role is not department_supervisor
-      department_id: role?.name === 'department_supervisor' ? f.department_id : "" 
+      // Keep department if role is department-related, otherwise clear it
+      department_id: isDepartmentRelated ? f.department_id : "" 
     }));
   };
 
@@ -318,8 +325,17 @@ export default function Users() {
                     ))}
                   </select>
                 </div>
-                {/* Show department only if role is department_supervisor */}
-                {roles.find(r => r.id == form.role_id)?.name === 'department_supervisor' && (
+                {/* Show department only if role is department-related */}
+                {(() => {
+                  const role = roles.find(r => r.id == form.role_id);
+                  const roleName = (role?.name_ar || role?.name || '').toLowerCase();
+                  const isDepartmentRelated = 
+                    roleName.includes('مشرف') && roleName.includes('قسم') ||
+                    roleName.includes('supervisor') && roleName.includes('department') ||
+                    roleName.includes('department_supervisor') ||
+                    roleName.includes('department_manager');
+                  return isDepartmentRelated;
+                })() && (
                   <div>
                     <label className="block text-gray-700 font-medium mb-2">القسم</label>
                     <select

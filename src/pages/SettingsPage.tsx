@@ -1480,31 +1480,56 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, re
         <h3 className="font-bold mb-4 text-right flex items-center gap-2">
           <span>📋</span> سجل الإنذارات ({warnings.length})
         </h3>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-white">
-              <th className="border p-3 text-right">#</th>
-              <th className="border p-3 text-right">الموظف</th>
-              <th className="border p-3 text-right">الإنذار</th>
-              <th className="border p-3 text-right">التاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {warnings.slice(0, 10).map((w, i) => (
-              <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-3">{i + 1}</td>
-                <td className="border p-3 font-medium">{w.employee?.name || w.employee_id}</td>
-                <td className="border p-3">{w.note}</td>
-                <td className="border p-3">{formatDateDisplay(w.created_at)}</td>
-              </tr>
-            ))}
-            {warnings.length === 0 && (
-              <tr>
-                <td colSpan="4" className="border p-4 text-center text-gray-500">لا توجد إنذارات</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {(() => {
+          const canDeleteWarning = hasCurrentPermission('warnings.delete') || hasCurrentPermission('warnings.manage');
+          return (
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-white">
+                  <th className="border p-3 text-right">#</th>
+                  <th className="border p-3 text-right">الموظف</th>
+                  <th className="border p-3 text-right">الإنذار</th>
+                  <th className="border p-3 text-right">التاريخ</th>
+                  {canDeleteWarning && <th className="border p-3 text-center">حذف</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {warnings.slice(0, 10).map((w, i) => (
+                  <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="border p-3">{i + 1}</td>
+                    <td className="border p-3 font-medium">{w.employee?.name || w.employee_id}</td>
+                    <td className="border p-3">{w.note}</td>
+                    <td className="border p-3">{formatDateDisplay(w.created_at)}</td>
+                    {canDeleteWarning && (
+                      <td className="border p-3 text-center">
+                        <button
+                          onClick={() => {
+                            if (window.confirm("هل تريد حذف هذا الإنذار؟")) {
+                              api.delete(`/warnings/${w.id}`)
+                                .then(() => {
+                                  setWarnings(warnings.filter(x => x.id !== w.id));
+                                  toast.success("تم حذف الإنذار");
+                                })
+                                .catch((err) => toast.error(err.response?.data?.error || "فشل الحذف"));
+                            }
+                          }}
+                          className="text-red-600 hover:bg-red-100 px-2 py-1 rounded"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {warnings.length === 0 && (
+                  <tr>
+                    <td colSpan={canDeleteWarning ? "5" : "4"} className="border p-4 text-center text-gray-500">لا توجد إنذارات</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          );
+        })()}
       </div>
     </div>
   );
