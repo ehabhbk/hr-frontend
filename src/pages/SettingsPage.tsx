@@ -194,7 +194,7 @@ function SettingsPage() {
 
   const [salaryIncrease, setSalaryIncrease] = useState({
     default_percent: 10,
-    per_job_title: {},
+    per_employee: {},
     apply_automatically: false,
     min_service_months: 12,
   });
@@ -385,7 +385,10 @@ function SettingsPage() {
       }
       if (leaveSettingsRes.data?.data) setLeaveSettings(leaveSettingsRes.data.data);
       if (advanceSettingsRes.data?.data) setAdvanceSettings(advanceSettingsRes.data.data);
-      if (taxRes.data?.data) setTaxBrackets(taxRes.data.data);
+      if (taxRes.data?.data) {
+        const taxData = taxRes.data.data;
+        setTaxBrackets(Array.isArray(taxData) ? taxData : taxData.brackets || []);
+      }
       if (salaryIncRes.data?.data) setSalaryIncrease(salaryIncRes.data.data);
       if (whatsappRes.data?.data) setWhatsapp(whatsappRes.data.data);
       
@@ -636,6 +639,8 @@ function SettingsPage() {
     try {
       const shiftData = {
         ...shiftForm,
+        start_time: shiftForm.start_time || null,
+        end_time: shiftForm.end_time || null,
         daily_hours: shiftForm.working_hours,
         is_overnight: shiftForm.is_overnight || false,
         active: true,
@@ -647,6 +652,31 @@ function SettingsPage() {
       setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
       toast.error("فشل إنشاء الوردية ❌");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, saveShift: false }));
+    }
+  }
+
+  async function updateShift(id) {
+    setLoadingStates(prev => ({ ...prev, saveShift: true }));
+    try {
+      const shiftData = {
+        ...shiftForm,
+        start_time: shiftForm.start_time || null,
+        end_time: shiftForm.end_time || null,
+        daily_hours: shiftForm.working_hours,
+        is_overnight: shiftForm.is_overnight || false,
+        active: true,
+      };
+      console.log("Sending shift data:", JSON.stringify(shiftData));
+      await api.put(`/work-shifts/${id}`, shiftData);
+      toast.success("تم تحديث الوردية ✅");
+      const res = await api.get("/work-shifts");
+      setShifts(res.data?.data || []);
+      setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
+    } catch (err) {
+      console.error("فشل تحديث الوردية:", JSON.stringify(err.response?.data || err.message));
+      toast.error("فشل تحديث الوردية ❌");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveShift: false }));
     }
@@ -738,23 +768,23 @@ function SettingsPage() {
     setLeaveSettings({ ...leaveSettings, by_grade: newByGrade });
   }
 
-  const [jobTitleSelect, setJobTitleSelect] = useState("");
-  const [jobIncrease, setJobIncrease] = useState(0);
+  const [employeeSelect, setEmployeeSelect] = useState("");
+  const [employeeIncrease, setEmployeeIncrease] = useState(0);
 
-  function addJobIncrease() {
-    if (!jobTitleSelect) return;
+  function addEmployeeIncrease() {
+    if (!employeeSelect) return;
     setSalaryIncrease({
       ...salaryIncrease,
-      per_job_title: { ...salaryIncrease.per_job_title, [jobTitleSelect]: jobIncrease },
+      per_employee: { ...salaryIncrease.per_employee, [employeeSelect]: employeeIncrease },
     });
-    setJobTitleSelect("");
-    setJobIncrease(0);
+    setEmployeeSelect("");
+    setEmployeeIncrease(0);
   }
 
-  function removeJobIncrease(key) {
-    const newPerJob = { ...salaryIncrease.per_job_title };
-    delete newPerJob[key];
-    setSalaryIncrease({ ...salaryIncrease, per_job_title: newPerJob });
+  function removeEmployeeIncrease(key) {
+    const newPerEmp = { ...salaryIncrease.per_employee };
+    delete newPerEmp[key];
+    setSalaryIncrease({ ...salaryIncrease, per_employee: newPerEmp });
   }
 
   function getStatusBadge(status) {
@@ -852,6 +882,7 @@ function SettingsPage() {
                 shiftForm={shiftForm}
                 setShiftForm={setShiftForm}
                 saveShift={saveShift}
+                updateShift={updateShift}
                 deleteShift={confirmDeleteShift}
                 confirmDeleteShift={confirmDeleteShift}
                 employees={employees}
@@ -864,16 +895,15 @@ function SettingsPage() {
             {activeTab === "financials" && (
               <FinancialsTab
                 taxBrackets={taxBrackets}
-                setTaxBrackets={setTaxBrackets}
                 salaryIncrease={salaryIncrease}
                 setSalaryIncrease={setSalaryIncrease}
                 employees={employees}
-                jobTitleSelect={jobTitleSelect}
-                setJobTitleSelect={setJobTitleSelect}
-                jobIncrease={jobIncrease}
-                setJobIncrease={setJobIncrease}
-                addJobIncrease={addJobIncrease}
-                removeJobIncrease={removeJobIncrease}
+                employeeSelect={employeeSelect}
+                setEmployeeSelect={setEmployeeSelect}
+                employeeIncrease={employeeIncrease}
+                setEmployeeIncrease={setEmployeeIncrease}
+                addEmployeeIncrease={addEmployeeIncrease}
+                removeEmployeeIncrease={removeEmployeeIncrease}
                 saveTax={saveTax}
                 saveSalaryIncrease={saveSalaryIncrease}
                 addTaxBracket={addTaxBracket}
@@ -2025,8 +2055,9 @@ function AdvancesTab({
   );
 }
 
-function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
+function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
   const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
+  const [editingShiftId, setEditingShiftId] = useState(null);
 
   const DAYS = [
     { value: 0, label: "الأحد" },
@@ -2037,6 +2068,15 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
     { value: 5, label: "الجمعة" },
     { value: 6, label: "السبت" },
   ];
+
+  const calcHours = (start, end, overnight) => {
+    if (overnight) return 24;
+    const [startH, startM] = (start || "08:00").split(":").map(Number);
+    const [endH, endM] = (end || "16:00").split(":").map(Number);
+    let hours = (endH * 60 + endM - startH * 60 - startM) / 60;
+    if (hours <= 0) hours += 24;
+    return Math.round(hours);
+  };
 
   const toggleDay = (day, type) => {
     const key = type === 'work' ? 'week_days' : 'weekend_days';
@@ -2054,6 +2094,33 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
     });
   };
 
+  const startEdit = (shift) => {
+    setEditingShiftId(shift.id);
+    setShiftForm({
+      name: shift.name || "",
+      start_time: (shift.start_time || "08:00").substring(0, 5),
+      end_time: (shift.end_time || "16:00").substring(0, 5),
+      is_overnight: shift.is_overnight || false,
+      color: shift.color || "#3B82F6",
+      working_hours: shift.daily_hours || 8,
+      week_days: Array.isArray(shift.week_days) ? shift.week_days : (typeof shift.week_days === "string" ? JSON.parse(shift.week_days) : [0,1,2,3,4]),
+      weekend_days: Array.isArray(shift.weekend_days) ? shift.weekend_days : (typeof shift.weekend_days === "string" ? JSON.parse(shift.weekend_days) : [5,6]),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingShiftId(null);
+    setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
+  };
+
+  const handleSubmit = () => {
+    if (editingShiftId) {
+      updateShift(editingShiftId);
+    } else {
+      saveShift();
+    }
+  };
+
   const getShiftEmployees = (shiftId) => {
     const shiftIdNum = parseInt(shiftId);
     const result = [];
@@ -2068,6 +2135,8 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
     return result;
   };
 
+  const getEmployeeCount = (shiftId) => getShiftEmployees(shiftId).length;
+
   const getUnassignedEmployees = (shiftId) => {
     const shiftIdNum = parseInt(shiftId);
     const assignedEmployeeIds = Object.values(shiftAssignments)
@@ -2076,13 +2145,22 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
     return employees.filter(emp => !assignedEmployeeIds.includes(parseInt(emp.id)));
   };
 
+  const formatWeekDays = (days) => {
+    const arr = Array.isArray(days) ? days : (typeof days === "string" ? (() => { try { return JSON.parse(days); } catch { return []; } })() : []);
+    if (!arr || arr.length === 0) return "-";
+    return arr
+      .map(d => DAYS.find(day => day.value === d)?.label || "")
+      .filter(Boolean)
+      .join("، ");
+  };
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right">👥 إعدادات الورديات</h2>
 
       <div className="grid grid-cols-2 gap-6 mb-6">
         <div className="bg-cyan-50 p-4 rounded-lg">
-          <h3 className="font-bold mb-4 text-right">إنشاء وردية جديدة</h3>
+          <h3 className="font-bold mb-4 text-right">{editingShiftId ? "✏️ تعديل الوردية" : "إنشاء وردية جديدة"}</h3>
           <div className="space-y-3">
             <div>
               <label className="block text-sm mb-1 text-right">اسم الوردية</label>
@@ -2100,7 +2178,11 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
                 <input
                   type="time"
                   value={shiftForm.start_time}
-                  onChange={(e) => setShiftForm({ ...shiftForm, start_time: e.target.value })}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    const hours = calcHours(newStart, shiftForm.end_time, shiftForm.is_overnight);
+                    setShiftForm({ ...shiftForm, start_time: newStart, working_hours: hours });
+                  }}
                   className="w-full border rounded px-3 py-2 text-right"
                 />
               </div>
@@ -2109,7 +2191,11 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
                 <input
                   type="time"
                   value={shiftForm.end_time}
-                  onChange={(e) => setShiftForm({ ...shiftForm, end_time: e.target.value })}
+                  onChange={(e) => {
+                    const newEnd = e.target.value;
+                    const hours = calcHours(shiftForm.start_time, newEnd, shiftForm.is_overnight);
+                    setShiftForm({ ...shiftForm, end_time: newEnd, working_hours: hours });
+                  }}
                   className="w-full border rounded px-3 py-2 text-right"
                 />
               </div>
@@ -2122,15 +2208,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
                   checked={shiftForm.is_overnight || false}
                   onChange={(e) => {
                     const isOvernight = e.target.checked;
-                    let hours = 8;
-                    if (isOvernight) {
-                      hours = 24;
-                    } else {
-                      const [startH, startM] = (shiftForm.start_time || "08:00").split(":").map(Number);
-                      const [endH, endM] = (shiftForm.end_time || "16:00").split(":").map(Number);
-                      hours = (endH * 60 + endM - startH * 60 - startM) / 60;
-                      if (hours <= 0) hours = hours + 24;
-                    }
+                    const hours = calcHours(shiftForm.start_time, shiftForm.end_time, isOvernight);
                     setShiftForm({ ...shiftForm, is_overnight: isOvernight, working_hours: hours });
                   }}
                   className="w-4 h-4"
@@ -2145,18 +2223,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              <div>
-                <label className="block text-sm mb-1 text-right">ساعات العمل</label>
-                <input
-                  type="number"
-                  value={shiftForm.working_hours}
-                  onChange={(e) => setShiftForm({ ...shiftForm, working_hours: parseInt(e.target.value) })}
-                  className="w-full border rounded px-3 py-2 text-right"
-                  min="1"
-                  max="24"
-                />
-              </div>
+            <div className="mt-3">
               <div>
                 <label className="block text-sm mb-1 text-right">اللون</label>
                 <input
@@ -2208,34 +2275,64 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, deleteShift, co
               </div>
             </div>
           </div>
-          <button
-            onClick={saveShift}
-            className="w-full bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 mt-4"
-          >
-            إنشاء الوردية
-          </button>
+          <div className="flex gap-2 mt-4">
+            {editingShiftId && (
+              <button
+                onClick={cancelEdit}
+                className="flex-1 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                إلغاء
+              </button>
+            )}
+            <button
+              onClick={handleSubmit}
+              className={`flex-1 text-white px-4 py-2 rounded-lg hover:opacity-90 ${editingShiftId ? "bg-amber-600" : "bg-cyan-600 hover:bg-cyan-700"}`}
+            >
+              {editingShiftId ? "💾 حفظ التعديلات" : "إنشاء الوردية"}
+            </button>
+          </div>
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="font-bold mb-4 text-right">الورديات الحالية ({shifts.length})</h3>
-          <div className="space-y-2 max-h-40 overflow-auto">
+          <div className="space-y-3 max-h-96 overflow-auto">
             {shifts.length === 0 ? (
               <p className="text-gray-500 text-center">لا توجد ورديات</p>
             ) : (
               shifts.map((s) => (
-                <div key={s.id} className="flex justify-between items-center bg-white p-3 rounded">
-                  <div>
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-sm text-gray-500 mr-2">
-                      {s.start_time} - {s.end_time} {s.is_overnight ? "(24 س)" : ""}
-                    </span>
+                <div key={s.id} className={`bg-white p-3 rounded shadow-sm ${editingShiftId === s.id ? "ring-2 ring-amber-400" : ""}`}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-base">{s.name}</span>
+                        <span className="px-2 py-0.5 rounded text-xs text-white" style={{ backgroundColor: s.color || '#3B82F6' }}>
+                          {s.start_time} - {s.end_time}
+                        </span>
+                        {s.is_overnight && <span className="text-xs bg-gray-200 px-2 py-0.5 rounded">24 س</span>}
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-1 mr-1">
+                        <div>⏱ عدد الساعات: <span className="font-medium">{s.daily_hours || s.working_hours || "-"} س</span></div>
+                        <div>📅 أيام العمل: <span className="font-medium">{formatWeekDays(s.week_days)}</span></div>
+                        <div>👥 عدد الموظفين: <span className="font-medium text-indigo-600">{getEmployeeCount(s.id)}</span></div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 mr-2 flex-shrink-0">
+                      <button
+                        onClick={() => startEdit(s)}
+                        className="text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-sm"
+                        title="تعديل"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => confirmDeleteShift(s.id, s.name)}
+                        className="text-red-600 hover:bg-red-100 px-2 py-1 rounded text-sm"
+                        title="حذف"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => confirmDeleteShift(s.id, s.name)}
-                    className="text-red-600 font-bold"
-                  >
-                    ×
-                  </button>
                 </div>
               ))
             )}
@@ -2325,12 +2422,12 @@ function FinancialsTab({
   salaryIncrease,
   setSalaryIncrease,
   employees,
-  jobTitleSelect,
-  setJobTitleSelect,
-  jobIncrease,
-  setJobIncrease,
-  addJobIncrease,
-  removeJobIncrease,
+  employeeSelect,
+  setEmployeeSelect,
+  employeeIncrease,
+  setEmployeeIncrease,
+  addEmployeeIncrease,
+  removeEmployeeIncrease,
   saveTax,
   saveSalaryIncrease,
   addTaxBracket,
@@ -2338,7 +2435,7 @@ function FinancialsTab({
   updateTaxBracket,
   loadingStates,
 }) {
-  const jobTitles = [...new Set(employees.map((emp) => emp.job_title).filter(Boolean))];
+  const sortedEmployees = [...employees].sort((a, b) => a.name?.localeCompare(b.name));
 
   return (
     <div>
@@ -2383,10 +2480,10 @@ function FinancialsTab({
               />
             </div>
             <div className="border-t pt-3 mt-3">
-              <h4 className="font-medium mb-2 text-right">زيادة مخصصة حسب الوظيفة</h4>
+              <h4 className="font-medium mb-2 text-right">زيادة مخصصة حسب الموظف</h4>
               <div className="flex gap-2 mb-2">
                 <button
-                  onClick={addJobIncrease}
+                  onClick={addEmployeeIncrease}
                   className="bg-green-600 text-white px-4 py-2 rounded"
                 >
                   +
@@ -2394,34 +2491,38 @@ function FinancialsTab({
                 <input
                   type="number"
                   placeholder="%"
-                  value={jobIncrease}
-                  onChange={(e) => setJobIncrease(parseFloat(e.target.value))}
+                  value={employeeIncrease}
+                  onChange={(e) => setEmployeeIncrease(parseFloat(e.target.value))}
                   className="w-20 border rounded px-3 py-2 text-right"
                 />
                 <select
-                  value={jobTitleSelect}
-                  onChange={(e) => setJobTitleSelect(e.target.value)}
+                  value={employeeSelect}
+                  onChange={(e) => setEmployeeSelect(e.target.value)}
                   className="flex-1 border rounded px-3 py-2 text-right"
                 >
-                  <option value="">اختر الوظيفة</option>
-                  {jobTitles.map((title) => (
-                    <option key={title} value={title}>
-                      {title}
+                  <option value="">اختر الموظف</option>
+                  {sortedEmployees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} - ({emp.job_title || emp.position || "بدون وظيفة"})
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-1 max-h-32 overflow-auto">
-                {Object.entries(salaryIncrease.per_job_title || {}).map(([title, percent]) => (
-                  <div key={title} className="flex justify-between items-center bg-white p-2 rounded">
-                    <button onClick={() => removeJobIncrease(title)} className="text-red-600 font-bold">
-                      ×
-                    </button>
-                    <span className="text-sm">
-                      {title}: {percent}%
-                    </span>
-                  </div>
-                ))}
+                {Object.entries(salaryIncrease.per_employee || {}).map(([empId, percent]) => {
+                  const emp = employees.find(e => String(e.id) === empId);
+                  const empName = emp ? emp.name : `#${empId}`;
+                  return (
+                    <div key={empId} className="flex justify-between items-center bg-white p-2 rounded">
+                      <button onClick={() => removeEmployeeIncrease(empId)} className="text-red-600 font-bold">
+                        ×
+                      </button>
+                      <span className="text-sm">
+                        {empName}: {percent}%
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2460,7 +2561,7 @@ function FinancialsTab({
               </tr>
             </thead>
             <tbody>
-              {taxBrackets.map((b, i) => (
+              {(Array.isArray(taxBrackets) ? taxBrackets : []).map((b, i) => (
                 <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                   <td className="border p-1">
                     <input
@@ -2513,16 +2614,16 @@ function FinancialsTab({
 
       {/* مثال على حساب الضريبة */}
       <div className="bg-blue-50 p-4 rounded-lg">
-        <h3 className="font-bold mb-4">مثال على حساب الضريبة</h3>
+        <h3 className="font-bold mb-4">مثال على حساب الضريبة (من الراتب الأساسي)</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white p-3 rounded">
-            <p className="font-medium mb-2">مرتب 8,000 SDG</p>
+            <p className="font-medium mb-2">الراتب الأساسي 8,000 SDG</p>
             <p className="text-sm text-gray-600">0 - 6,000: معفى</p>
             <p className="text-sm text-gray-600">6,000 - 8,000: 2,000 × 5% = 100 SDG</p>
             <p className="font-bold text-orange-600 mt-2">الضريبة: 100 SDG</p>
           </div>
           <div className="bg-white p-3 rounded">
-            <p className="font-medium mb-2">مرتب 20,000 SDG</p>
+            <p className="font-medium mb-2">الراتب الأساسي 20,000 SDG</p>
             <p className="text-sm text-gray-600">6,000 × 5% = 300</p>
             <p className="text-sm text-gray-600">8,000 × 10% = 800</p>
             <p className="font-bold text-orange-600 mt-2">الضريبة: 1,100 SDG</p>
