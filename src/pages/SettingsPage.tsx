@@ -185,12 +185,7 @@ function SettingsPage() {
     },
   });
 
-  const [taxBrackets, setTaxBrackets] = useState([
-    { min: 0, max: 6000, rate: 0 },
-    { min: 6000, max: 12000, rate: 5 },
-    { min: 12000, max: 24000, rate: 10 },
-    { min: 24000, max: 999999999, rate: 15 },
-  ]);
+  const [taxBrackets, setTaxBrackets] = useState([]);
 
   const [salaryIncrease, setSalaryIncrease] = useState({
     default_percent: 10,

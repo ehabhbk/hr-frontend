@@ -167,3 +167,35 @@ export async function uploadFingerprints(deviceId) {
   }
 }
 
+export async function enrollFingerprintAuto(deviceId, payload) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/enroll-fingerprint`, payload));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function enrollFaceAuto(deviceId, payload) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/enroll-face`, payload));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function checkEnrollmentStatus(deviceId, payload) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/check-enrollment`, payload));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function registerUserManual(deviceId, payload) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/register-user-manual`, payload));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+

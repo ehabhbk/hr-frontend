@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { registerUserOnDevice } from "../services/fingerprintApi";
+import {
+  registerUserOnDevice,
+  enrollFingerprintAuto,
+  enrollFaceAuto,
+  checkEnrollmentStatus,
+  registerUserManual,
+} from "../services/fingerprintApi";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { ToastContainer, toast } from "react-toastify";
@@ -19,6 +25,19 @@ export default function AddEmployee() {
   const [customBanks, setCustomBanks] = useState([]);
   const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [showEnrollProgress, setShowEnrollProgress] = useState(false);
+  const [enrollProgress, setEnrollProgress] = useState({ status: 'idle', message: '' });
+  const [enrollMode, setEnrollMode] = useState('auto'); // 'auto' | 'manual'
+  const [enrollType, setEnrollType] = useState('fingerprint'); // 'fingerprint' | 'face'
+  const enrollCheckIntervalRef = useRef(null);
+  const enrollTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (enrollTimeoutRef.current) clearTimeout(enrollTimeoutRef.current);
+    };
+  }, []);
+
   const [showContractModal, setShowContractModal] = useState(false);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [showAssetModal, setShowAssetModal] = useState(false);
@@ -203,41 +222,106 @@ export default function AddEmployee() {
       return;
     }
 
-    // Get finger ID (0-9) for the device
+    setLoading(true);
+    setShowFingerprintModal(false);
+
     const fingerId = fingerPositionToId(newFingerprint.finger_position, newFingerprint.finger);
+    const userName = formData.name || newFingerprint.finger_id;
 
     try {
-      setLoading(true);
-      
-      // Send request to device with enrollment mode
-      const result = await registerUserOnDevice(deviceId, {
-        user_id: newFingerprint.finger_id,
-        name: formData.name || newFingerprint.finger_id,
-        enroll_fingerprint: true,
-        finger_id: fingerId,
-      });
+      if (enrollMode === 'auto') {
+        // === AUTO ENROLLMENT ===
+        setShowEnrollProgress(true);
+        setEnrollProgress({ status: 'connecting', message: 'جاري الاتصال بالجهاز...' });
 
-      if (result.success) {
-        setFormData(prev => ({ 
-          ...prev, 
-          fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId }],
-          device_user_id: newFingerprint.finger_id 
-        }));
-        setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
-        toast.success("✅ " + (result.message || "تم تسجيل البصمة بنجاح"));
+        let enrollResult;
+        if (enrollType === 'face') {
+          enrollResult = await enrollFaceAuto(deviceId, {
+            user_id: newFingerprint.finger_id,
+            name: userName,
+          });
+        } else {
+          enrollResult = await enrollFingerprintAuto(deviceId, {
+            user_id: newFingerprint.finger_id,
+            name: userName,
+            finger_id: fingerId,
+          });
+        }
+
+        if (enrollResult.success) {
+          if (enrollResult.enrolled_on_device) {
+            setEnrollProgress({ status: 'success', message: '✅ ' + (enrollResult.message || 'تم التسجيل بنجاح!') });
+            setFormData(prev => ({
+              ...prev,
+              fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId, type: enrollType }],
+              device_user_id: newFingerprint.finger_id
+            }));
+            setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
+            setTimeout(() => setShowEnrollProgress(false), 1500);
+          } else if (enrollResult.manual_required) {
+            setEnrollProgress({ status: 'error', message: enrollResult.message + '\nيرجى اتباع التعليمات على الجهاز.' });
+          } else {
+            setEnrollProgress({ status: 'waiting', message: enrollResult.message || 'يرجى وضع الإصبع على الجهاز...' });
+            enrollTimeoutRef.current = setTimeout(async () => {
+              try {
+                const checkResult = await checkEnrollmentStatus(deviceId, {
+                  user_id: newFingerprint.finger_id,
+                  finger_id: enrollType === 'face' ? null : fingerId,
+                });
+                if (checkResult.enrolled) {
+                  setEnrollProgress({ status: 'success', message: '✅ تم التسجيل بنجاح!' });
+                  setFormData(prev => ({
+                    ...prev,
+                    fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId, type: enrollType }],
+                    device_user_id: newFingerprint.finger_id
+                  }));
+                  setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
+                  setTimeout(() => setShowEnrollProgress(false), 1500);
+                } else {
+                  setEnrollProgress({ status: 'timeout', message: 'لم يتم رصد البصمة على الجهاز.' });
+                }
+              } catch (e) {
+                setEnrollProgress({ status: 'timeout', message: 'تعذر التحقق من الجهاز.' });
+              }
+            }, 15000);
+          }
+        } else {
+          setEnrollProgress({ status: 'error', message: enrollResult.message || 'فشل بدء التسجيل على الجهاز' });
+        }
       } else {
-        toast.warning("⚠️ " + (result.message || "لم يتم تسجيل البصمة"));
+        // === MANUAL ENROLLMENT ===
+        const result = await registerUserManual(deviceId, {
+          user_id: newFingerprint.finger_id,
+          name: userName,
+        });
+
+        if (result.success) {
+          setFormData(prev => ({ 
+            ...prev, 
+            fingerprints: [...prev.fingerprints, { ...newFingerprint, device_finger_id: fingerId, type: enrollType }],
+            device_user_id: newFingerprint.finger_id 
+          }));
+          setNewFingerprint({ finger_id: "", finger_position: "right", finger: "thumb" });
+          toast.success("✅ " + (result.message || "تم تسجيل البصمة بنجاح"));
+        } else {
+          toast.warning("⚠️ " + (result.message || "لم يتم تسجيل البصمة"));
+        }
       }
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      // التحقق من خطأ تكرار رقم البصمة من الخادم
-      if (error?.response?.data?.error === 'duplicate_device_user_id') {
-        toast.error(`⚠️ رقم البصمة ${newFingerprint.finger_id} مستخدم لموظف آخر: ${error.response.data.existing_employee_name || ''}`);
+      const errorMsg = error?.response?.data?.error === 'duplicate_device_user_id'
+        ? `⚠️ رقم البصمة ${newFingerprint.finger_id} مستخدم لموظف آخر`
+        : "❌ فشل التواصل مع الجهاز";
+      
+      if (enrollMode === 'auto' && showEnrollProgress) {
+        setEnrollProgress({ status: 'error', message: errorMsg });
       } else {
-        toast.error("❌ فشل التواصل مع الجهاز");
+        toast.error(errorMsg);
       }
     } finally {
-      setLoading(false);
+      if (enrollMode !== 'auto') {
+        setLoading(false);
+      }
     }
   };
 
@@ -1174,63 +1258,215 @@ export default function AddEmployee() {
             </div>
           )}
 
-          {/* Modal for Fingerprint */}
+          {/* Modal for Fingerprint / Face */}
           {showFingerprintModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6" dir="rtl">
-                <h3 className="text-xl font-bold mb-4 text-indigo-800">إضافة بصمة</h3>
+                <h3 className="text-xl font-bold mb-4 text-indigo-800">إضافة بصمة / وجه</h3>
                 
                 <div className="space-y-4">
                   <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
                     💡 رقم البصمة = رقم الملف ({formData.file_number || "أدخل رقم الملف"})
                   </div>
+
+                  {/* نوع التسجيل: بصمة / وجه */}
                   <div>
-                    <label className="block font-semibold mb-1">رقم البصمة</label>
+                    <label className="block font-semibold mb-1">نوع التسجيل</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEnrollType('fingerprint')}
+                        className={`flex-1 p-2 rounded border text-sm ${enrollType === 'fingerprint' ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white border-gray-300'}`}
+                      >
+                        👆 بصمة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnrollType('face')}
+                        className={`flex-1 p-2 rounded border text-sm ${enrollType === 'face' ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white border-gray-300'}`}
+                      >
+                        😀 وجه
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* طريقة التسجيل: تلقائي / يدوي */}
+                  <div>
+                    <label className="block font-semibold mb-1">طريقة التسجيل</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEnrollMode('auto')}
+                        className={`flex-1 p-2 rounded border text-sm ${enrollMode === 'auto' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-white border-gray-300'}`}
+                      >
+                        ⚡ تلقائي
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEnrollMode('manual')}
+                        className={`flex-1 p-2 rounded border text-sm ${enrollMode === 'manual' ? 'bg-yellow-100 border-yellow-500 text-yellow-700' : 'bg-white border-gray-300'}`}
+                      >
+                        ✋ يدوي
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* الوصف حسب الوضع */}
+                  {enrollMode === 'auto' ? (
+                    <div className="bg-green-50 p-3 rounded-lg text-sm text-green-700">
+                      {enrollType === 'face'
+                        ? '⚡ سيتم إرسال أمر تسجيل الوجه للجهاز. يرجى التوجه إلى الجهاز.'
+                        : '⚡ سيتم إرسال أمر تسجيل البصمة للجهاز. ضع إصبعك على الجهاز عند الطلب.'}
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-700">
+                      ✋ سيتم إنشاء المستخدم على الجهاز فقط. أكمل التسجيل يدوياً من قائمة الجهاز.
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block font-semibold mb-1">رقم المستخدم على الجهاز</label>
                     <input
                       type="text"
                       value={newFingerprint.finger_id}
                       onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_id: e.target.value })}
-                      placeholder="رقم البصمة (رقم الملف)"
+                      placeholder="رقم المستخدم (رقم الملف)"
                       className="w-full border p-2 rounded"
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-semibold mb-1">نوع البصمة</label>
-                    <select
-                      value={newFingerprint.finger_position}
-                      onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_position: e.target.value })}
-                      className="w-full border p-2 rounded"
-                    >
-                      {fingerPositions.map(pos => (
-                        <option key={pos.value} value={pos.value}>{pos.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* حقول البصمة فقط (تختفي للوجه) */}
+                  {enrollType === 'fingerprint' && (
+                    <>
+                      <div>
+                        <label className="block font-semibold mb-1">اليد</label>
+                        <select
+                          value={newFingerprint.finger_position}
+                          onChange={(e) => setNewFingerprint({ ...newFingerprint, finger_position: e.target.value })}
+                          className="w-full border p-2 rounded"
+                        >
+                          {fingerPositions.map(pos => (
+                            <option key={pos.value} value={pos.value}>{pos.label}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="block font-semibold mb-1">اختر الإصبع</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {fingerOptions.map(finger => (
-                        <label key={finger.value} className={`flex items-center gap-2 p-2 border rounded cursor-pointer ${newFingerprint.finger === finger.value ? 'bg-indigo-100 border-indigo-500' : ''}`}>
-                          <input
-                            type="radio"
-                            name="finger"
-                            value={finger.value}
-                            checked={newFingerprint.finger === finger.value}
-                            onChange={(e) => setNewFingerprint({ ...newFingerprint, finger: e.target.value })}
-                          />
-                          {finger.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                      <div>
+                        <label className="block font-semibold mb-1">الإصبع</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {fingerOptions.map(finger => (
+                            <label key={finger.value} className={`flex items-center gap-2 p-2 border rounded cursor-pointer ${newFingerprint.finger === finger.value ? 'bg-indigo-100 border-indigo-500' : ''}`}>
+                              <input
+                                type="radio"
+                                name="finger"
+                                value={finger.value}
+                                checked={newFingerprint.finger === finger.value}
+                                onChange={(e) => setNewFingerprint({ ...newFingerprint, finger: e.target.value })}
+                              />
+                              {finger.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">
                   <button onClick={() => setShowFingerprintModal(false)} className="bg-gray-500 text-white px-4 py-2 rounded">إلغاء</button>
-                  <button onClick={addFingerprint} className="bg-indigo-600 text-white px-4 py-2 rounded">إضافة</button>
+                  <button onClick={addFingerprint} disabled={loading} className="bg-indigo-600 text-white px-4 py-2 rounded">
+                    {loading ? "جاري..." : "إضافة"}
+                  </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Enrollment Progress Modal */}
+          {showEnrollProgress && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-8 text-center" dir="rtl">
+                {enrollProgress.status === 'connecting' && (
+                  <>
+                    <div className="text-4xl mb-4 animate-spin">⏳</div>
+                    <h3 className="text-xl font-bold mb-2">جاري الاتصال بالجهاز...</h3>
+                    <p className="text-gray-600">يرجى الانتظار</p>
+                  </>
+                )}
+                {enrollProgress.status === 'waiting' && (
+                  <>
+                    <div className="text-6xl mb-4 animate-pulse">👆</div>
+                    <h3 className="text-xl font-bold mb-2 text-green-700">ضع إصبعك على الجهاز</h3>
+                    <p className="text-gray-600">{enrollProgress.message}</p>
+                    <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-green-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }}></div>
+                    </div>
+                    <div className="flex gap-2 justify-center mt-4">
+                      <button
+                        onClick={() => {
+                          if (enrollTimeoutRef.current) clearTimeout(enrollTimeoutRef.current);
+                          setShowEnrollProgress(false);
+                          setEnrollMode('manual');
+                          setShowFingerprintModal(true);
+                        }}
+                        className="bg-yellow-600 text-white px-3 py-2 rounded text-sm"
+                      >
+                        ✋ تحويل للوضع اليدوي
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (enrollTimeoutRef.current) clearTimeout(enrollTimeoutRef.current);
+                          setShowEnrollProgress(false);
+                        }}
+                        className="bg-gray-500 text-white px-3 py-2 rounded text-sm"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {enrollProgress.status === 'success' && (
+                  <>
+                    <div className="text-6xl mb-4">✅</div>
+                    <h3 className="text-xl font-bold mb-2 text-green-700">تم التسجيل بنجاح!</h3>
+                    <p className="text-gray-600">تم تسجيل البصمة على الجهاز</p>
+                  </>
+                )}
+                {enrollProgress.status === 'error' && (
+                  <>
+                    <div className="text-6xl mb-4">❌</div>
+                    <h3 className="text-xl font-bold mb-2 text-red-700">فشل التسجيل</h3>
+                    <p className="text-gray-600 mb-4">{enrollProgress.message}</p>
+                    <button
+                      onClick={() => setShowEnrollProgress(false)}
+                      className="bg-gray-500 text-white px-4 py-2 rounded"
+                    >
+                      إغلاق
+                    </button>
+                  </>
+                )}
+                {enrollProgress.status === 'timeout' && (
+                  <>
+                    <div className="text-6xl mb-4">⏰</div>
+                    <h3 className="text-xl font-bold mb-2 text-yellow-700">لم يتم رصد البصمة</h3>
+                    <p className="text-gray-600 mb-4">{enrollProgress.message}</p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => { setShowEnrollProgress(false); setEnrollMode('manual'); setShowFingerprintModal(true); }}
+                        className="bg-yellow-600 text-white px-3 py-2 rounded text-sm"
+                      >
+                        جرب الوضع اليدوي
+                      </button>
+                      <button
+                        onClick={() => setShowEnrollProgress(false)}
+                        className="bg-gray-500 text-white px-3 py-2 rounded text-sm"
+                      >
+                        إغلاق
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

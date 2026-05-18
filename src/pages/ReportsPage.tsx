@@ -126,6 +126,7 @@ function ReportsPage() {
   const [departments, setDepartments] = useState([]);
   const [salaryReport, setSalaryReport] = useState([]);
   const [taxReport, setTaxReport] = useState([]);
+  const [taxBrackets, setTaxBrackets] = useState([]);
   const [increaseReport, setIncreaseReport] = useState([]);
   const [leaveWarningReport, setLeaveWarningReport] = useState([]);
   const [evaluationReport, setEvaluationReport] = useState(null);
@@ -344,6 +345,7 @@ function ReportsPage() {
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/income-tax?${params}`);
       setTaxReport(res.data?.data || []);
+      setTaxBrackets(res.data?.meta?.tax_brackets || []);
       toast.success("تم تحميل تقرير ضريبة الدخل بنجاح ✅");
     } catch (err) {
       toast.error("فشل في تحميل تقرير ضريبة الدخل ❌");
@@ -751,6 +753,7 @@ function ReportsPage() {
                 onExportPDF={() => exportToPDF('incomeTax')}
                 onExportExcel={() => exportToExcel('incomeTax')}
                 exporting={exporting}
+                taxBrackets={taxBrackets}
               />
             )}
             {activeTab === "salaryIncrease" && (
@@ -1087,9 +1090,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <th className="p-2 border border-slate-600 text-right">القسم</th>
                 <th className="p-2 border border-slate-600 bg-blue-600 text-right">الأساسي</th>
                 <th className="p-2 border border-slate-600 bg-cyan-600 text-right">بدل وظيفي</th>
-                {allAllowanceTypes.map(t => (
-                  <th key={t.name} className="p-2 border border-slate-600 bg-emerald-600 text-right">{t.name}</th>
-                ))}
+                <th className="p-2 border border-slate-600 bg-emerald-600 text-right">البدلات</th>
                 {allIncentiveTypes.map(t => (
                   <th key={t.name} className="p-2 border border-slate-600 bg-violet-600 text-right">{t.name}</th>
                 ))}
@@ -1111,9 +1112,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                   <td className="p-2 border border-slate-200 text-slate-600">{emp.department}</td>
                   <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.base_salary)}</td>
                   <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.position_allowance)}</td>
-                  {allAllowanceTypes.map(t => (
-                    <td key={t.name} className="p-2 border border-slate-200 text-right text-emerald-600">{formatCurrency(getAllowanceAmount(emp, t.name))}</td>
-                  ))}
+                  <td className="p-2 border border-slate-200 text-right text-emerald-600 font-bold">{formatCurrency(emp.total_allowances || 0)}</td>
                   {allIncentiveTypes.map(t => (
                     <td key={t.name} className="p-2 border border-slate-200 text-right text-purple-600">{formatCurrency(getIncentiveAmount(emp, t.name))}</td>
                   ))}
@@ -1167,9 +1166,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <td className="p-2 border border-slate-300 text-center" colSpan={3}>الإجمالي</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.base)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.position)}</td>
-                {allAllowanceTypes.map(t => (
-                  <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(allowanceTotals[t.name])}</td>
-                ))}
+                <td className="p-2 border border-slate-300 text-right font-bold text-emerald-700">{formatCurrency(totals.allowances)}</td>
                 {allIncentiveTypes.map(t => (
                   <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(incentiveTotals[t.name])}</td>
                 ))}
@@ -1190,7 +1187,7 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
   );
 }
 
-function TaxReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency, onExportPDF, onExportExcel, exporting }) {
+function TaxReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, formatCurrency, onExportPDF, onExportExcel, exporting, taxBrackets }) {
   const totals = {
     monthly: data.reduce((s, e) => s + (e.monthly_salary || 0), 0),
     annual: data.reduce((s, e) => s + (e.annual_salary || 0), 0),
@@ -1237,22 +1234,18 @@ function TaxReport({ data, loading, year, setYear, departments, selectedDepartme
 
       <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-xl mb-6 border border-orange-100">
         <h3 className="font-bold mb-3 text-orange-700">📋 شرائح ضريبة الدخل (جنيه سوداني)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-sm">
-          {[
-            ["0 - 6,000", "0%"],
-            ["6,001 - 12,000", "5%"],
-            ["12,001 - 24,000", "10%"],
-            ["24,001 - 36,000", "15%"],
-            ["36,001 - 72,000", "20%"],
-            ["72,001 - 120,000", "22.5%"],
-            ["+120,000", "25%"],
-          ].map(([range, rate], i) => (
+        {taxBrackets.length > 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+          {taxBrackets.map((b, i) => (
             <div key={i} className="bg-white p-2 rounded-lg text-center shadow-sm">
-              <p className="text-gray-500 text-xs">{range}</p>
-              <p className="font-bold text-blue-600">{rate}</p>
+              <p className="text-gray-500 text-xs">{`${Number(b.min).toLocaleString()} - ${b.max >= 999999999 ? 'ما فوق' : Number(b.max).toLocaleString()}`}</p>
+              <p className="font-bold text-blue-600">{b.rate}%</p>
             </div>
           ))}
         </div>
+        ) : (
+          <p className="text-gray-500 text-sm">لم يتم حفظ شرائح ضريبة الدخل بعد</p>
+        )}
       </div>
 
       {loading ? <LoadingSpinner /> : (

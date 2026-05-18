@@ -62,6 +62,8 @@ export default function Employee() {
   const [showReturnAssetModal, setShowReturnAssetModal] = useState(false);
   const [showEvaluationModal, setShowEvaluationModal] = useState(false);
   const [showVacationModal, setShowVacationModal] = useState(false);
+  const [showIncentiveModal, setShowIncentiveModal] = useState(false);
+  const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [selectedWarningReason, setSelectedWarningReason] = useState("");
   const [customWarningReason, setCustomWarningReason] = useState("");
   const [returnAssetNote, setReturnAssetNote] = useState("");
@@ -97,6 +99,18 @@ export default function Employee() {
     note: "",
   });
   const token = localStorage.getItem("token");
+
+  const [incentiveData, setIncentiveData] = useState({
+    type: "bonus",
+    value: "",
+    note: "",
+  });
+  const [deductionData, setDeductionData] = useState({
+    type: "other",
+    amount: "",
+    reason: "",
+    date: "",
+  });
 
   useEffect(() => {
     console.log('Employee page - fetching employee:', id);
@@ -318,6 +332,61 @@ export default function Employee() {
         refreshEmployee();
       })
       .catch(() => toast.error("❌ فشل إعادة التفعيل"));
+  };
+
+  const handleAddIncentive = () => {
+    if (!incentiveData.value || parseFloat(incentiveData.value) <= 0) {
+      toast.error("يرجى إدخال قيمة الحافز");
+      return;
+    }
+    setLoading(true);
+    api
+      .post(
+        "/incentives",
+        {
+          type: incentiveData.type,
+          value: incentiveData.value,
+          employee_id: employee.id,
+          note: incentiveData.note,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      .then(() => {
+        toast.success("✅ تم إضافة الحافز بنجاح");
+        refreshEmployee();
+        setShowIncentiveModal(false);
+        setIncentiveData({ type: "bonus", value: "", note: "" });
+      })
+      .catch((err) => toast.error(err?.response?.data?.message || "❌ فشل إضافة الحافز"))
+      .finally(() => setLoading(false));
+  };
+
+  const handleAddDeduction = () => {
+    if (!deductionData.amount || parseFloat(deductionData.amount) <= 0) {
+      toast.error("يرجى إدخال مبلغ الخصم");
+      return;
+    }
+    setLoading(true);
+    api
+      .post(
+        "/deductions",
+        {
+          type: deductionData.type,
+          amount: deductionData.amount,
+          employee_id: employee.id,
+          reason: deductionData.reason,
+          date: deductionData.date || null,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      .then(() => {
+        toast.success("✅ تم إضافة الخصم بنجاح");
+        refreshEmployee();
+        setShowDeductionModal(false);
+        setDeductionData({ type: "other", amount: "", reason: "", date: "" });
+      })
+      .catch((err) => toast.error(err?.response?.data?.message || "❌ فشل إضافة الخصم"))
+      .finally(() => setLoading(false));
   };
 
   const handleDeleteEmployee = () => {
@@ -568,18 +637,24 @@ export default function Employee() {
                 
                 {employee.incentives && employee.incentives.length > 0 && (
                   <div className="border-t pt-2 mt-2">
-                    <span className="font-semibold text-gray-700 block mb-1">الحوافز:</span>
-                    {employee.incentives.map((i, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span className="text-gray-600 mr-4">
-                          {i.type === 'bonus' ? 'مكافأة' : 
-                           i.type === 'allowance' ? 'بدل' : 
-                           i.type === 'commission' ? 'عمولة' : 
-                           i.type === 'performance' ? 'حافز أداء' : 'أخرى'}:
-                        </span>
-                        <span className="text-blue-600">{parseFloat(i.value || 0).toLocaleString()} ج.س</span>
-                      </div>
-                    ))}
+                    <span className="font-semibold text-gray-700 block mb-1">حوافز لمرة واحدة:</span>
+                    {employee.incentives.map((i, idx) => {
+                      const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+                      const d = i.date ? new Date(i.date + 'T00:00:00') : null;
+                      const monthLabel = d ? `${monthNames[d.getMonth()]} ${d.getFullYear()}` : '';
+                      const typeLabel = i.type === 'bonus' ? 'مكافأة' : 
+                                       i.type === 'allowance' ? 'بدل' : 
+                                       i.type === 'commission' ? 'عمولة' : 
+                                       i.type === 'performance' ? 'حافز أداء' : 'أخرى';
+                      return (
+                        <div key={idx} className="flex justify-between">
+                          <span className="text-gray-600 mr-4">
+                            {typeLabel}{monthLabel ? ` (${monthLabel})` : ''}:
+                          </span>
+                          <span className="text-blue-600">{parseFloat(i.value || 0).toLocaleString()} ج.س</span>
+                        </div>
+                      );
+                    })}
                     {employee.incentives_total > 0 && (
                       <div className="flex justify-between font-semibold mt-1">
                         <span>إجمالي الحوافز:</span>
@@ -768,6 +843,20 @@ export default function Employee() {
                   💰 طلب السلفية
                 </button>
               )}
+
+              <button
+                onClick={() => setShowIncentiveModal(true)}
+                className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 text-lg"
+              >
+                🎁 حافز
+              </button>
+
+              <button
+                onClick={() => setShowDeductionModal(true)}
+                className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 text-lg"
+              >
+                ❌ خصم
+              </button>
 
               {canRestore && employee.status === "terminated" && (
                 <button
@@ -1355,6 +1444,136 @@ export default function Employee() {
                   className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
                 >
                   حفظ التقيم
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* مودل إضافة حافز */}
+        {showIncentiveModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
+              <h2 className="text-xl font-bold mb-4">🎁 إضافة حافز</h2>
+
+              <label className="block mb-2">نوع الحافز:</label>
+              <select
+                value={incentiveData.type}
+                onChange={(e) => setIncentiveData({ ...incentiveData, type: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+              >
+                <option value="bonus">مكافأة</option>
+                <option value="allowance">بدل</option>
+                <option value="commission">عمولة</option>
+                <option value="performance">حافز أداء</option>
+                <option value="other">أخرى</option>
+              </select>
+
+              <label className="block mb-2">القيمة:</label>
+              <input
+                type="number"
+                value={incentiveData.value}
+                onChange={(e) => setIncentiveData({ ...incentiveData, value: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+                placeholder="أدخل القيمة"
+              />
+
+              <label className="block mb-2">ملاحظات:</label>
+              <textarea
+                value={incentiveData.note}
+                onChange={(e) => setIncentiveData({ ...incentiveData, note: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+                rows="2"
+                placeholder="اختياري"
+              />
+
+              <div className="flex justify-between mt-6">
+                <button
+                  onClick={() => {
+                    setShowIncentiveModal(false);
+                    setIncentiveData({ type: "bonus", value: "", note: "" });
+                  }}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleAddIncentive}
+                  disabled={loading}
+                  className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center gap-2 ${
+                    loading ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {loading ? "جاري..." : "إضافة الحافز"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* مودل إضافة خصم */}
+        {showDeductionModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
+              <h2 className="text-xl font-bold mb-4">❌ إضافة خصم</h2>
+
+              <label className="block mb-2">نوع الخصم:</label>
+              <select
+                value={deductionData.type}
+                onChange={(e) => setDeductionData({ ...deductionData, type: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+              >
+                <option value="other">أخرى</option>
+                <option value="penalty">غرامة</option>
+                <option value="loan">قرض</option>
+                <option value="absence">غياب</option>
+                <option value="damage">تلفيات</option>
+              </select>
+
+              <label className="block mb-2">المبلغ:</label>
+              <input
+                type="number"
+                value={deductionData.amount}
+                onChange={(e) => setDeductionData({ ...deductionData, amount: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+                placeholder="أدخل المبلغ"
+              />
+
+              <label className="block mb-2">السبب:</label>
+              <textarea
+                value={deductionData.reason}
+                onChange={(e) => setDeductionData({ ...deductionData, reason: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+                rows="2"
+                placeholder="اختياري"
+              />
+
+              <label className="block mb-2">التاريخ:</label>
+              <input
+                type="date"
+                value={deductionData.date}
+                onChange={(e) => setDeductionData({ ...deductionData, date: e.target.value })}
+                className="w-full border rounded p-2 mb-4"
+              />
+
+              <div className="flex justify-between mt-6">
+                <button
+                  onClick={() => {
+                    setShowDeductionModal(false);
+                    setDeductionData({ type: "other", amount: "", reason: "", date: "" });
+                  }}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleAddDeduction}
+                  disabled={loading}
+                  className={`bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 flex items-center gap-2 ${
+                    loading ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {loading ? "جاري..." : "إضافة الخصم"}
                 </button>
               </div>
             </div>
