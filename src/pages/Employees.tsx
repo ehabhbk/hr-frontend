@@ -197,9 +197,40 @@ export default function Employees() {
             await saveAfterEnroll();
             setTimeout(() => setShowEnrollProgress(false), 1500);
           } else if (enrollResult.manual_required) {
-            setEnrollProgress({ status: 'error', message: enrollResult.message + '\nيرجى اتباع التعليمات على الجهاز.' });
+            setEnrollProgress({
+              status: 'waiting',
+              message: enrollResult.message,
+              finger_id: newFingerprint.finger_id,
+              enrollType,
+              fingerId,
+              saveAfterEnroll: () => saveAfterEnroll(),
+            });
+            enrollTimeoutRef.current = setTimeout(async () => {
+              try {
+                const checkResult = await checkEnrollmentStatus(editFormData.attendance_device_id, {
+                  user_id: newFingerprint.finger_id,
+                  finger_id: enrollType === 'face' ? null : fingerId,
+                });
+                if (checkResult.enrolled) {
+                  setEnrollProgress({ status: 'success', message: '✅ تم تسجيل البصمة بنجاح!' });
+                  await saveAfterEnroll();
+                  setTimeout(() => setShowEnrollProgress(false), 1500);
+                } else {
+                  setEnrollProgress({ status: 'timeout', message: 'لم يتم رصد البصمة على الجهاز.' });
+                }
+              } catch (e) {
+                setEnrollProgress({ status: 'timeout', message: 'تعذر التحقق من الجهاز.' });
+              }
+            }, 30000);
           } else {
-            setEnrollProgress({ status: 'waiting', message: enrollResult.message || 'يرجى وضع الإصبع على الجهاز...' });
+            setEnrollProgress({
+              status: 'waiting',
+              message: enrollResult.message || 'يرجى وضع الإصبع على الجهاز...',
+              finger_id: newFingerprint.finger_id,
+              enrollType,
+              fingerId,
+              saveAfterEnroll: () => saveAfterEnroll(),
+            });
             enrollTimeoutRef.current = setTimeout(async () => {
               try {
                 const checkResult = await checkEnrollmentStatus(editFormData.attendance_device_id, {
@@ -257,9 +288,11 @@ export default function Employees() {
       }
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      const errorMsg = error?.response?.data?.error === 'duplicate_device_user_id'
+      const errMsg = error?.message || error?.raw?.response?.data?.message || "فشل التواصل مع الجهاز أو قاعدة البيانات";
+      const errCode = error?.raw?.response?.data?.error || error?.details?.error;
+      const errorMsg = errCode === 'duplicate_device_user_id'
         ? `⚠️ رقم البصمة ${newFingerprint.finger_id} مستخدم لموظف آخر`
-        : "❌ فشل التواصل مع الجهاز أو قاعدة البيانات";
+        : `❌ ${errMsg}`;
 
       if (enrollMode === 'auto' && showEnrollProgress) {
         setEnrollProgress({ status: 'error', message: errorMsg });
@@ -787,6 +820,10 @@ export default function Employees() {
                             toast.warning("⚠️ أدخل رقم الملف أولاً");
                             return;
                           }
+                          if (!editFormData.attendance_device_id) {
+                            toast.warning("⚠️ اختر جهاز البصمة أولاً");
+                            return;
+                          }
                           setNewFingerprint(prev => ({ ...prev, finger_id: editFormData.file_number.trim() }));
                           setShowFingerprintModal(true);
                         }}
@@ -1192,13 +1229,35 @@ export default function Employees() {
               )}
               {enrollProgress.status === 'waiting' && (
                 <>
-                  <div className="text-6xl mb-4 animate-pulse">👆</div>
-                  <h3 className="text-xl font-bold mb-2 text-green-700">ضع إصبعك على الجهاز</h3>
-                  <p className="text-gray-600">{enrollProgress.message}</p>
+                  <div className="text-6xl mb-4 animate-pulse">📟</div>
+                  <h3 className="text-xl font-bold mb-2 text-green-700">سجل بصمتك على الجهاز</h3>
+                  <p className="text-gray-600 whitespace-pre-line">{enrollProgress.message}</p>
                   <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-green-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }}></div>
                   </div>
                   <div className="flex gap-2 justify-center mt-4">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const checkResult = await checkEnrollmentStatus(editFormData.attendance_device_id, {
+                            user_id: enrollProgress.finger_id,
+                            finger_id: enrollProgress.enrollType === 'face' ? null : enrollProgress.fingerId,
+                          });
+                          if (checkResult.enrolled) {
+                            setEnrollProgress({ status: 'success', message: '✅ تم تسجيل البصمة بنجاح!' });
+                            if (enrollProgress.saveAfterEnroll) await enrollProgress.saveAfterEnroll();
+                            setTimeout(() => setShowEnrollProgress(false), 1500);
+                          } else {
+                            toast.info("لم يتم العثور على البصمة بعد. تأكد من تسجيلها على الجهاز.");
+                          }
+                        } catch (e) {
+                          toast.error("تعذر التحقق من الجهاز.");
+                        }
+                      }}
+                      className="bg-green-700 text-white px-4 py-2 rounded text-sm"
+                    >
+                      🔄 تحقق الآن
+                    </button>
                     <button
                       onClick={() => {
                         if (enrollTimeoutRef.current) clearTimeout(enrollTimeoutRef.current);

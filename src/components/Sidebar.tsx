@@ -8,8 +8,8 @@ import {
   Squares2X2Icon,
   ClipboardDocumentListIcon,
   BellIcon,
-  BanknotesIcon
-
+  BanknotesIcon,
+  ClipboardDocumentCheckIcon
 } from "@heroicons/react/24/outline";
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
@@ -118,6 +118,7 @@ const items = useMemo(
           { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
           { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
           { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
+          { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
           { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
           { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
           { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
@@ -131,6 +132,7 @@ const items = useMemo(
         { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
         { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
         { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
+        { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
         { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
         { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
         { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },

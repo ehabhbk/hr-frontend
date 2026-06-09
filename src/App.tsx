@@ -17,6 +17,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ReportsPage from "./pages/ReportsPage";
 import BankExportPage from "./pages/BankExportPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import RequestsPage from "./pages/RequestsPage";
 import api from "./services/api";
 
 function App() {
@@ -220,6 +221,24 @@ function App() {
           element={
             <ProtectedRoute>
               <AttendanceLogs />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* الطلبيات */}
+        <Route
+          path="/requests"
+          element={
+            <ProtectedRoute>
+              <RequestsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/:tab"
+          element={
+            <ProtectedRoute>
+              <RequestsPage />
             </ProtectedRoute>
           }
         />

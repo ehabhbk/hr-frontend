@@ -52,7 +52,12 @@ export default function AttendanceLogs() {
     from_date: "",
     to_date: "",
     device_id: "",
+    employee_id: "",
   });
+  const [weeklyReport, setWeeklyReport] = useState(null);
+  const [showWeeklyModal, setShowWeeklyModal] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   const loadDevices = async () => {
     try {
@@ -79,6 +84,7 @@ export default function AttendanceLogs() {
       if (filters.from_date) params.from_date = filters.from_date;
       if (filters.to_date) params.to_date = filters.to_date;
       if (filters.device_id) params.device_id = filters.device_id;
+      if (filters.employee_id) params.employee_id = filters.employee_id;
 
       // Fetch calculated attendance records (this has the correct late/on_time types)
       const recordsRes = await api.get("/attendance-records", {
@@ -350,17 +356,85 @@ export default function AttendanceLogs() {
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return '-';
-    // Handle both string and Date objects
     let d;
     if (typeof timestamp === 'string' && !timestamp.includes('T')) {
-      // Format: "2026-04-04 09:14:00" - append Z to treat as UTC
       d = new Date(timestamp + 'Z');
     } else {
       d = new Date(timestamp);
     }
-    const date = d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const dayName = dayNames[d.getDay()];
+    const date = d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
     const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    return `${date} ${time}`;
+    return `${dayName} ${date} ${time}`;
+  };
+
+  const handleWeeklyReport = async () => {
+    if (!filters.employee_id) {
+      toast.warning("⚠️ اختر موظفاً أولاً");
+      return;
+    }
+    try {
+      const employee = employees.find(e => e.id === parseInt(filters.employee_id));
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+      const sunday = new Date(now);
+      sunday.setDate(now.getDate() - dayOfWeek);
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+
+      const fromDate = sunday.toISOString().split('T')[0];
+      const toDate = saturday.toISOString().split('T')[0];
+
+      const res = await api.get("/attendance-records", {
+        params: { employee_id: filters.employee_id, from_date: fromDate, to_date: toDate },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const records = res.data?.data?.data || res.data?.data || res.data || [];
+
+      const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+      const weekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(sunday);
+        day.setDate(sunday.getDate() + i);
+        const dateStr = day.toISOString().split('T')[0];
+        const dayRecord = records.find(r => r.date === dateStr || (r.check_in_time && r.check_in_time.slice(0, 10) === dateStr) || (r.check_out_time && r.check_out_time.slice(0, 10) === dateStr));
+        weekDays.push({
+          dayName: dayNames[i],
+          date: dateStr,
+          dateDisplay: day.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }),
+          record: dayRecord || null,
+          isToday: dateStr === now.toISOString().split('T')[0],
+        });
+      }
+
+      setWeeklyReport({
+        employeeName: employee?.name || `موظف #${filters.employee_id}`,
+        fromDate,
+        toDate,
+        weekDays,
+      });
+      setShowWeeklyModal(true);
+    } catch (e) {
+      toast.error("فشل تحميل التقرير الأسبوعي");
+    }
+  };
+
+  const printWeeklyReport = () => {
+    if (!weeklyReport) return;
+    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const rows = weeklyReport.weekDays.map((day, idx) => {
+      const r = day.record;
+      const checkInTime = r?.check_in_time ? new Date(r.check_in_time + (r.check_in_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+      const checkOutTime = r?.check_out_time ? new Date(r.check_out_time + (r.check_out_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+      const checkInType = r?.is_absent ? 'غياب' : r?.check_in_type === 'late' ? 'حضور متأخر' : r?.check_in_type === 'early' ? 'حضور مبكر' : r?.check_in_time ? 'حضور' : '-';
+      const checkOutType = r?.check_out_type === 'early' ? 'انصراف مبكر' : r?.check_out_type === 'late' ? 'انصراف متأخر' : r?.check_out_time ? 'انصراف' : '-';
+      return `<tr${day.isToday ? ' style="background:#f0fdf4"' : ''}><td style="padding:10px;border:1px solid #ddd">${day.dayName}</td><td style="padding:10px;border:1px solid #ddd">${day.dateDisplay}</td><td style="padding:10px;border:1px solid #ddd">${checkInType}</td><td style="padding:10px;border:1px solid #ddd">${checkInTime}</td><td style="padding:10px;border:1px solid #ddd">${checkOutType}</td><td style="padding:10px;border:1px solid #ddd">${checkOutTime}</td></tr>`;
+    });
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>تقرير الحضور الأسبوعي</title><style>body{font-family:Tahoma,sans-serif;padding:20px}h1{color:#0f766e;font-size:20px;margin-bottom:5px}.info{color:#666;margin-bottom:15px;font-size:14px}table{width:100%;border-collapse:collapse}th{background:#ccfbf1;padding:10px;border:1px solid #ddd;text-align:right;color:#0f766e}td{padding:10px;border:1px solid #ddd}@media print{@page{size:landscape}}</style></head><body><h1>📊 تقرير الحضور الأسبوعي</h1><div class="info">الموظف: ${weeklyReport.employeeName} | الأسبوع: ${weeklyReport.fromDate} إلى ${weeklyReport.toDate}</div><table><thead><tr><th>اليوم</th><th>التاريخ</th><th>الحضور</th><th>وقت الحضور</th><th>الانصراف</th><th>وقت الانصراف</th></tr></thead><tbody>${rows.join('')}</tbody></table></body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
   };
 
   return (
@@ -404,6 +478,45 @@ export default function AttendanceLogs() {
               </select>
             </div>
 
+            <div className="flex flex-col relative">
+              <label className="text-sm text-gray-600 mb-1">بحث الموظف</label>
+              <input
+                type="text"
+                placeholder="ابحث باسم الموظف..."
+                value={employeeSearch}
+                onChange={(e) => {
+                  setEmployeeSearch(e.target.value);
+                  setShowEmployeeDropdown(true);
+                }}
+                onFocus={() => setShowEmployeeDropdown(true)}
+                onBlur={() => setTimeout(() => setShowEmployeeDropdown(false), 200)}
+                className="border rounded-lg px-3 py-2 w-48"
+              />
+              {showEmployeeDropdown && employeeSearch && (
+                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                  {employees
+                    .filter(e => e.name.toLowerCase().includes(employeeSearch.toLowerCase()))
+                    .slice(0, 10)
+                    .map(e => (
+                      <div
+                        key={e.id}
+                        onClick={() => {
+                          setEmployeeSearch(e.name);
+                          setFilters(f => ({ ...f, employee_id: e.id }));
+                          setShowEmployeeDropdown(false);
+                        }}
+                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm"
+                      >
+                        {e.name}
+                      </div>
+                    ))}
+                  {employees.filter(e => e.name.toLowerCase().includes(employeeSearch.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-2 text-gray-400 text-sm">لا توجد نتائج</div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2 md:mr-auto">
               <button
                 onClick={() => setShowManualModal(true)}
@@ -419,6 +532,14 @@ export default function AttendanceLogs() {
                 disabled={loading}
               >
                 بحث
+              </button>
+              <button
+                onClick={handleWeeklyReport}
+                className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 font-semibold"
+                type="button"
+                disabled={!filters.employee_id}
+              >
+                📊 تقرير الحضور الأسبوعي
               </button>
               <button
                 onClick={handleExportPDF}
@@ -737,6 +858,64 @@ export default function AttendanceLogs() {
                 >
                   قبول العذر وإلغاء الخصم
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showWeeklyModal && weeklyReport && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-teal-800">📊 تقرير الحضور الأسبوعي</h3>
+                <button onClick={() => setShowWeeklyModal(false)} className="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+              </div>
+              <div className="mb-4 text-gray-600">
+                <span className="font-semibold">الموظف:</span> {weeklyReport.employeeName}
+                <span className="mx-3">|</span>
+                <span className="font-semibold">الأسبوع:</span> {weeklyReport.fromDate} إلى {weeklyReport.toDate}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-teal-50 text-right">
+                      <th className="p-3 border-b font-semibold text-teal-800">اليوم</th>
+                      <th className="p-3 border-b font-semibold text-teal-800">التاريخ</th>
+                      <th className="p-3 border-b font-semibold text-teal-800">الحضور</th>
+                      <th className="p-3 border-b font-semibold text-teal-800">وقت الحضور</th>
+                      <th className="p-3 border-b font-semibold text-teal-800">الانصراف</th>
+                      <th className="p-3 border-b font-semibold text-teal-800">وقت الانصراف</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyReport.weekDays.map((day, idx) => {
+                      const r = day.record;
+                      const checkInTime = r?.check_in_time ? new Date(r.check_in_time + (r.check_in_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+                      const checkOutTime = r?.check_out_time ? new Date(r.check_out_time + (r.check_out_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+
+                      let checkInType = r?.is_absent ? 'غياب' : r?.check_in_type === 'late' ? 'حضور متأخر' : r?.check_in_type === 'early' ? 'حضور مبكر' : r?.check_in_time ? 'حضور' : '-';
+                      let checkOutType = r?.check_out_type === 'early' ? 'انصراف مبكر' : r?.check_out_type === 'late' ? 'انصراف متأخر' : r?.check_out_time ? 'انصراف' : '-';
+
+                      const checkInColor = r?.is_absent ? 'bg-red-100 text-red-700' : r?.check_in_type === 'late' ? 'bg-red-100 text-red-700' : r?.check_in_type === 'early' ? 'bg-blue-100 text-blue-700' : r?.check_in_time ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+                      const checkOutColor = r?.check_out_type === 'early' ? 'bg-yellow-100 text-yellow-700' : r?.check_out_type === 'late' ? 'bg-orange-100 text-orange-700' : r?.check_out_time ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500';
+
+                      return (
+                        <tr key={idx} className={`${day.isToday ? 'bg-teal-50' : ''} hover:bg-gray-50 border-b`}>
+                          <td className="p-3 font-medium">{day.dayName}</td>
+                          <td className="p-3">{day.dateDisplay}</td>
+                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${checkInColor}`}>{checkInType}</span></td>
+                          <td className="p-3 text-gray-600">{checkInTime}</td>
+                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${checkOutColor}`}>{checkOutType}</span></td>
+                          <td className="p-3 text-gray-600">{checkOutTime}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-between mt-4">
+                <button onClick={printWeeklyReport} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">🖨️ طباعة</button>
+                <button onClick={() => setShowWeeklyModal(false)} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">إغلاق</button>
               </div>
             </div>
           </div>

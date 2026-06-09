@@ -710,6 +710,29 @@ export default function Employee() {
               </div>
             )}
 
+            {/* بطاقة البصمة والوجه */}
+            <div className="bg-indigo-50 shadow-lg rounded-xl p-6">
+              <h3 className="text-xl font-bold text-indigo-800 mb-4">🔐 البصمة والوجه</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">جهاز البصمة:</span>
+                  <span className="font-semibold">
+                    {employee.attendance_device?.name || employee.attendance_device?.ip || "غير محدد"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">رقم المستخدم على الجهاز:</span>
+                  <span className="font-semibold font-mono">{employee.device_user_id || "غير محدد"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">حالة التسجيل:</span>
+                  <span className="font-semibold text-green-600">
+                    {employee.device_user_id ? "✅ مسجل" : "⏳ غير مسجل"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* بطاقة التأمين */}
             {employee.insurance_type && employee.insurance_type !== 'none' && (
               <div className="bg-yellow-50 shadow-lg rounded-xl p-6">

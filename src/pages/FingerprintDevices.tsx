@@ -13,8 +13,8 @@ import {
   updateDevice,
   setDeviceTime,
   downloadFingerprints,
-  uploadFingerprints,
 } from "../services/fingerprintApi";
+import api from "../services/api";
 
 export default function FingerprintDevices() {
   const navigate = useNavigate();
@@ -163,13 +163,62 @@ export default function FingerprintDevices() {
     }
   };
 
+  const [deviceInfo, setDeviceInfo] = useState(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [deviceUsers, setDeviceUsers] = useState([]);
+
+  const doShowInfo = async (d) => {
+    if (!d?.id) return;
+    setBusyId(d.id);
+    try {
+      const res = await api.get(`/attendance-device/${d.id}/info`);
+      setDeviceInfo(res?.data?.data || res?.data || {});
+      setShowInfoModal(true);
+    } catch (e) {
+      toast.error(e.response?.data?.message || "فشل جلب معلومات الجهاز");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doShowUsers = async (d) => {
+    if (!d?.id) return;
+    setBusyId(d.id);
+    try {
+      const res = await api.get(`/attendance-device/${d.id}/users`);
+      const users = res?.data?.data || [];
+      setDeviceUsers(Array.isArray(users) ? users : Object.values(users));
+      setShowUsersModal(true);
+    } catch (e) {
+      toast.error(e.response?.data?.message || "فشل جلب المستخدمين");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doEnable = async (d, enable) => {
+    if (!d?.id) return;
+    setBusyId(d.id);
+    try {
+      await api.post(`/attendance-device/${d.id}/${enable ? 'enable' : 'disable'}`);
+      await load();
+      toast.success(enable ? "✅ تم تفعيل الجهاز" : "✅ تم تعطيل الجهاز");
+    } catch (e) {
+      toast.error(e.response?.data?.message || "فشل");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const doDownloadFingerprints = async (d) => {
     if (!d?.id) return;
-    if (!window.confirm("هل تريد جلب البصمات من الجهاز؟")) return;
+    if (!window.confirm("هل تريد جلب البصمات من الجهاز وحفظها في قاعدة البيانات؟")) return;
     setBusyId(d.id);
     try {
       const res = await downloadFingerprints(d.id);
-      toast.success(res?.message || "تم جلب البصمات بنجاح ✅");
+      const count = typeof res === 'object' ? Object.keys(res).length : 0;
+      toast.success(`✅ تم جلب بصمات ${count} مستخدم من الجهاز`);
     } catch (e) {
       toast.error(e.message || "فشل في جلب البصمات");
     } finally {
@@ -177,17 +226,23 @@ export default function FingerprintDevices() {
     }
   };
 
-  const doUploadFingerprints = async (d) => {
-    if (!d?.id) return;
-    if (!window.confirm("هل تريد رفع البصمات إلى الجهاز؟")) return;
-    setBusyId(d.id);
+  const [showSyncAllModal, setShowSyncAllModal] = useState(false);
+  const [syncAllResults, setSyncAllResults] = useState([]);
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  const doSyncAll = async () => {
+    setShowSyncAllModal(true);
+    setSyncingAll(true);
+    setSyncAllResults([]);
     try {
-      const res = await uploadFingerprints(d.id);
-      toast.success(res?.message || "تم رفع البصمات بنجاح ✅");
+      const res = await api.post('/attendance-device/sync-all');
+      const results = res?.data?.results || res?.data?.data || [];
+      setSyncAllResults(Array.isArray(results) ? results : [results]);
+      toast.success("✅ تمت المزامنة لجميع الأجهزة");
     } catch (e) {
-      toast.error(e.message || "فشل في رفع البصمات");
+      toast.error(e.response?.data?.message || "فشل المزامنة الكلية");
     } finally {
-      setBusyId(null);
+      setSyncingAll(false);
     }
   };
 
@@ -212,6 +267,13 @@ export default function FingerprintDevices() {
               تحديث
             </button>
             <button
+              onClick={doSyncAll}
+              className="px-4 py-2 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
+              type="button"
+            >
+              مزامنة الكل
+            </button>
+            <button
               onClick={openAdd}
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-semibold"
               type="button"
@@ -230,9 +292,17 @@ export default function FingerprintDevices() {
                 <div key={d.id} className="bg-white shadow rounded-xl p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-lg font-bold text-gray-800">{d.name || `Device #${d.id}`}</h2>
+                      <h2 className="text-lg font-bold text-gray-800">{d.name || `جهاز #${d.id}`}</h2>
                       <div className="text-sm text-gray-600 mt-1">
-                        IP: {d.ip || d.host || "-"} | Port: {d.port ?? "-"}
+                        {d.host || d.ip}:{d.port ?? 4370}
+                      </div>
+                      <div className="flex gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${d.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {d.enabled ? 'مفعل' : 'معطل'}
+                        </span>
+                        {d.serial_number && (
+                          <span className="text-xs text-gray-400">{d.serial_number}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -255,53 +325,80 @@ export default function FingerprintDevices() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       onClick={() => doTest(d)}
-                      className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                      className="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm"
                       type="button"
                       disabled={busyId === d.id}
                     >
-                      اختبار اتصال
+                      📡 اختبار
+                    </button>
+                    <button
+                      onClick={() => doShowInfo(d)}
+                      className="px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      ℹ️ معلومات
+                    </button>
+                    <button
+                      onClick={() => doShowUsers(d)}
+                      className="px-3 py-1.5 rounded bg-cyan-600 text-white hover:bg-cyan-700 text-sm"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      👥 مستخدمين
                     </button>
                     <button
                       onClick={() => doSync(d)}
-                      className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+                      className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 text-sm"
                       type="button"
                       disabled={busyId === d.id}
                     >
-                      مزامنة السجلات
+                      🔄 مزامنة
                     </button>
                     <button
                       onClick={() => doSetTime(d)}
-                      className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
+                      className="px-3 py-1.5 rounded bg-purple-600 text-white hover:bg-purple-700 text-sm"
                       type="button"
                       disabled={busyId === d.id}
                     >
-                      ضبط الوقت
+                      🕐 ضبط وقت
                     </button>
                     <button
                       onClick={() => doDownloadFingerprints(d)}
-                      className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700"
+                      className="px-3 py-1.5 rounded bg-orange-600 text-white hover:bg-orange-700 text-sm"
                       type="button"
                       disabled={busyId === d.id}
                     >
-                      جلب البصمات
+                      👇 جلب بصمات
                     </button>
-                    <button
-                      onClick={() => doUploadFingerprints(d)}
-                      className="px-4 py-2 rounded bg-teal-600 text-white hover:bg-teal-700"
-                      type="button"
-                      disabled={busyId === d.id}
-                    >
-                      رفع البصمات
-                    </button>
+                    {d.enabled ? (
+                      <button
+                        onClick={() => doEnable(d, false)}
+                        className="px-3 py-1.5 rounded bg-yellow-600 text-white hover:bg-yellow-700 text-sm"
+                        type="button"
+                        disabled={busyId === d.id}
+                      >
+                        ⏸ تعطيل
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => doEnable(d, true)}
+                        className="px-3 py-1.5 rounded bg-teal-600 text-white hover:bg-teal-700 text-sm"
+                        type="button"
+                        disabled={busyId === d.id}
+                      >
+                        ▶️ تفعيل
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate("/attendance-logs")}
-                      className="px-4 py-2 rounded border hover:bg-gray-50"
+                      className="px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50 text-sm"
                       type="button"
                     >
-                      عرض السجلات
+                      📋 سجلات
                     </button>
                   </div>
                 </div>
@@ -315,6 +412,83 @@ export default function FingerprintDevices() {
             </div>
           )}
         </main>
+
+        {/* نافذة معلومات الجهاز */}
+        {showInfoModal && deviceInfo && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">ℹ️ معلومات الجهاز</h2>
+              <div className="space-y-2">
+                {Object.entries(deviceInfo).map(([key, val]) => (
+                  <div key={key} className="flex justify-between border-b pb-1">
+                    <span className="text-gray-600 font-medium">{key}</span>
+                    <span className="font-semibold">{String(val ?? '-')}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setShowInfoModal(false)} className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded">
+                إغلاق
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* نافذة مستخدمي الجهاز */}
+        {showUsersModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">👥 مستخدمي الجهاز ({deviceUsers.length})</h2>
+              {deviceUsers.length === 0 ? (
+                <p className="text-gray-500">لا يوجد مستخدمين على الجهاز</p>
+              ) : (
+                <div className="space-y-1">
+                  {deviceUsers.map((u, i) => (
+                    <div key={i} className="flex justify-between border-b pb-1 text-sm">
+                      <span className="font-semibold">{u.name || u.userid || `UID: ${u.uid}`}</span>
+                      <span className="text-gray-500">#{u.userid || u.uid}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => setShowUsersModal(false)} className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded">
+                إغلاق
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* نافذة نتائج المزامنة الكلية */}
+        {showSyncAllModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">
+                {syncingAll ? '🔄 جاري مزامنة جميع الأجهزة...' : '✅ نتائج المزامنة الكلية'}
+              </h2>
+              {syncingAll ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin text-4xl mb-4">⏳</div>
+                  <p className="text-gray-600">يرجى الانتظار...</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {syncAllResults.map((r, i) => (
+                    <div key={i} className="flex justify-between border-b pb-1">
+                      <span className="font-semibold">{r.device || r.device_name || `جهاز #${i+1}`}</span>
+                      <span className={`${r.status === 'ok' ? 'text-green-600' : r.status === 'connection_failed' ? 'text-red-600' : 'text-yellow-600'}`}>
+                        {r.status === 'ok' ? `✅ ${r.inserted || 0} سجل` :
+                         r.status === 'connection_failed' ? '❌ فشل اتصال' :
+                         r.message || r.status}
+                      </span>
+                    </div>
+                  ))}
+                  <button onClick={() => setShowSyncAllModal(false)} className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded">
+                    إغلاق
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
-const API_HOST = "http://127.0.0.1/hr-app/public";
+const API_HOST = "http://server/hr-app/public";
 
 const api: AxiosInstance = axios.create({
   baseURL: `${API_HOST}/api`,

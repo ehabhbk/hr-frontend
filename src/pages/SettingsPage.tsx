@@ -108,8 +108,6 @@ function SettingsPage() {
   const [, setLoading] = useState(false);
 
   const [org, setOrg] = useState({});
-  const [leaveRequests, setLeaveRequests] = useState([]);
-  const [advanceRequests, setAdvanceRequests] = useState([]);
   const [roles, setRoles] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -262,8 +260,6 @@ function SettingsPage() {
     saveTax: false,
     saveWhatsApp: false,
     saveSettlements: false,
-    handleLeaveStatus: false,
-    handleAdvanceStatus: false,
     handleWarningStatus: false,
     calculateSettlement: false,
   });
@@ -293,115 +289,99 @@ function SettingsPage() {
 
   async function loadAll() {
     setLoading(true);
-    try {
-      const [
-        orgRes,
-        leavesRes,
-        advancesRes,
-        rolesRes,
-        warningsRes,
-        empsRes,
-        shiftsRes,
-        attendanceRes,
-        leaveSettingsRes,
-        advanceSettingsRes,
-        taxRes,
-        salaryIncRes,
-        whatsappRes,
-        shiftAssignRes,
-        settlementsRes
-      ] = await Promise.all([
-        api.get("/organization"),
-        api.get("/leaves/requests"),
-        api.get("/advances/requests"),
-        api.get("/roles"),
-        api.get("/discipline/warnings"),
-        api.get("/employees"),
-        api.get("/work-shifts"),
-        api.get("/settings/attendance"),
-        api.get("/settings/leaves"),
-        api.get("/settings/advances"),
-        api.get("/settings/tax-brackets"),
-        api.get("/settings/salary-increase"),
-        api.get("/settings/whatsapp"),
-        api.get("/shift-assignments?permanent=1"),
-        api.get("/settlements"),
-      ]);
 
-      console.log("Organization:", orgRes.data?.data);
-      console.log("Leave requests:", leavesRes.data?.data);
-      console.log("Advance requests:", advancesRes.data?.data);
-      console.log("Roles:", rolesRes.data?.data);
-      console.log("Settlements:", settlementsRes.data?.data);
-
-      if (settlementsRes.data?.data) {
-        const settlementData = settlementsRes.data.data;
-        setSettlements(prev => ({
-          ...prev,
-          ...Object.fromEntries(
-            Object.entries(settlementData).map(([key, value]) => [key, { ...prev[key], ...value }])
-          ),
-        }));
-      }
-
-      if (orgRes.data?.data) {
-        setOrg(orgRes.data.data);
-        setOrgForm({
-          name: orgRes.data.data.name || "",
-          phone: orgRes.data.data.phone || "",
-          email: orgRes.data.data.email || "",
-          address: orgRes.data.data.address || "",
-          tax_number: orgRes.data.data.tax_number || "",
-          commercial_register: orgRes.data.data.commercial_register || "",
-          activity: orgRes.data.data.activity || "",
-          employee_count: orgRes.data.data.employee_count || "",
-          foundation_year: orgRes.data.data.foundation_year || "",
-          currency: orgRes.data.data.currency || "SDG",
-          currency_symbol: orgRes.data.data.currency_symbol || "جنيه",
-        });
-      }
-
-      setLeaveRequests(leavesRes.data?.data || leavesRes.data || []);
-      setAdvanceRequests(advancesRes.data?.data || advancesRes.data || []);
-      setRoles(rolesRes.data?.data || rolesRes.data || []);
-      setWarnings(warningsRes.data?.data || warningsRes.data || []);
-      setEmployees(empsRes.data?.data || empsRes.data || []);
-      setShifts(shiftsRes.data?.data || shiftsRes.data || []);
-      
-      if (attendanceRes.data?.data) {
-        const attData = attendanceRes.data.data;
-        if (attData.shift_ids && attData.shift_ids.length > 0) {
-          setAttendance(attData);
-        } else {
-          setAttendance({ ...attData, shift_ids: shiftsRes.data?.data?.map(s => s.id) || [] });
+    async function safeFetch(url) {
+      try {
+        const res = await api.get(url);
+        if (res.status >= 400) {
+          console.warn(`GET ${url} returned ${res.status}`);
+          return null;
         }
-      } else {
-        setAttendance({ ...attendance, shift_ids: shiftsRes.data?.data?.map(s => s.id) || [] });
+        return res;
+      } catch (err) {
+        console.warn(`GET ${url} failed:`, err?.response?.data || err.message);
+        return null;
       }
-      if (leaveSettingsRes.data?.data) setLeaveSettings(leaveSettingsRes.data.data);
-      if (advanceSettingsRes.data?.data) setAdvanceSettings(advanceSettingsRes.data.data);
-      if (taxRes.data?.data) {
-        const taxData = taxRes.data.data;
-        setTaxBrackets(Array.isArray(taxData) ? taxData : taxData.brackets || []);
-      }
-      if (salaryIncRes.data?.data) setSalaryIncrease(salaryIncRes.data.data);
-      if (whatsappRes.data?.data) setWhatsapp(whatsappRes.data.data);
-      
-      if (shiftAssignRes.data?.data) {
-        const assignments = {};
-        (shiftAssignRes.data.data).forEach(a => {
-          assignments[parseInt(a.id)] = {
-            employee_id: parseInt(a.employee_id),
-            shift_id: parseInt(a.work_shift_id)
-          };
-        });
-        setShiftAssignments(assignments);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
+
+    const [orgRes, rolesRes, warningsRes, empsRes, shiftsRes, attendanceRes, leaveSettingsRes, advanceSettingsRes, taxRes, salaryIncRes, whatsappRes, shiftAssignRes, settlementsRes] = await Promise.all([
+      safeFetch("/organization"),
+      safeFetch("/roles"),
+      safeFetch("/discipline/warnings"),
+      safeFetch("/employees"),
+      safeFetch("/work-shifts"),
+      safeFetch("/settings/attendance"),
+      safeFetch("/settings/leaves"),
+      safeFetch("/settings/advances"),
+      safeFetch("/settings/tax-brackets"),
+      safeFetch("/settings/salary-increase"),
+      safeFetch("/settings/whatsapp"),
+      safeFetch("/shift-assignments?permanent=1"),
+      safeFetch("/settlements"),
+    ]);
+
+    if (settlementsRes?.data?.data) {
+      setSettlements(prev => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(settlementsRes.data.data).map(([key, value]) => [key, { ...prev[key], ...value }])
+        ),
+      }));
+    }
+
+    if (orgRes?.data?.data || orgRes?.data) {
+      const orgData = orgRes.data.data || orgRes.data;
+      setOrg(orgData);
+      setOrgForm({
+        name: orgData.name || "",
+        phone: orgData.phone || "",
+        email: orgData.email || "",
+        address: orgData.address || "",
+        tax_number: orgData.tax_number || "",
+        commercial_register: orgData.commercial_register || "",
+        activity: orgData.activity || "",
+        employee_count: orgData.employee_count || "",
+        foundation_year: orgData.foundation_year || "",
+        currency: orgData.currency || "SDG",
+        currency_symbol: orgData.currency_symbol || "جنيه",
+      });
+    }
+
+    if (rolesRes) setRoles(rolesRes.data?.data || rolesRes.data || []);
+    if (warningsRes) setWarnings(warningsRes.data?.data || warningsRes.data || []);
+    if (empsRes) setEmployees(empsRes.data?.data || empsRes.data || []);
+    if (shiftsRes) setShifts(shiftsRes.data?.data || shiftsRes.data || []);
+    
+    if (attendanceRes?.data?.data) {
+      const attData = attendanceRes.data.data;
+      const shiftIds = shiftsRes?.data?.data?.map(s => s.id) || [];
+      if (attData.shift_ids && attData.shift_ids.length > 0) {
+        setAttendance(attData);
+      } else {
+        setAttendance({ ...attData, shift_ids: shiftIds });
+      }
+    }
+    if (leaveSettingsRes?.data?.data) setLeaveSettings(leaveSettingsRes.data.data);
+    if (advanceSettingsRes?.data?.data) setAdvanceSettings(advanceSettingsRes.data.data);
+    if (taxRes?.data?.data) {
+      const taxData = taxRes.data.data;
+      setTaxBrackets(Array.isArray(taxData) ? taxData : taxData.brackets || []);
+    }
+    if (salaryIncRes?.data?.data) setSalaryIncrease(salaryIncRes.data.data);
+    if (whatsappRes?.data?.data) setWhatsapp(whatsappRes.data.data);
+    
+    if (shiftAssignRes?.data?.data) {
+      const assignments = {};
+      shiftAssignRes.data.data.forEach(a => {
+        assignments[parseInt(a.id)] = {
+          employee_id: parseInt(a.employee_id),
+          shift_id: parseInt(a.work_shift_id)
+        };
+      });
+      setShiftAssignments(assignments);
+    }
+
+    setLoading(false);
   }
 
   async function saveOrg() {
@@ -425,6 +405,22 @@ function SettingsPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setOrg(res.data?.data || {});
+      if (res.data?.data) {
+        const d = res.data.data;
+        setOrgForm({
+          name: d.name || "",
+          phone: d.phone || "",
+          email: d.email || "",
+          address: d.address || "",
+          tax_number: d.tax_number || "",
+          commercial_register: d.commercial_register || "",
+          activity: d.activity || "",
+          employee_count: d.employee_count || "",
+          foundation_year: d.foundation_year || "",
+          currency: d.currency || "SDG",
+          currency_symbol: d.currency_symbol || "جنيه",
+        });
+      }
       toast.success("تم حفظ بيانات المؤسسة بنجاح ✅");
     } catch (err) {
       toast.error("فشل حفظ البيانات ❌");
@@ -471,19 +467,6 @@ function SettingsPage() {
     }
   }
 
-  async function handleLeaveStatus(id, status) {
-    setLoadingStates(prev => ({ ...prev, handleLeaveStatus: true }));
-    try {
-      await api.post(`/leaves/requests/${id}/status`, { status });
-      toast.success(`تم ${status === "approved" ? "الموافقة على" : "رفض"} الإجازة ✅`);
-      loadAll();
-    } catch (err) {
-      toast.error("فشل تحديث الحالة ❌");
-    } finally {
-      setLoadingStates(prev => ({ ...prev, handleLeaveStatus: false }));
-    }
-  }
-
   async function saveAdvanceSettings() {
     setLoadingStates(prev => ({ ...prev, saveAdvanceSettings: true }));
     try {
@@ -493,19 +476,6 @@ function SettingsPage() {
       toast.error("فشل حفظ الإعدادات ❌");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveAdvanceSettings: false }));
-    }
-  }
-
-  async function handleAdvanceStatus(id, action) {
-    setLoadingStates(prev => ({ ...prev, handleAdvanceStatus: true }));
-    try {
-      await api.post(`/advances/requests/${id}/${action}`);
-      toast.success(`تم ${action === "approve" ? "الموافقة على" : "رفض"} السلفة ✅`);
-      loadAll();
-    } catch (err) {
-      toast.error("فشل تحديث الحالة ❌");
-    } finally {
-      setLoadingStates(prev => ({ ...prev, handleAdvanceStatus: false }));
     }
   }
 
@@ -643,7 +613,7 @@ function SettingsPage() {
       await api.post("/work-shifts", shiftData);
       toast.success("تم إنشاء الوردية ✅");
       const res = await api.get("/work-shifts");
-      setShifts(res.data?.data || []);
+      setShifts(res.data?.data || res.data || []);
       setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
       toast.error("فشل إنشاء الوردية ❌");
@@ -667,7 +637,7 @@ function SettingsPage() {
       await api.put(`/work-shifts/${id}`, shiftData);
       toast.success("تم تحديث الوردية ✅");
       const res = await api.get("/work-shifts");
-      setShifts(res.data?.data || []);
+      setShifts(res.data?.data || res.data || []);
       setShiftForm({ name: "", start_time: "08:00", end_time: "16:00", is_overnight: false, color: "#3B82F6", working_hours: 8, week_days: [0, 1, 2, 3, 4], weekend_days: [5, 6] });
     } catch (err) {
       console.error("فشل تحديث الوردية:", JSON.stringify(err.response?.data || err.message));
@@ -847,7 +817,6 @@ function SettingsPage() {
               <LeavesTab
                 leaveSettings={leaveSettings}
                 setLeaveSettings={setLeaveSettings}
-                leaveRequests={leaveRequests}
                 gradeKey={gradeKey}
                 setGradeKey={setGradeKey}
                 gradeDays={gradeDays}
@@ -855,8 +824,6 @@ function SettingsPage() {
                 addGradeLeave={addGradeLeave}
                 removeGradeLeave={removeGradeLeave}
                 saveLeaveSettings={saveLeaveSettings}
-                handleLeaveStatus={handleLeaveStatus}
-                getStatusBadge={getStatusBadge}
                 loadingStates={loadingStates}
               />
             )}
@@ -864,10 +831,7 @@ function SettingsPage() {
               <AdvancesTab
                 advanceSettings={advanceSettings}
                 setAdvanceSettings={setAdvanceSettings}
-                advanceRequests={advanceRequests}
                 saveAdvanceSettings={saveAdvanceSettings}
-                handleAdvanceStatus={handleAdvanceStatus}
-                getStatusBadge={getStatusBadge}
                 loadingStates={loadingStates}
               />
             )}
@@ -1563,7 +1527,6 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, re
 function LeavesTab({
   leaveSettings,
   setLeaveSettings,
-  leaveRequests,
   gradeKey,
   setGradeKey,
   gradeDays,
@@ -1571,8 +1534,6 @@ function LeavesTab({
   addGradeLeave,
   removeGradeLeave,
   saveLeaveSettings,
-  handleLeaveStatus,
-  getStatusBadge,
   loadingStates,
 }) {
   return (
@@ -1708,63 +1669,6 @@ function LeavesTab({
           <>💾 حفظ إعدادات الإجازات</>
         )}
       </button>
-
-      <h3 className="font-bold mb-4 text-right flex items-center gap-2">
-        <span>📋</span> طلبات الإجازات ({leaveRequests.length})
-      </h3>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-3 text-right">#</th>
-            <th className="border p-3 text-right">الموظف</th>
-            <th className="border p-3 text-right">النوع</th>
-            <th className="border p-3 text-right">من</th>
-            <th className="border p-3 text-right">إلى</th>
-            <th className="border p-3 text-right">الأيام</th>
-            <th className="border p-3 text-right">الحالة</th>
-            <th className="border p-3 text-center">إجراء</th>
-          </tr>
-        </thead>
-        <tbody>
-          {leaveRequests.length === 0 ? (
-            <tr>
-              <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
-            </tr>
-          ) : (
-            leaveRequests.map((r, i) => (
-              <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-3">{i + 1}</td>
-                <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
-                <td className="border p-3">
-                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">{r.type}</span>
-                </td>
-                <td className="border p-3">{formatDateDisplay(r.from_date)}</td>
-                <td className="border p-3">{formatDateDisplay(r.to_date)}</td>
-                <td className="border p-3">{r.days || 1}</td>
-                <td className="border p-3">{getStatusBadge(r.status)}</td>
-                <td className="border p-3 text-center">
-                  {r.status === "pending" && (
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleLeaveStatus(r.id, "rejected")}
-                        className="px-3 py-1 bg-red-600 text-white rounded text-xs"
-                      >
-                        رفض
-                      </button>
-                      <button
-                        onClick={() => handleLeaveStatus(r.id, "approved")}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-xs"
-                      >
-                        موافقة
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -1772,10 +1676,7 @@ function LeavesTab({
 function AdvancesTab({
   advanceSettings,
   setAdvanceSettings,
-  advanceRequests,
   saveAdvanceSettings,
-  handleAdvanceStatus,
-  getStatusBadge,
   loadingStates,
 }) {
   const shortAdvance = advanceSettings.short_advance || {};
@@ -1987,65 +1888,6 @@ function AdvancesTab({
           )}
         </button>
       </div>
-
-      <h3 className="font-bold mb-4 text-right flex items-center gap-2">
-        <span>📋</span> طلبات السلفيات ({advanceRequests.length})
-      </h3>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-3 text-right">#</th>
-            <th className="border p-3 text-right">الموظف</th>
-            <th className="border p-3 text-right">النوع</th>
-            <th className="border p-3 text-right">المبلغ</th>
-            <th className="border p-3 text-right">الأقساط</th>
-            <th className="border p-3 text-right">التاريخ</th>
-            <th className="border p-3 text-right">الحالة</th>
-            <th className="border p-3 text-center">إجراء</th>
-          </tr>
-        </thead>
-        <tbody>
-          {advanceRequests.length === 0 ? (
-            <tr>
-              <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
-            </tr>
-          ) : (
-            advanceRequests.map((r, i) => (
-              <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                <td className="border p-3">{i + 1}</td>
-                <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
-                <td className="border p-3">
-                  <span className={`px-2 py-1 rounded text-xs ${r.type === 'short' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {r.type === 'short' ? 'قصيرة' : 'طويلة'}
-                  </span>
-                </td>
-                <td className="border p-3">{parseFloat(r.amount).toLocaleString()} ج.س</td>
-                <td className="border p-3">{r.installments || 1} شهر</td>
-                <td className="border p-3">{formatDateDisplay(r.created_at)}</td>
-                <td className="border p-3">{getStatusBadge(r.status)}</td>
-                <td className="border p-3 text-center">
-                  {r.status === "pending" && (
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleAdvanceStatus(r.id, "reject")}
-                        className="px-3 py-1 bg-red-600 text-white rounded text-xs"
-                      >
-                        رفض
-                      </button>
-                      <button
-                        onClick={() => handleAdvanceStatus(r.id, "approve")}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-xs"
-                      >
-                        موافقة
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }
