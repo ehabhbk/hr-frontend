@@ -163,19 +163,16 @@ function SettingsPage() {
 
   const [advanceSettings, setAdvanceSettings] = useState({
     enabled: true,
-    // سلفة قصيرة - من إجمالي المرتب الشهري
+    // سلفة قصيرة - من إجمالي المرتب الشهري فقط
     short_advance: {
       enabled: true,
-      max_percent: 50, // نسبة من إجمالي المرتب
-      max_amount: 50000, // الحد الأقصى بالجنيه
+      max_percent: 50, // نسبة من إجمالي المرتب فقط
       min_service_months: 0, // لا تشترط مدة خدمة
-      deduction_percent: 100, // نسبة خصم من إجمالي المرتب (100% يعني تخصم كلها)
     },
     // سلفة طويلة - تقسط على أشهر
     long_advance: {
       enabled: true,
-      max_percent: 100, // نسبة من إجمالي المرتب
-      max_amount: 500000, // الحد الأقصى بالجنيه
+      max_amount: 500000, // الحد الأقصى بالجنيه فقط
       min_amount: 10000, // الحد الأدنى بالجنيه
       min_service_months: 6, // أشهر الخدمة المطلوبة
       max_installments: 12, // أقساط شهرية
@@ -1722,39 +1719,19 @@ function AdvancesTab({
           <p className="text-sm text-gray-600 mb-4">تخصم من مرتب الشهر الجاري</p>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1 text-right">النسبة من إجمالي المرتب (%)</label>
-                <input
-                  type="number"
-                  value={shortAdvance.max_percent || 50}
-                  onChange={(e) => updateShortAdvance('max_percent', parseInt(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-right"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى بالجنيه</label>
-                <input
-                  type="number"
-                  value={shortAdvance.max_amount || 50000}
-                  onChange={(e) => updateShortAdvance('max_amount', parseInt(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-right"
-                />
-              </div>
-            </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-right">نسبة الخصم من إجمالي المرتب (%)</label>
+              <label className="block text-sm font-medium mb-1 text-right">النسبة المسموحة من إجمالي المرتب (%)</label>
               <input
                 type="number"
-                value={shortAdvance.deduction_percent || 100}
-                onChange={(e) => updateShortAdvance('deduction_percent', parseInt(e.target.value))}
+                value={shortAdvance.max_percent || 50}
+                onChange={(e) => updateShortAdvance('max_percent', parseInt(e.target.value))}
                 className="w-full border rounded-lg px-3 py-2 text-right"
               />
-              <p className="text-xs text-gray-500 mt-1">100% = تخصم من الراتب كامل، 50% = نصف الراتب</p>
+              <p className="text-xs text-gray-500 mt-1">يتم احتساب المبلغ تلقائياً من إجمالي الراتب الشهري</p>
             </div>
             <div className="bg-green-100 p-3 rounded-lg">
               <p className="text-sm text-green-800">
-                <strong>مثال:</strong> راتب 200,000 × {shortAdvance.max_percent || 50}% = {((200000 * (shortAdvance.max_percent || 50)) / 100).toLocaleString()} ج.س (الحد الأقصى: {shortAdvance.max_amount || 50}%)
+                <strong>مثال:</strong> راتب 200,000 × {shortAdvance.max_percent || 50}% = {((200000 * (shortAdvance.max_percent || 50)) / 100).toLocaleString()} ج.س (الحد الأقصى المسموح)
               </p>
             </div>
           </div>
@@ -1779,25 +1756,14 @@ function AdvancesTab({
           <p className="text-sm text-gray-600 mb-4">تقسط على عدة أشهر</p>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1 text-right">النسبة من إجمالي المرتب (%)</label>
-                <input
-                  type="number"
-                  value={longAdvance.max_percent || 100}
-                  onChange={(e) => updateLongAdvance('max_percent', parseInt(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-right"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى بالجنيه</label>
-                <input
-                  type="number"
-                  value={longAdvance.max_amount || 500000}
-                  onChange={(e) => updateLongAdvance('max_amount', parseInt(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-right"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-right">الحد الأقصى بالجنيه</label>
+              <input
+                type="number"
+                value={longAdvance.max_amount || 500000}
+                onChange={(e) => updateLongAdvance('max_amount', parseInt(e.target.value))}
+                className="w-full border rounded-lg px-3 py-2 text-right"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1839,11 +1805,6 @@ function AdvancesTab({
                 />
               </div>
             </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>مثال:</strong> راتب 200,000 × {longAdvance.max_percent || 100}% = {((200000 * (longAdvance.max_percent || 100)) / 100).toLocaleString()} ج.س
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -1855,7 +1816,7 @@ function AdvancesTab({
           <div className="bg-white p-3 rounded-lg">
             <p className="text-2xl font-bold text-green-600">{shortAdvance.enabled ? "✅" : "❌"}</p>
             <p className="text-sm">سلفة قصيرة</p>
-            <p className="text-xs text-gray-500">حتى {shortAdvance.max_percent || 50}% ({shortAdvance.max_amount || 50}%)</p>
+            <p className="text-xs text-gray-500">حتى {shortAdvance.max_percent || 50}% من المرتب</p>
           </div>
           <div className="bg-white p-3 rounded-lg">
             <p className="text-2xl font-bold text-blue-600">{longAdvance.enabled ? "✅" : "❌"}</p>

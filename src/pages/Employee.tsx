@@ -97,7 +97,9 @@ export default function Employee() {
     amount: "",
     installments: 1,
     note: "",
+    attachment: null,
   });
+  const [advanceAttachmentPreview, setAdvanceAttachmentPreview] = useState(null);
   const token = localStorage.getItem("token");
 
   const [incentiveData, setIncentiveData] = useState({
@@ -296,23 +298,26 @@ export default function Employee() {
     }
 
     setLoading(true);
+    const formData = new FormData();
+    formData.append("employee_id", employee.id);
+    formData.append("type", advanceData.type);
+    formData.append("amount", advanceData.amount);
+    formData.append("installments", advanceData.installments);
+    formData.append("note", advanceData.note || "");
+    if (advanceData.attachment) {
+      formData.append("attachment", advanceData.attachment);
+    }
+
     api
-      .post(
-        "/advances/requests",
-        {
-          employee_id: employee.id,
-          type: advanceData.type,
-          amount: advanceData.amount,
-          installments: advanceData.installments,
-          note: advanceData.note,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      .post("/advances/requests", formData, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+      })
       .then(() => {
         toast.success("✅ تم تقديم طلب السلفة بنجاح - في انتظار الموافقة");
         refreshEmployee();
         setShowAdvanceModal(false);
-        setAdvanceData({ type: "short", amount: "", installments: 1, note: "" });
+        setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null });
+        setAdvanceAttachmentPreview(null);
       })
       .catch((err) => {
         toast.error(err?.response?.data?.message || "❌ فشل تقديم طلب السلفة");
@@ -1311,11 +1316,39 @@ export default function Employee() {
                   rows="2"
                 />
 
+                <label className="block mb-2">مرفق (صورة / PDF):</label>
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    setAdvanceData({ ...advanceData, attachment: file });
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setAdvanceAttachmentPreview(ev.target.result);
+                      reader.readAsDataURL(file);
+                    } else {
+                      setAdvanceAttachmentPreview(null);
+                    }
+                  }}
+                  className="w-full border rounded p-2 mb-2"
+                />
+                {advanceAttachmentPreview && (
+                  <div className="mb-4">
+                    {advanceData.attachment?.type?.startsWith("image/") ? (
+                      <img src={advanceAttachmentPreview} alt="مرفق" className="max-h-32 rounded border" />
+                    ) : (
+                      <div className="bg-gray-100 p-2 rounded text-sm text-gray-600">📄 {advanceData.attachment?.name}</div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between mt-6">
                   <button
                     onClick={() => {
                       setShowAdvanceModal(false);
-                      setAdvanceData({ type: "short", amount: "", installments: 1, note: "" });
+                      setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null });
+                      setAdvanceAttachmentPreview(null);
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
                   >

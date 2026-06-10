@@ -2295,12 +2295,14 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                     <tr className="bg-amber-100">
                       <th className="p-2 border">#</th>
                       <th className="p-2 border">القيمة</th>
+                      <th className="p-2 border">النوع</th>
                       <th className="p-2 border">التاريخ</th>
                       <th className="p-2 border">الحالة</th>
                       <th className="p-2 border">الأقساط</th>
                       <th className="p-2 border">قسط شهري</th>
                       <th className="p-2 border">المدفوع</th>
                       <th className="p-2 border">المتبقي</th>
+                      <th className="p-2 border">المرفق</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2308,6 +2310,11 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-amber-50/30'}>
                         <td className="p-2 border text-center">{i + 1}</td>
                         <td className="p-2 border text-center font-bold">{formatCurrency(advance.amount)}</td>
+                        <td className="p-2 border text-center">
+                          <span className={`px-2 py-1 rounded text-xs ${advance.type === 'short' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {advance.type === 'short' ? 'قصيرة' : 'طويلة'}
+                          </span>
+                        </td>
                         <td className="p-2 border text-center">{formatDateDisplay(advance.date)}</td>
                         <td className="p-2 border text-center">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -2322,6 +2329,15 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                         <td className="p-2 border text-center">{formatCurrency(advance.monthly_installment)}</td>
                         <td className="p-2 border text-center">{formatCurrency(advance.total_paid)}</td>
                         <td className="p-2 border text-center font-bold text-red-600">{formatCurrency(advance.remaining_amount)}</td>
+                        <td className="p-2 border text-center">
+                          {advance.attachment_url ? (
+                            <a href={advance.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
+                              📎 عرض
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

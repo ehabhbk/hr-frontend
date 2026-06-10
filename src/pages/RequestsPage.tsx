@@ -412,6 +412,7 @@ export default function RequestsPage() {
                         <th className="border p-3 text-right">المبلغ</th>
                         <th className="border p-3 text-right">الأقساط</th>
                         <th className="border p-3 text-right">التاريخ</th>
+                        <th className="border p-3 text-right">المرفق</th>
                         <th className="border p-3 text-right">الحالة</th>
                         <th className="border p-3 text-center">إجراء</th>
                       </tr>
@@ -419,7 +420,7 @@ export default function RequestsPage() {
                     <tbody>
                       {filteredAdvances.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+                          <td colSpan="9" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
                         </tr>
                       ) : (
                         filteredAdvances.map((r, i) => (
@@ -434,6 +435,15 @@ export default function RequestsPage() {
                             <td className="border p-3">{parseFloat(r.amount).toLocaleString()} ج.س</td>
                             <td className="border p-3">{r.installments || 1} شهر</td>
                             <td className="border p-3">{formatDateDisplay(r.created_at)}</td>
+                            <td className="border p-3 text-center">
+                              {r.attachment_url ? (
+                                <a href={r.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
+                                  📎 عرض
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
                             <td className="border p-3">{getStatusBadge(r.status)}</td>
                             <td className="border p-3 text-center">
                               {r.status === "pending" && (
