@@ -109,7 +109,6 @@ function SettingsPage() {
 
   const [org, setOrg] = useState({});
   const [roles, setRoles] = useState([]);
-  const [warnings, setWarnings] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [shiftAssignments, setShiftAssignments] = useState({});
@@ -147,6 +146,7 @@ function SettingsPage() {
     absence_after_minutes: 60,
     absence_deduction_days: 1,
     termination_after_days: 30,
+    absence_rules_enabled: true,
   });
 
   const [leaveSettings, setLeaveSettings] = useState({
@@ -301,10 +301,9 @@ function SettingsPage() {
       }
     }
 
-    const [orgRes, rolesRes, warningsRes, empsRes, shiftsRes, attendanceRes, leaveSettingsRes, advanceSettingsRes, taxRes, salaryIncRes, whatsappRes, shiftAssignRes, settlementsRes] = await Promise.all([
+    const [orgRes, rolesRes, empsRes, shiftsRes, attendanceRes, leaveSettingsRes, advanceSettingsRes, taxRes, salaryIncRes, whatsappRes, shiftAssignRes, settlementsRes] = await Promise.all([
       safeFetch("/organization"),
       safeFetch("/roles"),
-      safeFetch("/discipline/warnings"),
       safeFetch("/employees"),
       safeFetch("/work-shifts"),
       safeFetch("/settings/attendance"),
@@ -345,7 +344,6 @@ function SettingsPage() {
     }
 
     if (rolesRes) setRoles(rolesRes.data?.data || rolesRes.data || []);
-    if (warningsRes) setWarnings(warningsRes.data?.data || warningsRes.data || []);
     if (empsRes) setEmployees(empsRes.data?.data || empsRes.data || []);
     if (shiftsRes) setShifts(shiftsRes.data?.data || shiftsRes.data || []);
     
@@ -429,26 +427,12 @@ function SettingsPage() {
   async function saveAttendance() {
     setLoadingStates(prev => ({ ...prev, saveAttendance: true }));
     try {
-      const res = await api.put("/settings/attendance", attendance);
-      // Recalculate all attendance records with new settings
-      await api.post("/attendance-records/recalculate");
-      toast.success("تم حفظ الإعدادات وإعادة حساب السجلات ✅");
+      await api.put("/settings/attendance", attendance);
+      toast.success("تم حفظ إعدادات الحضور والغياب ✅");
     } catch (err) {
       toast.error("فشل حفظ الإعدادات ❌");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveAttendance: false }));
-    }
-  }
-  
-  async function recalculateRecords() {
-    setLoadingStates(prev => ({ ...prev, recalculate: true }));
-    try {
-      const res = await api.post("/attendance-records/recalculate");
-      toast.success(res.data?.message || "تم إعادة حساب السجلات ✅");
-    } catch (err) {
-      toast.error("فشل إعادة حساب السجلات ❌");
-    } finally {
-      setLoadingStates(prev => ({ ...prev, recalculate: false }));
     }
   }
 
@@ -803,11 +787,9 @@ function SettingsPage() {
               <AttendanceTab
                 attendance={attendance}
                 setAttendance={setAttendance}
-                warnings={warnings}
                 saveAttendance={saveAttendance}
-                recalculateRecords={recalculateRecords}
                 shifts={shifts}
-                loadingSave={loadingStates.saveAttendance || loadingStates.recalculate}
+                loadingSave={loadingStates.saveAttendance}
               />
             )}
             {activeTab === "leaves" && (
@@ -1276,11 +1258,11 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
   );
 }
 
-function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, recalculateRecords, shifts, loadingSave }) {
+function AttendanceTab({ attendance, setAttendance, saveAttendance, shifts, loadingSave }) {
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-right flex items-center gap-2">
-        <span className="text-2xl">⏰</span> إعدادات الحضور والإنذارات
+        <span className="text-2xl">⏰</span> إعدادات الحضور والغياب
       </h2>
 
       <div className="bg-blue-50 p-5 rounded-lg mb-6">
@@ -1382,7 +1364,18 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, re
           <h3 className="font-bold mb-4 text-right text-red-800 flex items-center gap-2">
             <span>❌</span> قواعد الغياب والخصم
           </h3>
-          <div className="space-y-4">
+          <div className="mb-4">
+            <label className="flex items-center gap-3 cursor-pointer justify-end">
+              <span className="text-sm font-medium text-gray-700">تفعيل قواعد الغياب والخصم</span>
+              <div
+                onClick={() => setAttendance({ ...attendance, absence_rules_enabled: !attendance.absence_rules_enabled })}
+                className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer ${attendance.absence_rules_enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+              >
+                <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all shadow ${attendance.absence_rules_enabled ? 'left-6' : 'left-0.5'}`} />
+              </div>
+            </label>
+          </div>
+          <div className={`space-y-4 transition-opacity ${attendance.absence_rules_enabled ? '' : 'opacity-50 pointer-events-none'}`}>
             <div>
               <label className="block text-sm font-medium mb-2 text-right">احتساب الغياب بعد (دقيقة)</label>
               <input
@@ -1439,83 +1432,20 @@ function AttendanceTab({ attendance, setAttendance, warnings, saveAttendance, re
         </div>
       </div>
 
-      <div className="flex gap-4 justify-center mt-6">
-        <button 
-          onClick={recalculateRecords} 
-          disabled={loadingSave}
-          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-medium disabled:bg-purple-400 flex items-center gap-2"
-        >
-          <span>🔄</span> إعادة حساب السجلات
-        </button>
+      <div className="flex justify-center mt-6">
         <button 
           onClick={saveAttendance} 
           disabled={loadingSave}
-          className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium disabled:bg-green-400 flex items-center gap-2 justify-center"
+          className="bg-green-600 text-white px-10 py-3 rounded-lg hover:bg-green-700 font-medium disabled:bg-green-400 flex items-center gap-2 justify-center"
         >
           {loadingSave ? (
             <>
               <span className="animate-spin">⟳</span> جاري الحفظ...
             </>
           ) : (
-            <>💾 حفظ وتحديث السجلات</>
+            <>💾 حفظ إعدادات الحضور والغياب</>
           )}
         </button>
-      </div>
-
-      <div className="bg-gray-50 p-5 rounded-lg mt-6">
-        <h3 className="font-bold mb-4 text-right flex items-center gap-2">
-          <span>📋</span> سجل الإنذارات ({warnings.length})
-        </h3>
-        {(() => {
-          const canDeleteWarning = hasCurrentPermission('warnings.delete') || hasCurrentPermission('warnings.manage');
-          return (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-white">
-                  <th className="border p-3 text-right">#</th>
-                  <th className="border p-3 text-right">الموظف</th>
-                  <th className="border p-3 text-right">الإنذار</th>
-                  <th className="border p-3 text-right">التاريخ</th>
-                  {canDeleteWarning && <th className="border p-3 text-center">حذف</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {warnings.slice(0, 10).map((w, i) => (
-                  <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="border p-3">{i + 1}</td>
-                    <td className="border p-3 font-medium">{w.employee?.name || w.employee_id}</td>
-                    <td className="border p-3">{w.note}</td>
-                    <td className="border p-3">{formatDateDisplay(w.created_at)}</td>
-                    {canDeleteWarning && (
-                      <td className="border p-3 text-center">
-                        <button
-                          onClick={() => {
-                            if (window.confirm("هل تريد حذف هذا الإنذار؟")) {
-                              api.delete(`/warnings/${w.id}`)
-                                .then(() => {
-                                  setWarnings(warnings.filter(x => x.id !== w.id));
-                                  toast.success("تم حذف الإنذار");
-                                })
-                                .catch((err) => toast.error(err.response?.data?.error || "فشل الحذف"));
-                            }
-                          }}
-                          className="text-red-600 hover:bg-red-100 px-2 py-1 rounded"
-                        >
-                          🗑️
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-                {warnings.length === 0 && (
-                  <tr>
-                    <td colSpan={canDeleteWarning ? "5" : "4"} className="border p-4 text-center text-gray-500">لا توجد إنذارات</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          );
-        })()}
       </div>
     </div>
   );
