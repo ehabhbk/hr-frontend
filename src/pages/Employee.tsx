@@ -68,7 +68,8 @@ export default function Employee() {
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
-  const [showReturnAssetModal, setShowReturnAssetModal] = useState(false);
+  const [showAssetModal, setShowAssetModal] = useState(false);
+  const [assetTab, setAssetTab] = useState("return");
   const [showEvaluationModal, setShowEvaluationModal] = useState(false);
   const [showVacationModal, setShowVacationModal] = useState(false);
   const [showIncentiveModal, setShowIncentiveModal] = useState(false);
@@ -76,6 +77,8 @@ export default function Employee() {
   const [selectedWarningReason, setSelectedWarningReason] = useState("");
   const [customWarningReason, setCustomWarningReason] = useState("");
   const [returnAssetNote, setReturnAssetNote] = useState("");
+  const [assetForm, setAssetForm] = useState({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "", status: "active" });
+  const [editAssetId, setEditAssetId] = useState(null);
   const [cvBlobUrl, setCvBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -233,6 +236,37 @@ export default function Employee() {
         refreshEmployee();
       })
       .catch(() => toast.error("❌ فشل في تسجيل الإرجاع"));
+  };
+
+  const addAsset = () => {
+    api
+      .post("/employee-assets", { ...assetForm, employee_id: employee.id, value: parseFloat(assetForm.value) || 0 }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        toast.success("✅ تم إضافة العهدة بنجاح");
+        setAssetForm({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "" });
+        refreshEmployee();
+      })
+      .catch(() => toast.error("❌ فشل في إضافة العهدة"));
+  };
+
+  const updateAsset = () => {
+    if (!editAssetId) return;
+    api
+      .put(`/employee-assets/${editAssetId}`, {
+        ...assetForm,
+        value: parseFloat(assetForm.value) || 0,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        toast.success("✅ تم تحديث العهدة بنجاح");
+        setEditAssetId(null);
+        setAssetForm({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "", status: "active" });
+        refreshEmployee();
+      })
+      .catch(() => toast.error("❌ فشل في تحديث العهدة"));
   };
 
   const cancelWarning = (warningId) => {
@@ -819,10 +853,10 @@ export default function Employee() {
 
               {canManageAssets && (
                 <button
-                  onClick={() => setShowReturnAssetModal(true)}
+                  onClick={() => { setShowAssetModal(true); setAssetTab("return"); }}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-lg"
                 >
-                  ↩️ إرجاع عهد
+                  📦 إدارة العهد
                 </button>
               )}
 
@@ -859,7 +893,7 @@ export default function Employee() {
                   onClick={() => setShowContractModal(true)}
                   className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 text-lg"
                 >
-                  📄 {employee.contract ? 'تجديد العقد' : 'إنشاء عقد'}
+                  📄 تجديد عقد
                 </button>
               )}
 
@@ -1124,78 +1158,307 @@ export default function Employee() {
             </div>
           )}
 
-          {/* مودل إرجاع العهد */}
-          {showReturnAssetModal && (
+          {/* مودل إدارة العهد */}
+          {showAssetModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 w-[600px]" dir="rtl">
-                <h2 className="text-xl font-bold mb-4 text-purple-800">↩️ إرجاع العهد للموظف</h2>
-                
-                {employee.assets && employee.assets.length > 0 ? (
-                  <>
-                    <p className="text-gray-600 mb-4">اختر العهدة التي تم إرجاعها للمؤسسة:</p>
-                    
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                      {employee.assets.map((asset) => (
-                        <div 
-                          key={asset.id} 
-                          className={`p-4 rounded-lg border-2 transition cursor-pointer ${
-                            asset.returned_date 
-                              ? 'border-gray-200 bg-gray-50 opacity-60' 
-                              : 'border-purple-300 bg-purple-50 hover:bg-purple-100'
-                          }`}
-                          onClick={() => {
-                            if (!asset.returned_date) {
-                              returnAsset(asset.id);
-                            }
-                          }}
+              <div className="bg-white rounded-lg shadow-lg p-6 w-[650px]" dir="rtl">
+                <h2 className="text-xl font-bold mb-4 text-blue-800">📦 إدارة العهد</h2>
+
+                {/* Tabs */}
+                <div className="flex border-b mb-4">
+                  <button
+                    onClick={() => setAssetTab("add")}
+                    className={`px-4 py-2 font-medium ${assetTab === "add" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+                  >
+                    ➕ إضافة عهدة
+                  </button>
+                  <button
+                    onClick={() => setAssetTab("return")}
+                    className={`px-4 py-2 font-medium ${assetTab === "return" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+                  >
+                    ↩️ إرجاع عهدة
+                  </button>
+                  <button
+                    onClick={() => setAssetTab("edit")}
+                    className={`px-4 py-2 font-medium ${assetTab === "edit" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500"}`}
+                  >
+                    ✏️ تعديل عهدة
+                  </button>
+                </div>
+
+                {/* Tab: إضافة عهدة */}
+                {assetTab === "add" && (
+                  <div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">اسم العهدة</label>
+                        <input
+                          type="text"
+                          value={assetForm.name}
+                          onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                          className="w-full border rounded p-2"
+                          placeholder="مثال: لاب توب"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">النوع</label>
+                        <select
+                          value={assetForm.type}
+                          onChange={(e) => setAssetForm({ ...assetForm, type: e.target.value })}
+                          className="w-full border rounded p-2"
                         >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <span className="font-bold text-lg">{asset.name}</span>
-                              <span className="text-sm text-gray-500 mr-2">
-                                ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
-                              </span>
-                              {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
-                              {asset.asset_number && <p className="text-xs text-gray-500">رقم العهدة: {asset.asset_number}</p>}
-                            </div>
-                            <div className="text-left">
-                              <span className="font-bold text-purple-600 text-lg">
-                                {parseFloat(asset.value || 0).toLocaleString()} ج.س
-                              </span>
-                              {asset.returned_date ? (
-                                <p className="text-xs text-green-600">✓ تم الإرجاع: {formatDateDisplay(asset.returned_date)}</p>
-                              ) : (
-                                <p className="text-xs text-gray-500">اضغط للإرجاع</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                          <option value="fixed">ثابتة</option>
+                          <option value="movable">منقولة</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">القيمة (ج.س)</label>
+                        <input
+                          type="number"
+                          value={assetForm.value}
+                          onChange={(e) => setAssetForm({ ...assetForm, value: e.target.value })}
+                          className="w-full border rounded p-2"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">تاريخ الإصدار</label>
+                        <input
+                          type="date"
+                          value={assetForm.issue_date}
+                          onChange={(e) => setAssetForm({ ...assetForm, issue_date: e.target.value })}
+                          className="w-full border rounded p-2"
+                        />
+                      </div>
                     </div>
-                    
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <label className="block text-sm font-medium mb-2">ملاحظة (اختياري):</label>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-1">الوصف</label>
                       <textarea
-                        value={returnAssetNote}
-                        onChange={(e) => setReturnAssetNote(e.target.value)}
-                        className="w-full border rounded p-2 text-sm"
+                        value={assetForm.description}
+                        onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })}
+                        className="w-full border rounded p-2"
                         rows="2"
-                        placeholder="أضف ملاحظة عن حالة العهدة عند الإرجاع..."
+                        placeholder="وصف العهدة..."
                       />
                     </div>
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <p className="text-4xl mb-2">📦</p>
-                    <p>لا توجد عهد مسجلة لهذا الموظف</p>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-1">ملاحظات</label>
+                      <textarea
+                        value={assetForm.notes}
+                        onChange={(e) => setAssetForm({ ...assetForm, notes: e.target.value })}
+                        className="w-full border rounded p-2"
+                        rows="2"
+                        placeholder="ملاحظات..."
+                      />
+                    </div>
+                    <button
+                      onClick={addAsset}
+                      disabled={!assetForm.name}
+                      className="mt-4 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      💾 حفظ العهدة
+                    </button>
                   </div>
                 )}
 
-                <div className="flex justify-between mt-6">
+                {/* Tab: إرجاع عهدة */}
+                {assetTab === "return" && (
+                  <div>
+                    {employee.assets && employee.assets.filter(a => !a.returned_date).length > 0 ? (
+                      <>
+                        <p className="text-gray-600 mb-4">اختر العهدة المراد إرجاعها:</p>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                          {employee.assets.map((asset) => (
+                            <div
+                              key={asset.id}
+                              className={`p-4 rounded-lg border-2 transition cursor-pointer ${
+                                asset.returned_date
+                                  ? 'border-gray-200 bg-gray-50 opacity-60'
+                                  : 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+                              }`}
+                              onClick={() => {
+                                if (!asset.returned_date) {
+                                  returnAsset(asset.id);
+                                }
+                              }}
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <span className="font-bold text-lg">{asset.name}</span>
+                                  <span className="text-sm text-gray-500 mr-2">
+                                    ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
+                                  </span>
+                                  {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
+                                </div>
+                                <div className="text-left">
+                                  <span className="font-bold text-blue-600 text-lg">
+                                    {parseFloat(asset.value || 0).toLocaleString()} ج.س
+                                  </span>
+                                  {asset.returned_date ? (
+                                    <p className="text-xs text-green-600">✓ تم الإرجاع: {formatDateDisplay(asset.returned_date)}</p>
+                                  ) : (
+                                    <p className="text-xs text-gray-500">اضغط للإرجاع</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                          <label className="block text-sm font-medium mb-2">ملاحظة (اختياري):</label>
+                          <textarea
+                            value={returnAssetNote}
+                            onChange={(e) => setReturnAssetNote(e.target.value)}
+                            className="w-full border rounded p-2 text-sm"
+                            rows="2"
+                            placeholder="أضف ملاحظة عن حالة العهدة عند الإرجاع..."
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p className="text-4xl mb-2">📦</p>
+                        <p>لا توجد عهد نشطة للإرجاع</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab: تعديل عهدة */}
+                {assetTab === "edit" && (
+                  <div>
+                    {!editAssetId ? (
+                      <div>
+                        <p className="text-gray-600 mb-4">اختر العهدة لتعديلها:</p>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                          {employee.assets && employee.assets.length > 0 ? employee.assets.map((asset) => (
+                            <div
+                              key={asset.id}
+                              onClick={() => {
+                                setEditAssetId(asset.id);
+                                setAssetForm({
+                                  name: asset.name || "",
+                                  description: asset.description || "",
+                                  type: asset.type || "fixed",
+                                  value: asset.value?.toString() || "",
+                                  issue_date: asset.issue_date ? asset.issue_date.split('T')[0] : "",
+                                  notes: asset.notes || "",
+                                });
+                              }}
+                              className="p-4 rounded-lg border-2 border-gray-200 hover:border-yellow-400 cursor-pointer bg-white"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <span className="font-bold text-lg">{asset.name}</span>
+                                  <span className="text-sm text-gray-500 mr-2">
+                                    ({asset.type === "fixed" ? "ثابتة" : "منقولة"})
+                                  </span>
+                                  {asset.description && <p className="text-sm text-gray-400">{asset.description}</p>}
+                                </div>
+                                <span className={`text-sm ${asset.returned_date ? 'text-green-600' : 'text-blue-600'}`}>
+                                  {asset.returned_date ? "تم الإرجاع" : "نشطة"}
+                                </span>
+                              </div>
+                            </div>
+                          )) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>لا توجد عهد مسجلة</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-gray-600 mb-4">تعديل العهدة: <span className="font-bold">{assetForm.name}</span></p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">اسم العهدة</label>
+                            <input
+                              type="text"
+                              value={assetForm.name}
+                              onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                              className="w-full border rounded p-2"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">النوع</label>
+                            <select
+                              value={assetForm.type}
+                              onChange={(e) => setAssetForm({ ...assetForm, type: e.target.value })}
+                              className="w-full border rounded p-2"
+                            >
+                              <option value="fixed">ثابتة</option>
+                              <option value="movable">منقولة</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">القيمة (ج.س)</label>
+                            <input
+                              type="number"
+                              value={assetForm.value}
+                              onChange={(e) => setAssetForm({ ...assetForm, value: e.target.value })}
+                              className="w-full border rounded p-2"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">الحالة</label>
+                            <select
+                              value={assetForm.status || "active"}
+                              onChange={(e) => setAssetForm({ ...assetForm, status: e.target.value })}
+                              className="w-full border rounded p-2"
+                            >
+                              <option value="active">نشطة</option>
+                              <option value="returned">مرتجعة</option>
+                              <option value="damaged">تالفة</option>
+                              <option value="lost">مفقودة</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium mb-1">الوصف</label>
+                          <textarea
+                            value={assetForm.description}
+                            onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })}
+                            className="w-full border rounded p-2"
+                            rows="2"
+                          />
+                        </div>
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium mb-1">ملاحظات</label>
+                          <textarea
+                            value={assetForm.notes}
+                            onChange={(e) => setAssetForm({ ...assetForm, notes: e.target.value })}
+                            className="w-full border rounded p-2"
+                            rows="2"
+                          />
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={updateAsset}
+                            disabled={!assetForm.name}
+                            className="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 disabled:bg-gray-400"
+                          >
+                            💾 حفظ التعديلات
+                          </button>
+                          <button
+                            onClick={() => { setEditAssetId(null); setAssetForm({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "", status: "active" }); }}
+                            className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                          >
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-between mt-6 pt-4 border-t">
                   <button
                     onClick={() => {
-                      setShowReturnAssetModal(false);
+                      setShowAssetModal(false);
                       setReturnAssetNote("");
+                      setEditAssetId(null);
+                      setAssetForm({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "", status: "active" });
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
                   >
@@ -1259,7 +1522,7 @@ export default function Employee() {
           {showContractModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
               <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]">
-                <h2 className="text-xl font-bold mb-4">📄 إنشاء عقد عمل</h2>
+                <h2 className="text-xl font-bold mb-4">📄 {employee.contract ? 'تجديد عقد عمل' : 'إنشاء عقد عمل'}</h2>
 
                 <label className="block mb-2">مدة العقد (بالأشهر):</label>
                 <input
@@ -1290,7 +1553,7 @@ export default function Employee() {
                     onClick={generateContract}
                     className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
                   >
-                    إنشاء العقد
+                    {employee.contract ? 'تجديد العقد' : 'إنشاء العقد'}
                   </button>
                 </div>
               </div>

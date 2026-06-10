@@ -38,6 +38,8 @@
 - تحديث `api.ts` (types): إضافة `attachment` و `attachment_url` إلى `LeaveRequest` interface
 - **إصلاح `active_leave` bug**: مقارنة `$leave->from_date` (Carbon) مع `$today` (string) باستخدام `->format('Y-m-d')` بدلاً من المقارنة المباشرة التي كانت تفشل بسبب تحويل Carbon إلى string يتضمن الوقت
 - **إصلاح `remaining_days`**: استخدام `DateTime::diff->days` بدلاً من `Carbon::diffInDays` التي كانت تعيد قيمة سالبة (signed) في Carbon 3.x
+- **زر إدارة العهد**: تغيير زر "↩️ إرجاع عهد" إلى "📦 إدارة العهد" مع مودال بثلاث تبويبات (إضافة عهدة، إرجاع عهدة، تعديل عهدة) — يستخدم API `POST /employee-assets` للإضافة و `PUT /employee-assets/{id}` للتعديل و `POST /employee-assets/{id}/return` للإرجاع
+- **زر تجديد عقد**: تغيير زر "إنشاء عقد" إلى "تجديد عقد" مع تحديث عنوان المودال ديناميكياً حسب وجود عقد سابق
 
 ### In Progress
 - (none)
