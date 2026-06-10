@@ -48,9 +48,10 @@ export default function AttendanceLogs() {
     notes: "",
   });
 
+  const todayStr = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState({
-    from_date: "",
-    to_date: "",
+    from_date: todayStr,
+    to_date: todayStr,
     device_id: "",
     employee_id: "",
   });

@@ -68,7 +68,10 @@ export default function RequestsPage() {
   const [actionLoading, setActionLoading] = useState(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem("sidebarCollapsed") === "1");
-  const [filters, setFilters] = useState({ from_date: "", to_date: "", employee_id: "" });
+  const now = new Date();
+  const monthFirstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const monthLastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const [filters, setFilters] = useState({ from_date: monthFirstDay, to_date: monthLastDay, employee_id: "" });
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
