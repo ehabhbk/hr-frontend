@@ -7,7 +7,7 @@ export default function Topbar({ title }) {
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
   const username = localStorage.getItem("username");
-  const avatar = localStorage.getItem("avatar") || "/default-avatar.png";
+  const avatar = localStorage.getItem("avatar") || "/default-avatar.svg";
   const token = localStorage.getItem("token");
 
   // Check if admin from localStorage permissions

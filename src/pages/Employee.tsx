@@ -1,10 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "../services/api";
+import api, { getStorageUrl } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
+import Topbar from "../components/Topbar";
+
+const leaveTypeLabels = {
+  official: "رسمية",
+  sick: "مرضية",
+  maternity: "أمومة",
+  hajj: "حج",
+  unpaid: "بدون مرتب",
+};
 
 const WARNING_REASONS = [
   { value: "neglect", label: "إهمال العهد" },
@@ -437,66 +446,54 @@ export default function Employee() {
     return <div className="p-6 text-lg font-semibold">⏳ جاري تحميل بيانات الموظف...</div>;
   }
 
-  console.log('Employee page - rendering, employee:', employee.name);
+  console.log('Employee page - rendering:', { name: employee.name, status: employee.status, active_leave: employee.active_leave, leave_count: employee.leave_count });
 
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       <Sidebar />
 
       <div className="flex-1 flex flex-col main-content">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-          <h1 className="text-2xl font-bold text-indigo-800">تفاصيل الموظف</h1>
-          <button
-            onClick={() => navigate("/employees")}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-lg"
-          >
-            ⬅ رجوع للقائمة
-          </button>
-        </header>
+    <Topbar title="تفاصيل الموظف" />
 
         <div className="bg-gray-50 shadow-md p-4 flex justify-between items-center sticky top-16 z-40">
           <span className="text-indigo-800 font-bold text-xl">الموظف: {employee.name}</span>
           <div className="flex flex-col text-right">
-            <span className="text-lg font-semibold">
-              الحالة:{" "}
-              {employee.status === "terminated" ? (
-                <span className="text-red-600">مفصول</span>
-              ) : employee.status === "warning" ? (
-                <span className="text-yellow-500">إنذار</span>
-              ) : employee.status === "vacation" || (employee.active_leave && employee.active_leave.status === "approved") ? (
-                <span className="text-blue-600">في إجازة</span>
-              ) : (
-                <span className="text-green-600">نشط</span>
-              )}
-            </span>
-            
-            {employee.status === "vacation" || (employee.active_leave && employee.active_leave.status === "approved") ? (
-              <div className="flex flex-col gap-1 mt-1">
-                {employee.leave_count > 0 && (
-                  <span className="text-blue-600 font-semibold text-sm">
-                    مجموع أيام الإجازة: {employee.leave_count} يوم
-                  </span>
+                <span className="text-lg font-semibold">
+                  الحالة:{" "}
+                  {employee.active_leave && employee.active_leave.status === "approved" ? (
+                    <span className="text-blue-600">في إجازة {leaveTypeLabels[employee.active_leave.type] || employee.active_leave.type}</span>
+                  ) : employee.status === "terminated" ? (
+                    <span className="text-red-600">مفصول</span>
+                  ) : employee.status === "warning" ? (
+                    <span className="text-yellow-500">إنذار</span>
+                  ) : (
+                    <span className="text-green-600">نشط</span>
+                  )}
+                </span>
+
+                {employee.active_leave && employee.active_leave.status === "approved" ? (
+                  <div className="flex flex-col gap-1 mt-1">
+                    <span className="text-blue-600 font-semibold text-sm">
+                      من {formatDateDisplay(employee.active_leave.from_date)} إلى {formatDateDisplay(employee.active_leave.to_date)}
+                    </span>
+                    <span className="text-blue-500 font-semibold text-sm">
+                      متبقي: {employee.active_leave.remaining_days || 0} يوم
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    {employee.warnings_count > 0 && (
+                      <span className="text-orange-600 font-semibold text-sm">
+                        عدد الإنذارات: {employee.warnings_count}
+                      </span>
+                    )}
+                    {employee.leave_count > 0 && (
+                      <span className="text-blue-600 font-semibold text-sm">
+                        مجموع أيام الإجازات: {employee.leave_count} يوم
+                      </span>
+                    )}
+                  </>
                 )}
-                {employee.active_leave && (
-                  <span className="text-blue-500 font-semibold text-sm">
-                    متبقي من الإجازة الحالية: {employee.active_leave.remaining_days || 0} يوم
-                  </span>
-                )}
-              </div>
-            ) : (
-              <>
-                {employee.warnings_count > 0 && (
-                  <span className="text-orange-600 font-semibold text-sm">
-                    عدد الإنذارات: {employee.warnings_count}
-                  </span>
-                )}
-                {employee.leave_count > 0 && (
-                  <span className="text-blue-600 font-semibold text-sm">
-                    مجموع أيام الإجازات: {employee.leave_count} يوم
-                  </span>
-                )}
-              </>
-            )}
             
             {employee.termination_type && employee.status === "terminated" && (
               <span className="text-red-500 text-sm">
@@ -513,11 +510,12 @@ export default function Employee() {
             <div className={`${getCardColor(employee.status)} shadow-lg rounded-xl p-6`}>
               <div className="flex items-center gap-4 mb-4">
                 <img
-                  src={employee.profile_photo_url || "/default-avatar.png"}
+                  src={getStorageUrl(employee.profile_photo) || "/default-avatar.svg"}
                   alt={employee.name}
                   className="w-24 h-24 rounded-full border-4 border-indigo-300 cursor-pointer object-cover"
                   onClick={() => {
-                    if (employee.profile_photo_url) window.open(employee.profile_photo_url, "_blank");
+                    const url = getStorageUrl(employee.profile_photo);
+                    if (url) window.open(url, "_blank");
                   }}
                 />
                 <div>
@@ -589,8 +587,9 @@ export default function Employee() {
 
               {employee.active_leave && (
                 <div className="bg-blue-50 p-3 rounded-lg mt-4">
-                  <p className="font-semibold text-blue-700">🌴 إجازة نشطة</p>
+                  <p className="font-semibold text-blue-700">🌴 إجازة {leaveTypeLabels[employee.active_leave.type] || employee.active_leave.type}</p>
                   <p className="text-sm">من {formatDateDisplay(employee.active_leave.from_date)} إلى {formatDateDisplay(employee.active_leave.to_date)}</p>
+                  <p className="text-blue-500 font-semibold text-sm mt-1">متبقي: {employee.active_leave.remaining_days || 0} يوم</p>
                 </div>
               )}
 
