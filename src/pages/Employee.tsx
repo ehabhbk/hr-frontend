@@ -360,6 +360,16 @@ export default function Employee() {
       return;
     }
 
+    if (advanceData.type === "long") {
+      const grossSalary = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
+      const amount = parseFloat(advanceData.amount || 0);
+      const requiredInstallments = Math.ceil(amount / grossSalary);
+      if (grossSalary > 0 && amount > 0 && advanceData.installments < requiredInstallments) {
+        toast.error(`المبلغ أكبر من راتبك في مدة التقسيط. يجب أن تكون مدة التقسيط ${requiredInstallments} شهر أو أكثر`);
+        return;
+      }
+    }
+
     setLoading(true);
     const formData = new FormData();
     formData.append("employee_id", employee.id);
@@ -1651,6 +1661,17 @@ export default function Employee() {
                       onChange={(e) => setAdvanceData({ ...advanceData, installments: parseInt(e.target.value) || 1 })}
                       className="w-full border rounded p-2 mb-4"
                     />
+                    {(() => {
+                      const grossSalary = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
+                      const amount = parseFloat(advanceData.amount || 0);
+                      if (grossSalary > 0 && amount > 0) {
+                        const requiredInstallments = Math.ceil(amount / grossSalary);
+                        if (advanceData.installments < requiredInstallments) {
+                          return <p className="text-red-600 text-sm mb-2">المبلغ أكبر من راتبك في مدة التقسيط. يجب أن تكون مدة التقسيط {requiredInstallments} شهر أو أكثر</p>;
+                        }
+                      }
+                      return null;
+                    })()}
                   </>
                 )}
 
