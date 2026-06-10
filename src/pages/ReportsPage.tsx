@@ -388,6 +388,7 @@ function ReportsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ year });
+      if (month) params.append('month', month.toString());
       if (selectedDepartment) params.append('department_id', selectedDepartment);
       const res = await api.get(`/reports/employee-evaluation?${params}`);
       setEvaluationReport(res.data);
@@ -805,6 +806,7 @@ function ReportsPage() {
                 data={evaluationReport}
                 loading={loading}
                 year={year} setYear={setYear}
+                month={month} setMonth={setMonth}
                 departments={departments}
                 selectedDepartment={selectedDepartment}
                 setSelectedDepartment={setSelectedDepartment}
@@ -1448,13 +1450,32 @@ function LeaveWarningReport({ data, loading, year, setYear, departments, selecte
   );
 }
 
-function EvaluationReport({ data, loading, year, setYear, departments, selectedDepartment, setSelectedDepartment, onExportPDF, onExportExcel, exporting }) {
+function EvaluationReport({ data, loading, year, setYear, month, setMonth, departments, selectedDepartment, setSelectedDepartment, onExportPDF, onExportExcel, exporting }) {
   if (!data) return <LoadingSpinner />;
 
   const getScoreColor = (score) => {
     if (score >= 80) return "bg-emerald-100 text-emerald-700";
     if (score >= 60) return "bg-yellow-100 text-yellow-700";
     return "bg-red-100 text-red-700";
+  };
+
+  const StarRow = ({ total, max = 30, size = 16 }) => {
+    const starCount = Math.round(total / 3);
+    return (
+      <div className="flex gap-0.5" dir="ltr">
+        {Array.from({ length: 10 }, (_, i) => (
+          <svg key={i} width={size} height={size} viewBox="0 0 24 24"
+            fill={i < starCount ? "#FFD700" : "#444"}
+            style={{
+              filter: i < starCount ? "drop-shadow(0 0 3px rgba(255, 215, 0, 0.6))" : "none",
+              opacity: i < starCount ? 1 : 0.25,
+            }}
+          >
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -1469,11 +1490,53 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
             <option value="">جميع الأقسام</option>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
+          <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="border rounded-lg px-3 py-2 bg-white min-w-[120px]">
+            <option value="">كل السنة</option>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+              <option key={m} value={m}>{new Date(year, m - 1, 1).toLocaleString('ar-SA', { month: 'long' })}</option>
+            ))}
+          </select>
           <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="border rounded-lg px-3 py-2 bg-white min-w-[100px]">
             {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
       </FilterBar>
+
+      {/* الموظف المثالي */}
+      {data.ideal_employee && (
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-100 border-2 border-yellow-400 rounded-2xl p-6 mb-8 text-center">
+          <div className="text-5xl mb-3">🏆</div>
+          <h3 className="text-2xl font-bold text-yellow-700 mb-2">الموظف المثالي</h3>
+          <p className="text-sm text-yellow-500 mb-3">
+            {data.meta?.month
+              ? `لشهر ${new Date(data.meta.year, data.meta.month - 1, 1).toLocaleString('ar-SA', { month: 'long' })} ${data.meta.year}`
+              : `لسنة ${data.meta?.year}`}
+          </p>
+          <p className="text-xl font-bold text-yellow-900">{data.ideal_employee.name}</p>
+          <p className="text-yellow-600 mb-3">{data.ideal_employee.department} - {data.ideal_employee.job_title}</p>
+          <div className="flex justify-center items-center gap-6">
+            <div className="text-center">
+              <p className="text-sm text-yellow-600">المظهر</p>
+              <StarRow total={data.ideal_employee.manual_evaluation.appearance * 3} max={30} size={18} />
+              <p className="text-xs">{data.ideal_employee.manual_evaluation.appearance}/10</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-yellow-600">السلوك</p>
+              <StarRow total={data.ideal_employee.manual_evaluation.behavior * 3} max={30} size={18} />
+              <p className="text-xs">{data.ideal_employee.manual_evaluation.behavior}/10</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-yellow-600">الأداء</p>
+              <StarRow total={data.ideal_employee.manual_evaluation.performance * 3} max={30} size={18} />
+              <p className="text-xs">{data.ideal_employee.manual_evaluation.performance}/10</p>
+            </div>
+            <div className="text-center border-r-2 border-yellow-300 pr-4">
+              <p className="text-sm text-yellow-600">المجموع</p>
+              <p className="text-3xl font-bold text-yellow-700">{data.ideal_employee.manual_evaluation.total_score}/30</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-gradient-to-br from-emerald-50 to-green-100 border-2 border-emerald-200 rounded-xl p-6">
@@ -1530,13 +1593,19 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
               <th className="p-3 border border-amber-500 text-center">الإجازات</th>
               <th className="p-3 border border-amber-500 text-center">الإنذارات</th>
               <th className="p-3 border border-amber-500 text-center">التقييم</th>
+              <th className="p-3 border border-amber-500 text-center">نجوم التقييم</th>
             </tr>
           </thead>
           <tbody>
             {data.all_employees?.map((emp, i) => (
-              <tr key={emp.id} className={i % 2 === 0 ? "bg-white" : "bg-amber-50"}>
-                <td className="p-3 border border-amber-100 text-center">{i + 1}</td>
-                <td className="p-3 border border-amber-100 font-semibold">{emp.name}</td>
+              <tr key={emp.id} className={`${i % 2 === 0 ? "bg-white" : "bg-amber-50"} ${emp.manual_evaluation ? "ring-2 ring-inset ring-yellow-300" : ""}`}>
+                <td className="p-3 border border-amber-100 text-center">
+                  {emp.id === data.ideal_employee?.id ? "🏆" : i + 1}
+                </td>
+                <td className="p-3 border border-amber-100 font-semibold">
+                  {emp.name}
+                  {emp.id === data.ideal_employee?.id && <span className="mr-1 text-xs text-yellow-600">(المثالي)</span>}
+                </td>
                 <td className="p-3 border border-amber-100">{emp.department}</td>
                 <td className="p-3 border border-amber-100 text-center text-emerald-600 font-medium">{emp.attendance_days}</td>
                 <td className="p-3 border border-amber-100 text-center text-red-600">{emp.late_days}</td>
@@ -1547,6 +1616,16 @@ function EvaluationReport({ data, loading, year, setYear, departments, selectedD
                   <span className={`px-3 py-1 rounded-full font-bold ${getScoreColor(emp.total_score)}`}>
                     {emp.total_score}%
                   </span>
+                </td>
+                <td className="p-3 border border-amber-100 text-center">
+                  {emp.manual_evaluation ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <StarRow total={emp.manual_evaluation.total_score} max={30} size={14} />
+                      <span className="text-xs text-gray-500">{emp.manual_evaluation.total_score}/30</span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 text-xs">—</span>
+                  )}
                 </td>
               </tr>
             ))}

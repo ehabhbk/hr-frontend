@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api, { getStorageUrl } from "../services/api";
 import Sidebar from "../components/Sidebar";
+import StarRating from "../components/StarRating";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDateArabic, formatDateDisplay } from "../utils/dateUtils";
@@ -84,10 +85,10 @@ export default function Employee() {
   
   // Evaluation data
   const [evaluationData, setEvaluationData] = useState({
-    performance: 5,
-    appearance: 5,
-    behavior: 5,
-    tasks_completed: true,
+    performance: 0,
+    appearance: 0,
+    behavior: 0,
+    period: new Date().toISOString().slice(0, 7),
     notes: ""
   });
   const [vacationData, setVacationData] = useState({
@@ -267,6 +268,19 @@ export default function Employee() {
         refreshEmployee();
       })
       .catch(() => toast.error("❌ فشل في تحديث العهدة"));
+  };
+
+  const submitEvaluation = () => {
+    api
+      .post(`/employees/${employee.id}/evaluate`, evaluationData, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        toast.success("✅ تم حفظ التقييم بنجاح");
+        setShowEvaluationModal(false);
+        refreshEmployee();
+      })
+      .catch(() => toast.error("❌ فشل في حفظ التقييم"));
   };
 
   const cancelWarning = (warningId) => {
@@ -1728,44 +1742,45 @@ export default function Employee() {
         {/* Evaluation Modal */}
         {showEvaluationModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <h2 className="text-xl font-bold mb-4">⭐ تقيم أداء الموظف</h2>
-              <div className="space-y-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg" dir="rtl">
+              <h2 className="text-2xl font-bold mb-6 text-center">⭐ تقييم أداء الموظف</h2>
+
+              <div className="mb-4">
+                <label className="block font-semibold mb-2 text-gray-700">الفترة (الشهر / السنة)</label>
+                <input
+                  type="month"
+                  value={evaluationData.period}
+                  onChange={(e) => setEvaluationData({...evaluationData, period: e.target.value})}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+
+              <div className="space-y-6">
                 <div>
-                  <label className="block font-medium mb-2">أداء العامل في العمل (1-10)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationData.performance}
-                    onChange={(e) => setEvaluationData({...evaluationData, performance: Number(e.target.value)})}
-                    className="w-full border rounded p-2"
-                  />
+                  <label className="block font-semibold mb-2 text-gray-700">المظهر العام</label>
+                  <StarRating value={evaluationData.appearance} onChange={(v) => setEvaluationData({...evaluationData, appearance: v})} />
+                  <p className="text-sm text-gray-500 mt-1">{evaluationData.appearance} / 10</p>
                 </div>
                 <div>
-                  <label className="block font-medium mb-2">المظهر العام (1-10)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationData.appearance}
-                    onChange={(e) => setEvaluationData({...evaluationData, appearance: Number(e.target.value)})}
-                    className="w-full border rounded p-2"
-                  />
+                  <label className="block font-semibold mb-2 text-gray-700">السلوك الشخصي</label>
+                  <StarRating value={evaluationData.behavior} onChange={(v) => setEvaluationData({...evaluationData, behavior: v})} />
+                  <p className="text-sm text-gray-500 mt-1">{evaluationData.behavior} / 10</p>
                 </div>
                 <div>
-                  <label className="block font-medium mb-2">السلوك مع المحيطين (1-10)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationData.behavior}
-                    onChange={(e) => setEvaluationData({...evaluationData, behavior: Number(e.target.value)})}
-                    className="w-full border rounded p-2"
-                  />
+                  <label className="block font-semibold mb-2 text-gray-700">أداء الموظف في العمل</label>
+                  <StarRating value={evaluationData.performance} onChange={(v) => setEvaluationData({...evaluationData, performance: v})} />
+                  <p className="text-sm text-gray-500 mt-1">{evaluationData.performance} / 10</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-lg">المجموع الكلي</span>
+                    <span className="text-2xl font-bold text-purple-600">
+                      {evaluationData.appearance + evaluationData.behavior + evaluationData.performance} / 30
+                    </span>
+                  </div>
                 </div>
                 <div>
-                  <label className="block font-medium mb-2">ملاحظات</label>
+                  <label className="block font-semibold mb-2 text-gray-700">ملاحظات</label>
                   <textarea
                     value={evaluationData.notes}
                     onChange={(e) => setEvaluationData({...evaluationData, notes: e.target.value})}
@@ -1775,21 +1790,19 @@ export default function Employee() {
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-center gap-3 mt-6">
                 <button
                   onClick={() => setShowEvaluationModal(false)}
-                  className="px-4 py-2 rounded bg-gray-400 text-white hover:bg-gray-500"
+                  className="px-6 py-2 rounded bg-gray-400 text-white hover:bg-gray-500"
                 >
                   إلغاء
                 </button>
                 <button
-                  onClick={() => {
-                    toast.success("✅ تم حفظ التقيم بنجاح");
-                    setShowEvaluationModal(false);
-                  }}
-                  className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700"
+                  onClick={submitEvaluation}
+                  disabled={evaluationData.appearance === 0 || evaluationData.behavior === 0 || evaluationData.performance === 0}
+                  className="px-6 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-300"
                 >
-                  حفظ التقيم
+                  💾 حفظ التقييم
                 </button>
               </div>
             </div>
