@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
@@ -25,6 +25,18 @@ export default function BankExportPage() {
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [previewData, setPreviewData] = useState(null);
   const [customBanks, setCustomBanks] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+
+  const activeBanks = useMemo(() => {
+    if (!Array.isArray(employees) || employees.length === 0) return [];
+    const hasEmployees = (bankKey) => employees.some(e => e.bank_name === bankKey && e.bank_account && e.bank_account.trim() !== '');
+    return BANKS.filter(b => hasEmployees(b.key));
+  }, [employees]);
+
+  const activeCustomBanks = useMemo(() => {
+    if (!Array.isArray(employees) || employees.length === 0) return [];
+    return customBanks.filter(b => employees.some(e => e.bank_name === b.key && e.bank_account && e.bank_account.trim() !== ''));
+  }, [customBanks, employees]);
 
   useEffect(() => {
     fetchExports();
@@ -32,6 +44,13 @@ export default function BankExportPage() {
     fetchCustomBanks();
     fetchCurrencyInfo();
   }, []);
+
+  useEffect(() => {
+    const allActive = [...activeBanks, ...activeCustomBanks];
+    if (allActive.length > 0 && !allActive.some(b => b.key === selectedBank)) {
+      setSelectedBank(allActive[0].key);
+    }
+  }, [activeBanks, activeCustomBanks]);
 
   const fetchCurrencyInfo = async () => {
     try {
@@ -78,11 +97,16 @@ export default function BankExportPage() {
   };
 
   const fetchEmployees = async () => {
+    setEmployeesLoading(true);
     try {
       const res = await api.get('/employees');
-      setEmployees(res.data.data || []);
+      const raw = res.data?.data || res.data || [];
+      const list = Array.isArray(raw) ? raw : (raw.data || []);
+      setEmployees(list);
     } catch (err) {
       console.error(err);
+    } finally {
+      setEmployeesLoading(false);
     }
   };
 
@@ -180,6 +204,20 @@ export default function BankExportPage() {
         employee_ids: selectedEmployees,
       });
       toast.success('تم إنشاء كشف التحويل بنجاح ✅');
+
+      const exportId = res.data?.data?.id;
+      if (exportId) {
+        const pdfRes = await api.get(`/bank-exports/${exportId}/pdf`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([pdfRes.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `كشف_تحويل_${selectedBank}_${month}_${year}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+
       fetchExports();
       setModalOpen(false);
       setPreviewData(null);
@@ -191,17 +229,17 @@ export default function BankExportPage() {
     }
   };
 
-  const handleDownload = async (id) => {
+  const handleDownloadPDF = async (exp) => {
     try {
-      const res = await api.get(`/bank-exports/${id}/download`, { responseType: 'blob' });
+      const res = await api.get(`/bank-exports/${exp.id}/pdf`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `كشف_تحويل_${id}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast.success('تم تحميل الكشف بنجاح ✅');
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `كشف_تحويل_${exp.bank_name}_${exp.month}_${exp.year}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       toast.error('حدث خطأ أثناء التحميل ❌');
     }
@@ -307,7 +345,13 @@ export default function BankExportPage() {
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            {BANKS.map(bank => (
+            {!employeesLoading && activeBanks.length === 0 && activeCustomBanks.length === 0 ? (
+              <div className="col-span-full text-center text-gray-400 py-8">
+                لا توجد بنوك لديها موظفين بحسابات بنكية
+              </div>
+            ) : (
+              <>
+            {activeBanks.map(bank => (
               <div
                 key={bank.key}
                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -326,7 +370,7 @@ export default function BankExportPage() {
             ))}
             
             {/* البنوك المضافة */}
-            {customBanks.map(bank => (
+            {activeCustomBanks.map(bank => (
               <div
                 key={bank.key}
                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -343,6 +387,8 @@ export default function BankExportPage() {
                 </div>
               </div>
             ))}
+            </>
+            )}
           </div>
 
           {/* جدول التصديرات */}
@@ -402,10 +448,10 @@ export default function BankExportPage() {
                           <div className="flex gap-2 justify-center">
                             {exp.status === 'completed' && (
                               <button
-                                onClick={() => handleDownload(exp.id)}
+                                onClick={() => handleDownloadPDF(exp)}
                                 className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-indigo-700"
                               >
-                                📥 تحميل
+                                📄 PDF
                               </button>
                             )}
                             <button
@@ -500,7 +546,9 @@ export default function BankExportPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">إنشاء كشف جديد</h2>
+              <h2 className="text-xl font-bold text-white">
+                {(activeBanks.length > 0 || activeCustomBanks.length > 0) ? 'إنشاء كشف جديد' : 'لا توجد بنوك متاحة'}
+              </h2>
               <button 
                 onClick={() => { setModalOpen(false); setPreviewData(null); setSelectedEmployees([]); }}
                 className="text-white hover:text-gray-200 text-2xl"
@@ -528,13 +576,13 @@ export default function BankExportPage() {
                     className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500"
                   >
                     <optgroup label="البنوك الأساسية">
-                      {BANKS.map(bank => (
+                      {(activeBanks.length > 0 ? activeBanks : BANKS).map(bank => (
                         <option key={bank.key} value={bank.key}>{bank.icon} {bank.name}</option>
                       ))}
                     </optgroup>
-                    {customBanks.length > 0 && (
+                    {activeCustomBanks.length > 0 && (
                       <optgroup label="البنوك المضافة">
-                        {customBanks.map(bank => (
+                        {activeCustomBanks.map(bank => (
                           <option key={bank.key} value={bank.key}>{bank.icon} {bank.name}</option>
                         ))}
                       </optgroup>
