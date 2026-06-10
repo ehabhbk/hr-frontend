@@ -79,6 +79,7 @@ export default function Employee() {
   const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [selectedWarningReason, setSelectedWarningReason] = useState("");
   const [customWarningReason, setCustomWarningReason] = useState("");
+  const [selectedWarningType, setSelectedWarningType] = useState("written");
   const [returnAssetNote, setReturnAssetNote] = useState("");
   const [assetForm, setAssetForm] = useState({ name: "", description: "", type: "fixed", value: "", issue_date: "", notes: "", status: "active" });
   const [editAssetId, setEditAssetId] = useState(null);
@@ -212,7 +213,7 @@ export default function Employee() {
     api
       .post(
         "/discipline/warnings",
-        { employee_id: employee.id, reason: reason },
+        { employee_id: employee.id, reason: reason, type: selectedWarningType },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       .then(() => {
@@ -221,6 +222,7 @@ export default function Employee() {
         setShowWarningModal(false);
         setSelectedWarningReason("");
         setCustomWarningReason("");
+        setSelectedWarningType("written");
       })
       .catch(() => toast.error("❌ فشل إعطاء الإنذار"))
       .finally(() => setLoading(false));
@@ -970,7 +972,12 @@ export default function Employee() {
                 <h3 className="text-lg font-bold mb-2">الإنذارات:</h3>
                 {employee.warnings.map((warning) => (
                   <div key={warning.id} className="bg-red-50 p-3 rounded-lg mb-2 flex justify-between items-center">
-                    <span>{warning.reason || "إنذار"} - {formatDateArabic(warning.created_at)}</span>
+                    <span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ml-2 ${warning.type === 'final' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                        {warning.type === 'final' ? 'نهائي' : 'كتابي'}
+                      </span>
+                      {warning.reason || "إنذار"} - {formatDateArabic(warning.created_at)}
+                    </span>
                     <button onClick={() => cancelWarning(warning.id)} className="text-red-500 text-sm underline">
                       إلغاء
                     </button>
@@ -1011,6 +1018,34 @@ export default function Employee() {
                   )}
                 </div>
 
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-right">نوع الإنذار:</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="warningType"
+                        value="written"
+                        checked={selectedWarningType === "written"}
+                        onChange={(e) => setSelectedWarningType(e.target.value)}
+                        className="accent-orange-500"
+                      />
+                      <span>كتابي</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="warningType"
+                        value="final"
+                        checked={selectedWarningType === "final"}
+                        onChange={(e) => setSelectedWarningType(e.target.value)}
+                        className="accent-red-600"
+                      />
+                      <span>نهائي</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="bg-yellow-50 p-3 rounded-lg mb-4">
                   <p className="text-sm text-yellow-800">
                     <strong>تنبيه:</strong> سيتم تسجيل الإنذار في ملف الموظف ({employee.name})
@@ -1023,6 +1058,7 @@ export default function Employee() {
                       setShowWarningModal(false);
                       setSelectedWarningReason("");
                       setCustomWarningReason("");
+                      setSelectedWarningType("written");
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
                   >
