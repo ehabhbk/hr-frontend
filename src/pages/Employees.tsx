@@ -564,6 +564,7 @@ export default function Employees() {
     if (emp.warnings_count > 0) return "bg-yellow-100 border-2 border-yellow-400";
     const normalized = (emp.status || "").toLowerCase();
     if (normalized.includes("active")) return "bg-green-100 border-2 border-green-400";
+    if (normalized.includes("warning")) return "bg-yellow-100 border-2 border-yellow-400";
     if (normalized.includes("terminated")) return "bg-red-100 border-2 border-red-400";
     if (normalized.includes("vacation")) return "bg-teal-100 border-2 border-teal-400";
     return "bg-gray-100";
