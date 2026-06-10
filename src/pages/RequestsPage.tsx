@@ -34,6 +34,32 @@ export default function RequestsPage() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(tab || "leaves");
+
+  const permissions = React.useMemo(() => {
+    try {
+      const p = localStorage.getItem("permissions");
+      return p ? JSON.parse(p) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const canViewRequests = permissions.includes('*') || permissions.includes('requests.view');
+  const canApproveRequests = permissions.includes('*') || permissions.includes('requests.approve');
+  const canRejectRequests = permissions.includes('*') || permissions.includes('requests.reject');
+  const canViewLeaves = permissions.includes('*') || permissions.includes('requests.leaves');
+  const canViewAdvances = permissions.includes('*') || permissions.includes('requests.advances');
+  const canViewResignations = permissions.includes('*') || permissions.includes('requests.resignations');
+
+  const availableTabs = React.useMemo(
+    () => TABS.filter(t => {
+      if (t.key === 'leaves') return canViewLeaves;
+      if (t.key === 'advances') return canViewAdvances;
+      if (t.key === 'resignations') return canViewResignations;
+      return false;
+    }),
+    [canViewLeaves, canViewAdvances, canViewResignations]
+  );
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [advanceRequests, setAdvanceRequests] = useState([]);
   const [resignationRequests, setResignationRequests] = useState([]);
@@ -47,10 +73,12 @@ export default function RequestsPage() {
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   useEffect(() => {
-    if (tab && TABS.some(t => t.key === tab)) {
+    if (tab && availableTabs.some(t => t.key === tab)) {
       setActiveTab(tab);
+    } else if (availableTabs.length > 0 && !availableTabs.some(t => t.key === activeTab)) {
+      setActiveTab(availableTabs[0].key);
     }
-  }, [tab]);
+  }, [tab, availableTabs]);
 
   useEffect(() => {
     fetchRequests();
@@ -215,6 +243,25 @@ export default function RequestsPage() {
     setTimeout(() => { win.print(); }, 500);
   }
 
+  if (!canViewRequests || availableTabs.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex" dir="rtl">
+        <Sidebar onCollapseChange={setSidebarCollapsed} />
+        <div className="flex-1 flex flex-col" style={{ marginRight: sidebarCollapsed ? "5rem" : "16rem" }}>
+          <Topbar title="📋 الطلبيات" />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+              <div className="text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-700 mb-2">لا تملك صلاحية الوصول</h2>
+              <p className="text-gray-500">ليس لديك صلاحية لعرض صفحة الطلبيات</p>
+            </div>
+          </main>
+        </div>
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} rtl={true} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 flex" dir="rtl">
       <Sidebar onCollapseChange={setSidebarCollapsed} />
@@ -225,7 +272,7 @@ export default function RequestsPage() {
           <div className="bg-white rounded-lg shadow-sm mb-6">
             <div className="border-b px-6">
               <div className="flex gap-6">
-                {TABS.map(t => (
+                {availableTabs.map(t => (
                   <button
                     key={t.key}
                     onClick={() => {
@@ -394,22 +441,26 @@ export default function RequestsPage() {
                             </td>
                             <td className="border p-3">{getStatusBadge(r.status)}</td>
                             <td className="border p-3 text-center">
-                              {r.status === "pending" && (
+                              {r.status === "pending" && (canApproveRequests || canRejectRequests) && (
                                 <div className="flex gap-2 justify-center">
-                                  <button
-                                    onClick={() => handleLeaveStatus(r.id, "rejected")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "رفض"}
-                                  </button>
-                                  <button
-                                    onClick={() => handleLeaveStatus(r.id, "approved")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "موافقة"}
-                                  </button>
+                                  {canRejectRequests && (
+                                    <button
+                                      onClick={() => handleLeaveStatus(r.id, "rejected")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "رفض"}
+                                    </button>
+                                  )}
+                                  {canApproveRequests && (
+                                    <button
+                                      onClick={() => handleLeaveStatus(r.id, "approved")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "موافقة"}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -464,22 +515,26 @@ export default function RequestsPage() {
                             </td>
                             <td className="border p-3">{getStatusBadge(r.status)}</td>
                             <td className="border p-3 text-center">
-                              {r.status === "pending" && (
+                              {r.status === "pending" && (canApproveRequests || canRejectRequests) && (
                                 <div className="flex gap-2 justify-center">
-                                  <button
-                                    onClick={() => handleAdvanceStatus(r.id, "reject")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "رفض"}
-                                  </button>
-                                  <button
-                                    onClick={() => handleAdvanceStatus(r.id, "approve")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "موافقة"}
-                                  </button>
+                                  {canRejectRequests && (
+                                    <button
+                                      onClick={() => handleAdvanceStatus(r.id, "reject")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "رفض"}
+                                    </button>
+                                  )}
+                                  {canApproveRequests && (
+                                    <button
+                                      onClick={() => handleAdvanceStatus(r.id, "approve")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "موافقة"}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -516,22 +571,26 @@ export default function RequestsPage() {
                             <td className="border p-3 max-w-xs truncate">{r.reason || "-"}</td>
                             <td className="border p-3">{getStatusBadge(r.status)}</td>
                             <td className="border p-3 text-center">
-                              {r.status === "pending" && (
+                              {r.status === "pending" && (canApproveRequests || canRejectRequests) && (
                                 <div className="flex gap-2 justify-center">
-                                  <button
-                                    onClick={() => handleResignationStatus(r.id, "rejected")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "رفض"}
-                                  </button>
-                                  <button
-                                    onClick={() => handleResignationStatus(r.id, "approved")}
-                                    disabled={actionLoading === r.id}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
-                                  >
-                                    {actionLoading === r.id ? "..." : "موافقة"}
-                                  </button>
+                                  {canRejectRequests && (
+                                    <button
+                                      onClick={() => handleResignationStatus(r.id, "rejected")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "رفض"}
+                                    </button>
+                                  )}
+                                  {canApproveRequests && (
+                                    <button
+                                      onClick={() => handleResignationStatus(r.id, "approved")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "موافقة"}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>

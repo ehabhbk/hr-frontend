@@ -54,6 +54,13 @@
   - إضافة toggle `absence_rules_enabled` لتفعيل/تعطيل قواعد الغياب والخصم
   - زر واحد "💾 حفظ إعدادات الحضور والغياب" بدلاً من زرين (إعادة حساب + حفظ وتحديث)
   - إزالة دالة `recalculateRecords` واستدعاء API إعادة الحساب
+- **إضافة صلاحيات جديدة**:
+  - إضافة `deductions.*` (view/manage) إلى `AVAILABLE_PERMISSIONS`
+  - إضافة `requests.*` (view/approve/reject) إلى `AVAILABLE_PERMISSIONS`
+  - ربط صلاحية `incentives.manage` بزر "🎁 حافز" في `Employee.tsx`
+  - ربط صلاحية `deductions.manage` بزر "❌ خصم" في `Employee.tsx`
+  - إضافة صلاحية `requests.view` لصفحة الطلبات (مع شاشة منع الوصول)
+  - ربط `requests.approve` / `requests.reject` بأزرار الموافقة/الرفض
 
 ### In Progress
 - (none)

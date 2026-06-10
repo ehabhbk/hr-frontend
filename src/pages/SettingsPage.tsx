@@ -877,7 +877,7 @@ function SettingsPage() {
                 loadingCalc={loadingStates.calculateSettlement}
               />
             )}
-            {activeTab === "roles" && <RolesTab roles={roles} />}
+            {activeTab === "roles" && <RolesTab roles={roles} setRoles={setRoles} />}
           </div>
         </div>
       </main>
@@ -2960,6 +2960,16 @@ const AVAILABLE_PERMISSIONS = [
   // Incentives
   { key: 'incentives.view', label: 'عرض الحوافز', module: 'incentives' },
   { key: 'incentives.manage', label: 'إدارة الحوافز', module: 'incentives' },
+  // Deductions
+  { key: 'deductions.view', label: 'عرض الخصومات', module: 'deductions' },
+  { key: 'deductions.manage', label: 'إدارة الخصومات', module: 'deductions' },
+  // Requests
+  { key: 'requests.view', label: 'عرض الطلبات', module: 'requests' },
+  { key: 'requests.approve', label: 'الموافقة على الطلبات', module: 'requests' },
+  { key: 'requests.reject', label: 'رفض الطلبات', module: 'requests' },
+  { key: 'requests.leaves', label: 'طلبات الإجازات', module: 'requests' },
+  { key: 'requests.advances', label: 'طلبات السلفيات', module: 'requests' },
+  { key: 'requests.resignations', label: 'طلبات الاستقالة', module: 'requests' },
   // Reports
   { key: 'reports.view', label: 'عرض التقارير', module: 'reports' },
   { key: 'reports.export', label: 'تصدير التقارير', module: 'reports' },
@@ -3021,9 +3031,10 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'menu.bank', label: 'قائمة التصدير البنكي', module: 'menu' },
   { key: 'menu.reports', label: 'قائمة التقارير', module: 'menu' },
   { key: 'menu.settings', label: 'قائمة الإعدادات', module: 'menu' },
+  { key: 'menu.requests', label: 'قائمة الطلبيات', module: 'menu' },
 ];
 
-function RolesTab({ roles }) {
+function RolesTab({ roles, setRoles }) {
   const [editingRole, setEditingRole] = useState<number | null>(null);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -3142,6 +3153,8 @@ function RolesTab({ roles }) {
     advances: '💰 السلفيات',
     warnings: '⚠️ الإنذارات',
     incentives: '🎁 الحوافز',
+    deductions: '❌ الخصومات',
+    requests: '📋 الطلبات',
     reports: '📊 التقارير',
     letters: '📝 الخطابات',
     bank: '🏦 التصدير البنكي',

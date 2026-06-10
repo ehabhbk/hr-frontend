@@ -62,6 +62,8 @@ export default function Employee() {
   const canRestore = permissions.includes('*') || permissions.includes('employees.restore');
   const canDeleteEmployee = permissions.includes('*') || permissions.includes('employees.delete');
   const canEvaluateEmployee = permissions.includes('*') || permissions.includes('employees.evaluate');
+  const canManageIncentives = permissions.includes('*') || permissions.includes('incentives.manage');
+  const canManageDeductions = permissions.includes('*') || permissions.includes('deductions.manage');
 
   // Modals
   const [showTerminationModal, setShowTerminationModal] = useState(false);
@@ -921,19 +923,23 @@ export default function Employee() {
                 </button>
               )}
 
-              <button
-                onClick={() => setShowIncentiveModal(true)}
-                className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 text-lg"
-              >
-                🎁 حافز
-              </button>
+              {canManageIncentives && (
+                <button
+                  onClick={() => setShowIncentiveModal(true)}
+                  className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 text-lg"
+                >
+                  🎁 حافز
+                </button>
+              )}
 
-              <button
-                onClick={() => setShowDeductionModal(true)}
-                className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 text-lg"
-              >
-                ❌ خصم
-              </button>
+              {canManageDeductions && (
+                <button
+                  onClick={() => setShowDeductionModal(true)}
+                  className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 text-lg"
+                >
+                  ❌ خصم
+                </button>
+              )}
 
               {canRestore && employee.status === "terminated" && (
                 <button
