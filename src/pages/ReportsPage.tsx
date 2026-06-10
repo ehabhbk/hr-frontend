@@ -1093,6 +1093,9 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <th className="p-2 border border-slate-600 bg-blue-600 text-right">الأساسي</th>
                 <th className="p-2 border border-slate-600 bg-cyan-600 text-right">بدل وظيفي</th>
                 <th className="p-2 border border-slate-600 bg-emerald-600 text-right">البدلات</th>
+                {allAllowanceTypes.map(t => (
+                  <th key={t.name} className="p-2 border border-slate-600 bg-emerald-700 text-right">{t.name}</th>
+                ))}
                 {allIncentiveTypes.map(t => (
                   <th key={t.name} className="p-2 border border-slate-600 bg-violet-600 text-right">{t.name}</th>
                 ))}
@@ -1115,6 +1118,9 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                   <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.base_salary)}</td>
                   <td className="p-2 border border-slate-200 text-right">{formatCurrency(emp.position_allowance)}</td>
                   <td className="p-2 border border-slate-200 text-right text-emerald-600 font-bold">{formatCurrency(emp.total_allowances || 0)}</td>
+                  {allAllowanceTypes.map(t => (
+                    <td key={t.name} className="p-2 border border-slate-200 text-right text-emerald-600">{formatCurrency(getAllowanceAmount(emp, t.name))}</td>
+                  ))}
                   {allIncentiveTypes.map(t => (
                     <td key={t.name} className="p-2 border border-slate-200 text-right text-purple-600">{formatCurrency(getIncentiveAmount(emp, t.name))}</td>
                   ))}
@@ -1169,6 +1175,9 @@ function SalaryReport({ data, loading, month, setMonth, year, setYear, departmen
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.base)}</td>
                 <td className="p-2 border border-slate-300 text-right">{formatCurrency(totals.position)}</td>
                 <td className="p-2 border border-slate-300 text-right font-bold text-emerald-700">{formatCurrency(totals.allowances)}</td>
+                {allAllowanceTypes.map(t => (
+                  <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(allowanceTotals[t.name] || 0)}</td>
+                ))}
                 {allIncentiveTypes.map(t => (
                   <td key={t.name} className="p-2 border border-slate-300 text-right">{formatCurrency(incentiveTotals[t.name])}</td>
                 ))}
