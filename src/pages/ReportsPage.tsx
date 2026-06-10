@@ -1419,7 +1419,7 @@ function LeaveWarningReport({ data, loading, year, setYear, departments, selecte
                     ) : (
                       Object.entries(emp.leaves.by_type || {}).map(([type, info]) => (
                         <div key={type} className="flex justify-between mb-2 py-1 border-b border-blue-100">
-                          <span className="text-slate-700">{type}</span>
+                          <span className="text-slate-700">{leaveTypeLabels[type] || type}</span>
                           <span className="font-medium text-blue-600">{info.count}x ({info.days} يوم)</span>
                         </div>
                       ))
@@ -1887,6 +1887,14 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
     'cancelled': 'ملغاة',
   };
 
+  const leaveTypeLabels = {
+    official: 'رسمية',
+    sick: 'مرضية',
+    maternity: 'أمومة',
+    hajj: 'حج',
+    unpaid: 'بدون مرتب',
+  };
+
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -2066,6 +2074,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                       <th className="p-2 border">الأيام</th>
                       <th className="p-2 border">الحالة</th>
                       <th className="p-2 border">مدفوعة</th>
+                      <th className="p-2 border">المرفق</th>
                       <th className="p-2 border">السبب</th>
                     </tr>
                   </thead>
@@ -2073,7 +2082,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                     {data.leaves.map((leave, i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50/30'}>
                         <td className="p-2 border text-center">{i + 1}</td>
-                        <td className="p-2 border">{leave.type}</td>
+                        <td className="p-2 border">{leaveTypeLabels[leave.type] || leave.type}</td>
                         <td className="p-2 border text-center">{formatDateDisplay(leave.from_date)}</td>
                         <td className="p-2 border text-center">{formatDateDisplay(leave.to_date)}</td>
                         <td className="p-2 border text-center font-bold">{leave.days}</td>
@@ -2087,6 +2096,15 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                           </span>
                         </td>
                         <td className="p-2 border text-center">{leave.paid}</td>
+                        <td className="p-2 border text-center">
+                          {leave.attachment_url ? (
+                            <a href={leave.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
+                              📎 عرض
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="p-2 border text-xs">{leave.reason || '-'}</td>
                       </tr>
                     ))}

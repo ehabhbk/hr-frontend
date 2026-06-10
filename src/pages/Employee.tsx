@@ -83,8 +83,9 @@ export default function Employee() {
     from_date: "",
     to_date: "",
     paid: true,
-    medical_certificate: null,
+    attachment: null,
   });
+  const [vacationAttachmentPreview, setVacationAttachmentPreview] = useState(null);
   const [terminationData, setTerminationData] = useState({
     termination_type: "arbitrary",
     termination_reason: "",
@@ -250,8 +251,8 @@ export default function Employee() {
     formData.append("from_date", vacationData.from_date);
     formData.append("to_date", vacationData.to_date);
     formData.append("paid", vacationData.paid ? "1" : "0");
-    if (vacationData.medical_certificate) {
-      formData.append("medical_certificate", vacationData.medical_certificate);
+    if (vacationData.attachment) {
+      formData.append("attachment", vacationData.attachment);
     }
 
     api
@@ -262,7 +263,8 @@ export default function Employee() {
         toast.success("✅ تم تقديم طلب الإجازة بنجاح - في انتظار الموافقة");
         refreshEmployee();
         setShowVacationModal(false);
-        setVacationData({ type: "official", from_date: "", to_date: "", paid: true, medical_certificate: null });
+        setVacationData({ type: "official", from_date: "", to_date: "", paid: true, attachment: null });
+        setVacationAttachmentPreview(null);
       })
       .catch((err) => {
         toast.error(err?.response?.data?.message || "❌ فشل تقديم طلب الإجازة");
@@ -1006,11 +1008,17 @@ export default function Employee() {
                 <label className="block mb-2">نوع الإجازة:</label>
                 <select
                   value={vacationData.type}
-                  onChange={(e) => setVacationData({ ...vacationData, type: e.target.value })}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    setVacationData({ ...vacationData, type: newType, paid: newType === "unpaid" ? false : vacationData.paid });
+                  }}
                   className="w-full border rounded p-2 mb-4"
                 >
                   <option value="official">رسمية</option>
                   <option value="sick">مرضية</option>
+                  <option value="maternity">أمومة</option>
+                  <option value="hajj">حج</option>
+                  <option value="unpaid">بدون مرتب</option>
                 </select>
 
                 <label className="block mb-2">من تاريخ:</label>
@@ -1029,45 +1037,65 @@ export default function Employee() {
                   className="w-full border rounded p-2 mb-4"
                 />
 
-                <label className="block mb-2">هل الإجازة بمرتب؟</label>
-                <div className="flex gap-4 mb-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="paid"
-                      checked={vacationData.paid === true}
-                      onChange={() => setVacationData({ ...vacationData, paid: true })}
-                    />
-                    بمرتب
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="paid"
-                      checked={vacationData.paid === false}
-                      onChange={() => setVacationData({ ...vacationData, paid: false })}
-                    />
-                    بدون مرتب
-                  </label>
-                </div>
-
-                {vacationData.type === "sick" && (
+                {vacationData.type !== "unpaid" && (
                   <>
-                    <label className="block mb-2">أرفق ملف طبي (أورنيك مرضي):</label>
-                    <input
-                      type="file"
-                      accept="pdf,jpg,jpeg,png"
-                      onChange={(e) => setVacationData({ ...vacationData, medical_certificate: e.target.files[0] })}
-                      className="w-full border rounded p-2 mb-4"
-                    />
+                    <label className="block mb-2">هل الإجازة بمرتب؟</label>
+                    <div className="flex gap-4 mb-4">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="paid"
+                          checked={vacationData.paid === true}
+                          onChange={() => setVacationData({ ...vacationData, paid: true })}
+                        />
+                        بمرتب
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="paid"
+                          checked={vacationData.paid === false}
+                          onChange={() => setVacationData({ ...vacationData, paid: false })}
+                        />
+                        بدون مرتب
+                      </label>
+                    </div>
                   </>
+                )}
+
+                <label className="block mb-2">مرفق (صورة / PDF):</label>
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    setVacationData({ ...vacationData, attachment: file });
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setVacationAttachmentPreview(ev.target.result);
+                      reader.readAsDataURL(file);
+                    } else {
+                      setVacationAttachmentPreview(null);
+                    }
+                  }}
+                  className="w-full border rounded p-2 mb-2"
+                />
+                {vacationAttachmentPreview && (
+                  <div className="mb-4">
+                    {vacationData.attachment?.type?.startsWith("image/") ? (
+                      <img src={vacationAttachmentPreview} alt="مرفق" className="max-h-32 rounded border" />
+                    ) : (
+                      <div className="bg-gray-100 p-2 rounded text-sm text-gray-600">📄 {vacationData.attachment?.name}</div>
+                    )}
+                  </div>
                 )}
 
                 <div className="flex justify-between mt-6">
                   <button
                     onClick={() => {
                       setShowVacationModal(false);
-                      setVacationData({ type: "official", from_date: "", to_date: "", paid: true, medical_certificate: null });
+                      setVacationData({ type: "official", from_date: "", to_date: "", paid: true, attachment: null });
+                      setVacationAttachmentPreview(null);
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
                   >

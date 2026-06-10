@@ -13,6 +13,14 @@ const TABS = [
   { key: "resignations", label: "طلبات الاستقالة", icon: "🚪" },
 ];
 
+const typeLabels = {
+  official: "رسمية",
+  sick: "مرضية",
+  maternity: "أمومة",
+  hajj: "حج",
+  unpaid: "بدون مرتب",
+};
+
 function getStatusBadge(status) {
   switch (status) {
     case "pending": return <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded text-xs font-medium">قيد الانتظار</span>;
@@ -143,7 +151,7 @@ export default function RequestsPage() {
   function printLeavesReport() {
     const rows = filteredLeaves.map((r, i) => {
       const empName = r.employee?.name || r.employee_id;
-      const type = r.type;
+      const type = typeLabels[r.type] || r.type;
       const fromDate = formatDateDisplay(r.from_date);
       const toDate = formatDateDisplay(r.to_date);
       const days = r.days || 1;
@@ -354,6 +362,7 @@ export default function RequestsPage() {
                         <th className="border p-3 text-right">من</th>
                         <th className="border p-3 text-right">إلى</th>
                         <th className="border p-3 text-right">الأيام</th>
+                        <th className="border p-3 text-right">المرفق</th>
                         <th className="border p-3 text-right">الحالة</th>
                         <th className="border p-3 text-center">إجراء</th>
                       </tr>
@@ -361,7 +370,7 @@ export default function RequestsPage() {
                     <tbody>
                       {filteredLeaves.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+                          <td colSpan="9" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
                         </tr>
                       ) : (
                         filteredLeaves.map((r, i) => (
@@ -369,11 +378,20 @@ export default function RequestsPage() {
                             <td className="border p-3">{i + 1}</td>
                             <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
                             <td className="border p-3">
-                              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">{r.type}</span>
+                              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">{typeLabels[r.type] || r.type}</span>
                             </td>
                             <td className="border p-3">{formatDateDisplay(r.from_date)}</td>
                             <td className="border p-3">{formatDateDisplay(r.to_date)}</td>
                             <td className="border p-3">{r.days || 1}</td>
+                            <td className="border p-3">
+                              {r.attachment_url ? (
+                                <a href={r.attachment_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
+                                  📎 عرض المرفق
+                                </a>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="border p-3">{getStatusBadge(r.status)}</td>
                             <td className="border p-3 text-center">
                               {r.status === "pending" && (

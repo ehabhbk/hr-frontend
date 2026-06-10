@@ -72,6 +72,8 @@ export interface LeaveRequest {
   status: 'pending' | 'approved' | 'rejected';
   note?: string;
   paid?: boolean;
+  attachment?: string;
+  attachment_url?: string;
   created_at?: string;
   [key: string]: any;
 }
