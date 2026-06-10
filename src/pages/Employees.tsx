@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+import api, { getStorageUrl } from "../services/api";
 import {
   registerUserOnDevice,
   syncDevice,
@@ -560,13 +560,13 @@ export default function Employees() {
   };
 
   // تحديد لون البطاقة حسب الحالة
-  const getCardColor = (status) => {
-    const normalized = (status || "").toLowerCase();
-    if (normalized.includes("active")) return "bg-blue-100";       // نشط
-    if (normalized.includes("terminated")) return "bg-purple-100"; // مفصول
-    if (normalized.includes("warning")) return "bg-yellow-100";    // إنذار
-    if (normalized.includes("vacation")) return "bg-teal-100";     // في إجازة (لون مختلف عن نشط)
-    return "bg-gray-100";                                          // افتراضي
+  const getCardColor = (emp) => {
+    if (emp.warnings_count > 0) return "bg-yellow-100 border-2 border-yellow-400";
+    const normalized = (emp.status || "").toLowerCase();
+    if (normalized.includes("active")) return "bg-green-100 border-2 border-green-400";
+    if (normalized.includes("terminated")) return "bg-red-100 border-2 border-red-400";
+    if (normalized.includes("vacation")) return "bg-teal-100 border-2 border-teal-400";
+    return "bg-gray-100";
   };
 
   // فلترة الموظفين حسب البحث والحالة
@@ -643,29 +643,32 @@ export default function Employees() {
               <div
                 key={emp.id}
                 data-aos="fade-up"
-                className={`${getCardColor(emp.status)} shadow-md rounded-2xl p-6 flex flex-col items-center text-center hover:shadow-lg transform transition hover:scale-105`}
+                className={`${getCardColor(emp)} shadow-md rounded-2xl p-6 flex flex-col items-center text-center hover:shadow-lg transform transition hover:scale-105`}
               >
                 <img
-                  src={emp.profile_photo_url || emp.profile_photo || "/default-avatar.png"}
+                  src={getStorageUrl(emp.profile_photo) || "/default-avatar.svg"}
                   alt={emp.name}
-                  className="w-24 h-24 rounded-full border mb-4 object-cover"
+                  className="w-24 h-24 rounded-full border-4 border-white shadow mb-4 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).src = "/default-avatar.svg"; }}
                 />
                 <h2 className="text-lg font-bold text-gray-800">{emp.name}</h2>
                 <p className="text-gray-600">{emp.position}</p>
                 <p className="text-gray-600">القسم: {emp.department?.name || "غير محدد"}</p>
                 <p className="text-green-600 font-semibold">💰 {emp.total_salary || emp.salary}</p>
-                <p className="text-gray-600">
-                  الحالة: {emp.status === "terminated"
+                <p className={`font-semibold mt-1 ${
+                  emp.warnings_count > 0 ? "text-yellow-600" :
+                  emp.status === "terminated" ? "text-red-600" :
+                  emp.status === "vacation" ? "text-teal-600" :
+                  "text-green-600"
+                }`}>
+                  {emp.status === "terminated"
                     ? "مفصول"
-                    : emp.status === "warning"
-                    ? "إنذار"
                     : emp.status === "vacation"
                     ? "🌴 في إجازة"
+                    : emp.warnings_count > 0
+                    ? `⚠️ ${emp.warnings_count} إنذار`
                     : "نشط"}
                 </p>
-                {emp.warnings_count > 0 && (
-                  <p className="text-red-500 text-sm">⚠️ {emp.warnings_count} إنذار</p>
-                )}
                 {emp.leave_count > 0 && (
                   <p className="text-blue-500 text-sm">📅 {emp.leave_count} إجازة</p>
                 )}
