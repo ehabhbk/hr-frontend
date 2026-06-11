@@ -293,7 +293,7 @@ export default function Employee() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(() => {
-        toast.success("✅ تم إلغاء الإنذار");
+        toast.success("✅ تم حل الإنذار");
         refreshEmployee();
       })
       .catch(() => toast.error("❌ فشل إلغاء الإنذار"));
@@ -981,16 +981,22 @@ export default function Employee() {
               <div className="mt-6">
                 <h3 className="text-lg font-bold mb-2">الإنذارات:</h3>
                 {employee.warnings.map((warning) => (
-                  <div key={warning.id} className="bg-red-50 p-3 rounded-lg mb-2 flex justify-between items-center">
-                    <span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ml-2 ${warning.type === 'final' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                  <div key={warning.id} className={`p-3 rounded-lg mb-2 flex justify-between items-center ${warning.status === 'resolved' ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${warning.type === 'final' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
                         {warning.type === 'final' ? 'نهائي' : 'كتابي'}
                       </span>
-                      {warning.reason || "إنذار"} - {formatDateArabic(warning.created_at)}
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${warning.status === 'resolved' ? 'bg-green-200 text-green-800' : 'bg-orange-200 text-orange-800'}`}>
+                        {warning.status === 'resolved' ? 'محلول' : 'نشط'}
+                      </span>
+                      <span>{warning.reason || "إنذار"} - {formatDateArabic(warning.created_at)}</span>
+                      <span className="text-xs text-gray-500">صدر من: {warning.created_by_name || '-'}</span>
                     </span>
-                    <button onClick={() => cancelWarning(warning.id)} className="text-red-500 text-sm underline">
-                      إلغاء
-                    </button>
+                    {warning.status !== 'resolved' && (
+                      <button onClick={() => cancelWarning(warning.id)} className="text-red-500 text-sm underline">
+                        إلغاء
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

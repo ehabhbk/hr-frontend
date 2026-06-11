@@ -2507,7 +2507,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
                         <td className="p-2 border text-center">{i + 1}</td>
                         <td className="p-2 border text-center">{formatDateDisplay(record.date)}</td>
-                        <td className="p-2 border text-center">{record.check_in_time ? record.check_in_time.split(' ')[1]?.substring(0, 5) : '-'}</td>
+                        <td className="p-2 border text-center">{record.check_in_time ? new Date(record.check_in_time + (record.check_in_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}</td>
                         <td className="p-2 border text-center">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             record.check_in_type === 'late' ? 'bg-red-100 text-red-700' :
@@ -2518,7 +2518,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                             {attendanceTypeLabels[record.check_in_type] || record.check_in_type || '-'}
                           </span>
                         </td>
-                        <td className="p-2 border text-center">{record.check_out_time ? record.check_out_time.split(' ')[1]?.substring(0, 5) : '-'}</td>
+                        <td className="p-2 border text-center">{record.check_out_time ? new Date(record.check_out_time + (record.check_out_time.includes('T') ? '' : 'Z')).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}</td>
                         <td className="p-2 border text-center">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
                             record.check_out_type === 'early' ? 'bg-orange-100 text-orange-700' :
