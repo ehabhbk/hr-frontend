@@ -174,6 +174,7 @@ export default function Dashboard() {
             <PieCard title="🏢 الأقسام — عدد الموظفين" data={pie.departments_employees} options={smallChartOptions} makeChartData={makeChartData} />
             <PieCard title="🏢 الأقسام — إجمالي المرتبات" data={pie.departments_salary} options={smallChartOptions} makeChartData={makeChartData} formatter={fmt} />
             <PieCard title="💼 توزيع المسميات الوظيفية" data={pie.positions} options={smallChartOptions} makeChartData={makeChartData} />
+            <PieCard title="🏢 عدد الوظائف لكل قسم" data={pie.dept_positions} options={smallChartOptions} makeChartData={makeChartData} />
             <PieCard title="📋 الإجازات المرفوضة" data={pie.leaves_rejected} options={smallChartOptions} makeChartData={makeChartData} />
             <PieCard title="📋 الإجازات المعلقة" data={pie.leaves_pending} options={smallChartOptions} makeChartData={makeChartData} />
             <PieCard title="📊 حالة طلبات الإجازات" data={pie.leaves_status} options={smallChartOptions} makeChartData={makeChartData} />
