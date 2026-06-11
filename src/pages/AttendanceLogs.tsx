@@ -32,6 +32,7 @@ export default function AttendanceLogs() {
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [calculatingAbsences, setCalculatingAbsences] = useState(false);
   const [logs, setLogs] = useState([]);
   const [devices, setDevices] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -232,6 +233,24 @@ export default function AttendanceLogs() {
     }
   };
 
+  const handleCalculateAbsences = async () => {
+    setCalculatingAbsences(true);
+    try {
+      const res = await api.post("/attendance-records/calculate-absences", {
+        from_date: filters.from_date,
+        to_date: filters.to_date,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(res.data?.message || "✅ تم احتساب الغياب");
+      await loadLogs();
+    } catch (e) {
+      toast.error(e.message || "فشل في احتساب الغياب");
+    } finally {
+      setCalculatingAbsences(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     if (logs.length === 0) {
       toast.warning("لا توجد سجلات للتصدير");
@@ -349,6 +368,7 @@ export default function AttendanceLogs() {
     if (type === 'checkout' || type === 4 || type === '4') return TYPE_COLORS['checkout'];
     if (type === 'checkout_early' || type === 5 || type === '5') return TYPE_COLORS['checkout_early'];
     if (type === 'checkout_late' || type === 6 || type === '6') return TYPE_COLORS['checkout_late'];
+    if (type === 'absence' || type === 0 || type === '0') return TYPE_COLORS['absence'];
     // If it's a string like 'حضور' or 'انصراف'
     if (type === 'حضور') return TYPE_COLORS['attendance'];
     if (type === 'انصراف') return TYPE_COLORS['checkout'];
@@ -594,6 +614,14 @@ export default function AttendanceLogs() {
               🔄 {d.name || `جهاز #${d.id}`}
             </button>
           ))}
+          <button
+            onClick={handleCalculateAbsences}
+            disabled={calculatingAbsences}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-semibold disabled:opacity-50 mr-auto"
+            type="button"
+          >
+            {calculatingAbsences ? "جارٍ احتساب الغياب..." : "🚫 احتساب الغياب"}
+          </button>
         </div>
 
         <main className="flex-1 p-6">

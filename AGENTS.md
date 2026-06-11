@@ -14,6 +14,9 @@
 - عرض نوع الإجازة بالعربية في طلبات الإجازات وتقرير الموظف
 - إظهار نوع الإجازة + المتبقي بالأيام في حالة الموظف، والعودة التلقائية إلى "نشط" بعد انتهاء الإجازة
 - أولوية الخصم في المرتب: تأمين → قسط السلفة → خصومات الحضور (إذا المبلغ لا يكفي، يُخصم بقدر المتاح والباقي محمول للشهر التالي)
+- **نظام الغياب التلقائي**: الموظف المحدد له وردية يُحتسب غياباً تلقائياً إذا لم يبصم في يوم عمل من أيام ورديته وليس في إجازة — الخصم: أجر اليوم كامل (hourly_rate * daily_hours)
+- أيام الغياب: فقط أيام العمل في الوردية (week_days) — الأيام خارج الوردية لا تحتسب
+- `absence_rules_enabled` في الإعدادات (حالياً غير مستخدم في باك إند — للاستخدام المستقبلي)
 
 ## Progress
 
@@ -79,8 +82,19 @@
 ### In Progress
 - (none)
 
+### Recently Added
+- **نظام الغياب التلقائي**:
+  - `AttendanceRecordController::calculateAbsencesForPeriod()` — يحتسب الغياب لكل موظف له وردية: إذا لم يبصم في يوم عمل من أيام ورديته وليس في إجازة، يُنشئ `AttendanceRecord` مع `is_absent=true`, `absence_days=1`, `absence_deduction=hourly_rate * daily_hours`
+  - `AttendanceRecordController::calculateAbsences()` — نقطة نهاية API `POST /attendance-records/calculate-absences` للاحتساب اليدوي
+  - دمج تلقائي في `processFromDeviceLogs()` — بعد معالجة البصمات، يحتسب الغياب تلقائياً
+  - `calculateDeductions()` — إضافة `absence_deduction` إلى `total_deduction`
+  - `ReportsController@salaryReport` — إضافة `absent_days` للتقرير
+  - `AttendanceLogs.tsx` — زر "🚫 احتساب الغياب" مع دالة `handleCalculateAbsences`
+  - أيام الوردية (week_days) بنظام JS: 0=الأحد, 1=الإثنين, ..., 6=السبت — يتطابق مع `date('w')` في PHP
+
 ### Blocked
 - فشل تشغيل `php artisan migrate` بسبب خطأ في جدول `roles` (موجود مسبقاً) — بعض التغييرات نفذت يدوياً
+- جهاز K40 الحالي لا يدعم `startEnroll()` عن بعد
 
 ## Key Decisions
 - استخدام `Jmrashed\Zkteco` بدلاً من `Rats\Zkteco`
@@ -93,18 +107,19 @@
 - استخدام `installments_detail` JSON column بدلاً من جدول منفصل للأقساط — أسهل للتعديل على النظام الحالي
 - `syncFromDetail()` في `AdvanceRequest` model — يُحدّث `installments`, `paid_installments`, `remaining_amount` من مصفوفة JSON
 - أولوية الخصم للمرتب: تأمين ← قسط السلفة ← خصومات الحضور (إذا المبلغ لا يكفي، يُخصم بقدر المتاح)
+- نظام الغياب التلقائي: `calculateAbsencesForPeriod()` يُحتسب الغياب فقط في أيام الوردية (week_days) للموظفين المعينين في وردية، مع تجاهل أيام الإجازات المعتمدة. يستخدم `hourly_rate = gross_salary / 240` و `absence_deduction = hourly_rate * daily_hours`
 
 ## Next Steps
 - اختبار رفع الملف لطلب الإجازة (API + UI)
 - اختبار رفع الملف لطلب السلفية (API + UI)
 - اختبار المزامنة بعد الإصلاحات كاملة
 - اختبار نظام السلف الطويلة: إنشاء طلب → موافقة → ظهور الأقساط → دفع قسط → ظهور في كشف المرتبات
+- اختبار الغياب التلقائي: تعيين موظف في وردية أيامها السبت والثلاثاء، عدم بصمته يوم سبت → ظهوره غياب في سجل الحضور
 - عند استبدال جهاز K40 بجهاز يدعم enrollment عن بعد، تفعيل `startEnroll()` تلقائياً
 
 ## Critical Context
 - `ZKTecoService::startEnroll()` يستخدم `_command()` لإرسال الأمر `CMD_START_ENROLL = 97` — لا يعمل على K40
 - المكتبة `jmrashed/zkteco` لا تحتوي على دالة `startFingerprintEnroll` عالية المستوى
-- باقي أخطاء في الـ log: `Column not found: 1054 Unknown column 'employee_id'` في جدول `attendance_device_logs` (قديم) + `Table 'hrm.resignation_requests' doesn't exist` (قديم)
 - `APP_URL=http://localhost` في `.env` لكن الخادم الفعلي `http://server/hr-app/public` — يسبب مشاكل في `Storage::url()`
 
 ## Relevant Files
@@ -114,14 +129,17 @@
 - `app/Http/Controllers/SettingsController.php`
 - `app/Http/Controllers/ReportsController.php`
 - `app/Http/Controllers/EmployeesController.php` (line ~389: active_leave detection + remaining_days)
+- `app/Http/Controllers/AttendanceRecordController.php` (line ~374: calculateAbsencesForPeriod)
 - `app/Services/ZKTecoService.php`
 - `app/Models/Leave.php`
 - `app/Models/AdvanceRequest.php`
 - `app/Models/EmployeeAsset.php`
+- `app/Models/WorkShift.php` (week_days array)
 - `frontend/src/pages/Employee.tsx`
 - `frontend/src/pages/RequestsPage.tsx`
 - `frontend/src/pages/ReportsPage.tsx`
 - `frontend/src/pages/SettingsPage.tsx`
+- `frontend/src/pages/AttendanceLogs.tsx` (زر احتساب الغياب + عرض الغياب)
 - `frontend/src/components/Topbar.tsx`
 - `frontend/src/services/api.ts`
 - `frontend/src/types/api.ts`

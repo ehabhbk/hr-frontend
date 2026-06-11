@@ -25,8 +25,11 @@ export interface Employee {
   base_salary?: number;
   position_allowance?: number;
   hire_date?: string;
-  status?: 'active' | 'inactive' | 'terminated';
+  status?: string;
   profile_photo_url?: string;
+  warnings_count?: number;
+  total_advance_remaining?: number;
+  total_salary?: number;
   [key: string]: any;
 }
 

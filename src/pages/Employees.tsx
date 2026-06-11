@@ -673,6 +673,9 @@ export default function Employees() {
                 {emp.leave_count > 0 && (
                   <p className="text-blue-500 text-sm">📅 {emp.leave_count} إجازة</p>
                 )}
+                {emp.total_advance_remaining > 0 && (
+                  <p className="text-orange-500 text-sm font-semibold">💳 سلفة متبقي: {emp.total_advance_remaining}</p>
+                )}
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => navigate(`/employee/${emp.id}`)}
