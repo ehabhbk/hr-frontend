@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api, { API_BASE, downloadBlob } from "../services/api";
 import Sidebar from "../components/Sidebar";
@@ -144,6 +144,11 @@ function ReportsPage() {
   const [expandedEmployee, setExpandedEmployee] = useState(null);
   const [employeeReportData, setEmployeeReportData] = useState(null);
   const [employeeReportEmp, setEmployeeReportEmp] = useState(null);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
+  const [showAllEmployees, setShowAllEmployees] = useState(false);
+  const [employeeReportFromDate, setEmployeeReportFromDate] = useState("");
+  const [employeeReportToDate, setEmployeeReportToDate] = useState("");
+  const [showFilteredAttendance, setShowFilteredAttendance] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem("sidebarCollapsed") === "1";
@@ -164,7 +169,16 @@ function ReportsPage() {
       params.append('month', month);
       params.append('year', year);
       if (selectedDepartment) params.append('department_id', selectedDepartment);
-      if (selectedEmployee) params.append('employee_id', selectedEmployee);
+      if (selectedEmployee && type !== 'employee') params.append('employee_id', selectedEmployee);
+      if (type === 'employee') {
+        if (showAllEmployees) {
+          params.append('all_employees', '1');
+        } else if (selectedEmployee) {
+          params.append('employee_id', selectedEmployee);
+        }
+        if (employeeReportFromDate) params.append('from_date', employeeReportFromDate);
+        if (employeeReportToDate) params.append('to_date', employeeReportToDate);
+      }
 
       const endpoints = {
         salary: '/pdf/salary-report',
@@ -196,7 +210,7 @@ function ReportsPage() {
         leaveWarning: `تقرير_الإجازات_والإنذارات_${year}.pdf`,
         salaryIncrease: `تقرير_الزيادة_السنوية_${year}.pdf`,
         department: `تقرير_الأقسام_${year}.pdf`,
-        employee: `تقرير_الموظف_${selectedEmployee}_${year}.pdf`,
+        employee: showAllEmployees ? `تقرير_جميع_الموظفين_${year}.pdf` : `تقرير_الموظف_${selectedEmployee}_${year}.pdf`,
       };
       
       a.download = fileNames[type] || `تقرير_${year}.pdf`;
@@ -222,7 +236,16 @@ function ReportsPage() {
       params.append('month', month);
       params.append('year', year);
       if (selectedDepartment) params.append('department_id', selectedDepartment);
-      if (selectedEmployee) params.append('employee_id', selectedEmployee);
+      if (selectedEmployee && type !== 'employee') params.append('employee_id', selectedEmployee);
+      if (type === 'employee') {
+        if (showAllEmployees) {
+          params.append('all_employees', '1');
+        } else if (selectedEmployee) {
+          params.append('employee_id', selectedEmployee);
+        }
+        if (employeeReportFromDate) params.append('from_date', employeeReportFromDate);
+        if (employeeReportToDate) params.append('to_date', employeeReportToDate);
+      }
 
       const endpoints = {
         salary: '/reports/salary',
@@ -230,7 +253,7 @@ function ReportsPage() {
         salaryIncrease: '/reports/salary-increase',
         department: '/reports/department',
         leaveWarning: '/reports/leaves-warnings',
-        employee: '/reports/employee',
+        employee: '/reports/employee-detailed',
       };
 
       const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
@@ -258,7 +281,7 @@ function ReportsPage() {
         salaryIncrease: `تقرير_الزيادة_السنوية_${year}.xlsx`,
         department: `تقرير_الأقسام_${year}.xlsx`,
         leaveWarning: `تقرير_الإجازات_والإنذارات_${year}.xlsx`,
-        employee: `تقرير_الموظف_${selectedEmployee}_${year}.xlsx`,
+        employee: showAllEmployees ? `تقرير_جميع_الموظفين_${year}.xlsx` : `تقرير_الموظف_${selectedEmployee}_${year}.xlsx`,
       };
       
       XLSX.writeFile(wb, fileNames[type] || `تقرير_${year}.xlsx`);
@@ -427,15 +450,26 @@ function ReportsPage() {
   }
 
   async function loadEmployeeReport() {
-    if (!selectedEmployee) {
+    if (!selectedEmployee && !showAllEmployees) {
       setEmployeeReportData(null);
       return;
     }
     setLoading(true);
     try {
-      const res = await api.get(`/reports/employee-detailed?employee_id=${selectedEmployee}`);
+      let url = `/reports/employee-detailed`;
+      const params = [];
+      if (showAllEmployees) {
+        params.push('all_employees=1');
+      } else {
+        params.push(`employee_id=${selectedEmployee}`);
+      }
+      if (employeeReportFromDate) params.push(`from_date=${employeeReportFromDate}`);
+      if (employeeReportToDate) params.push(`to_date=${employeeReportToDate}`);
+      if (params.length) url += '?' + params.join('&');
+      
+      const res = await api.get(url);
       setEmployeeReportData(res.data);
-      setEmployeeReportEmp(res.data.employee);
+      setEmployeeReportEmp(res.data.employee || null);
       toast.success("تم تحميل تقرير الموظف بنجاح ✅");
     } catch (err) {
       console.error("Employee report error:", err);
@@ -446,30 +480,38 @@ function ReportsPage() {
   }
 
   async function exportEmployeeReportPDF() {
-    if (!selectedEmployee) {
+    if (!selectedEmployee && !showAllEmployees) {
       toast.error("اختر الموظف أولاً");
       return;
     }
     setExporting(true);
     try {
-      const response = await fetch(
-        `${API_BASE}/pdf/employee-detailed-report?employee_id=${selectedEmployee}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Accept': 'application/pdf',
-          },
-        }
-      );
+      let url = `${API_BASE}/pdf/employee-detailed-report?`;
+      const params = [];
+      if (showAllEmployees) {
+        params.push('all_employees=1');
+      } else {
+        params.push(`employee_id=${selectedEmployee}`);
+      }
+      if (employeeReportFromDate) params.push(`from_date=${employeeReportFromDate}`);
+      if (employeeReportToDate) params.push(`to_date=${employeeReportToDate}`);
+      url += params.join('&');
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/pdf',
+        },
+      });
       if (!response.ok) throw new Error('Export failed');
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const urlObj = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `تقرير_موظف_${selectedEmployee}.pdf`;
+      a.href = urlObj;
+      a.download = showAllEmployees ? `تقرير_جميع_الموظفين.pdf` : `تقرير_موظف_${selectedEmployee}.pdf`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(urlObj);
       document.body.removeChild(a);
       toast.success('تم تصدير التقرير بنجاح ✅');
     } catch (err) {
@@ -799,6 +841,16 @@ function ReportsPage() {
                 onExportPDF={exportEmployeeReportPDF}
                 onExportExcel={() => exportToExcel('employee')}
                 exporting={exporting}
+                employeeSearchQuery={employeeSearchQuery}
+                setEmployeeSearchQuery={setEmployeeSearchQuery}
+                showAllEmployees={showAllEmployees}
+                setShowAllEmployees={setShowAllEmployees}
+                fromDate={employeeReportFromDate}
+                setFromDate={setEmployeeReportFromDate}
+                toDate={employeeReportToDate}
+                setToDate={setEmployeeReportToDate}
+                showFilteredAttendance={showFilteredAttendance}
+                setShowFilteredAttendance={setShowFilteredAttendance}
               />
             )}
             {activeTab === "evaluation" && (
@@ -1942,7 +1994,38 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
   );
 }
 
-function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onLoadReport, onExportPDF, onExportExcel, exporting }) {
+function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onLoadReport, onExportPDF, onExportExcel, exporting, employeeSearchQuery, setEmployeeSearchQuery, showAllEmployees, setShowAllEmployees, fromDate, setFromDate, toDate, setToDate, showFilteredAttendance, setShowFilteredAttendance }) {
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchFocused(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredEmployees = employees.filter(e =>
+    e.name.toLowerCase().includes(employeeSearchQuery.toLowerCase())
+  );
+
+  const handleSelectEmployee = (id, name) => {
+    setSelectedEmployee(id);
+    setShowAllEmployees(false);
+    setEmployeeSearchQuery(name);
+    setSearchFocused(false);
+  };
+
+  const handleAllEmployees = () => {
+    setShowAllEmployees(true);
+    setSelectedEmployee("");
+    setEmployeeSearchQuery("جميع الموظفين");
+    setSearchFocused(false);
+  };
+
   const insuranceLabels = {
     'none': 'بدون تأمين',
     'health': 'تأمين صحي',
@@ -1991,19 +2074,64 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
           تقرير موظف شامل ومفصل
         </h2>
         <div className="flex flex-wrap gap-3 items-center">
-          <select 
-            value={selectedEmployee} 
-            onChange={e => setSelectedEmployee(e.target.value)}
-            className="border rounded-lg px-4 py-2 bg-white min-w-[200px]"
-          >
-            <option value="">-- اختر الموظف --</option>
-            {employees.map(e => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
+          <div className="relative" ref={searchRef}>
+            <input
+              type="text"
+              value={employeeSearchQuery}
+              onChange={e => {
+                setEmployeeSearchQuery(e.target.value);
+                if (e.target.value === '') {
+                  setShowAllEmployees(false);
+                }
+              }}
+              onFocus={() => setSearchFocused(true)}
+              placeholder="ابحث باسم الموظف..."
+              className="border rounded-lg px-4 py-2 bg-white min-w-[220px]"
+            />
+            {searchFocused && employeeSearchQuery && !showAllEmployees && (
+              <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <button
+                  onClick={handleAllEmployees}
+                  className="w-full text-right px-4 py-2 hover:bg-teal-50 text-teal-700 font-medium border-b"
+                >
+                  📋 تقرير جميع الموظفين
+                </button>
+                {filteredEmployees.map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => handleSelectEmployee(e.id, e.name)}
+                    className={`w-full text-right px-4 py-2 hover:bg-slate-50 ${
+                      selectedEmployee === e.id ? 'bg-teal-50 font-medium' : ''
+                    }`}
+                  >
+                    {e.name}
+                  </button>
+                ))}
+                {filteredEmployees.length === 0 && (
+                  <div className="px-4 py-3 text-gray-500 text-sm">لا يوجد موظف بهذا الاسم</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-sm text-gray-600">من:</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="border rounded-lg px-3 py-2 bg-white text-sm"
+            />
+            <label className="text-sm text-gray-600">إلى:</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="border rounded-lg px-3 py-2 bg-white text-sm"
+            />
+          </div>
           <button
             onClick={onLoadReport}
-            disabled={!selectedEmployee || loading}
+            disabled={(!selectedEmployee && !showAllEmployees) || loading}
             className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
           >
             <DocumentTextIcon className="h-5 w-5" />
@@ -2011,7 +2139,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
           </button>
           <button
             onClick={onExportPDF}
-            disabled={!selectedEmployee || exporting}
+            disabled={(!selectedEmployee && !showAllEmployees) || exporting}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-5 w-5" />
@@ -2019,7 +2147,7 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
           </button>
           <button
             onClick={onExportExcel}
-            disabled={!selectedEmployee || exporting}
+            disabled={(!selectedEmployee && !showAllEmployees) || exporting}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
           >
             <ArrowDownTrayIcon className="h-5 w-5" />
@@ -2030,6 +2158,51 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
 
       {loading ? <LoadingSpinner /> : !data ? (
         <EmptyState icon="👤" message="اختر موظفاً لتحميل تقريره" />
+      ) : data.all_employees ? (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-6 rounded-xl border border-teal-200">
+            <h3 className="text-2xl font-bold text-teal-800">تقرير جميع الموظفين</h3>
+            <p className="text-teal-600">عدد الموظفين: {data.employees?.length || 0}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-teal-100">
+                    <th className="p-2 border">#</th>
+                    <th className="p-2 border">الاسم</th>
+                    <th className="p-2 border">رقم الموظف</th>
+                    <th className="p-2 border">الوظيفة</th>
+                    <th className="p-2 border">القسم</th>
+                    <th className="p-2 border">المرتب الأساسي</th>
+                    <th className="p-2 border">أيام العمل</th>
+                    <th className="p-2 border">تأخير</th>
+                    <th className="p-2 border">غياب</th>
+                    <th className="p-2 border">الخصم</th>
+                    <th className="p-2 border">الحالة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.employees.map((item, i) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-teal-50/30'}>
+                      <td className="p-2 border text-center">{i + 1}</td>
+                      <td className="p-2 border font-medium">{item.employee.name}</td>
+                      <td className="p-2 border text-center">{item.employee.employee_number}</td>
+                      <td className="p-2 border">{item.employee.position}</td>
+                      <td className="p-2 border">{item.employee.department}</td>
+                      <td className="p-2 border text-center">{formatCurrency(item.employee.base_salary)}</td>
+                      <td className="p-2 border text-center">{item.attendance_summary?.working_days || 0}</td>
+                      <td className="p-2 border text-center text-red-600">{item.attendance_summary?.late_days || 0}</td>
+                      <td className="p-2 border text-center text-orange-600">{item.attendance_summary?.absent_days || 0}</td>
+                      <td className="p-2 border text-center text-red-600">{formatCurrency(item.attendance_summary?.total_deduction || 0)}</td>
+                      <td className="p-2 border text-center">{item.employee.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           {/* Employee Header */}
@@ -2270,8 +2443,17 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
 
           {/* Attendance Records Section */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-violet-700 text-white px-4 py-3 font-bold">
-              سابعا: سجل الحضور والانصراف المفصل
+            <div className="bg-violet-700 text-white px-4 py-3 font-bold flex justify-between items-center">
+              <span>سابعا: سجل الحضور والانصراف المفصل</span>
+              <label className="flex items-center gap-2 text-sm font-normal cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showFilteredAttendance}
+                  onChange={e => setShowFilteredAttendance(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                إظهار المتأخر والانصراف المبكر فقط
+              </label>
             </div>
             
             {/* Attendance Summary */}
@@ -2319,7 +2501,9 @@ function EmployeeDetailedReport({ data, emp, loading, employees, selectedEmploye
                     </tr>
                   </thead>
                   <tbody>
-                    {data.attendance.map((record, i) => (
+                    {data.attendance
+                      .filter(record => !showFilteredAttendance || record.check_in_type === 'late' || record.check_out_type === 'early')
+                      .map((record, i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
                         <td className="p-2 border text-center">{i + 1}</td>
                         <td className="p-2 border text-center">{formatDateDisplay(record.date)}</td>
