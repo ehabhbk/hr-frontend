@@ -898,7 +898,7 @@ export default function Employee() {
             {/* بطاقة السلف - إدارة الأقساط */}
             {employee.advances && employee.advances.filter(a => a.status === 'approved' && a.type === 'long' && a.remaining_amount > 0).length > 0 && (
               <div className="bg-amber-50 shadow-lg rounded-xl p-6">
-                <h3 className="text-xl font-bold text-amber-800 mb-4">💰 السلف الطويلة - الأقساط</h3>
+                <h3 className="text-xl font-bold text-amber-800 mb-4">💰 سلفية طويلة - الأقساط</h3>
                 {employee.advances
                   .filter(a => a.status === 'approved' && a.type === 'long' && a.remaining_amount > 0)
                   .map(advance => (
@@ -1001,7 +1001,7 @@ export default function Employee() {
                   className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-lg"
                   disabled={employee.status === "vacation"}
                 >
-                  🌴 طلب الإجازة
+                  🌴 طلب إجازة
                 </button>
               )}
 
@@ -1020,7 +1020,7 @@ export default function Employee() {
                   className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 text-lg"
                   disabled={employee.status === "vacation" || employee.status === "terminated"}
                 >
-                  💰 طلب السلفية
+                  💰 طلب سلفية
                 </button>
               )}
 
@@ -1083,7 +1083,7 @@ export default function Employee() {
                     </span>
                     {warning.status !== 'resolved' && (
                       <button onClick={() => cancelWarning(warning.id)} className="text-red-500 text-sm underline">
-                        إلغاء
+                        حل الإنذار
                       </button>
                     )}
                   </div>
@@ -1727,7 +1727,7 @@ export default function Employee() {
               <div className="bg-white rounded-lg shadow-lg p-6 w-[500px]" dir="rtl">
                 <h2 className="text-xl font-bold mb-4">💰 طلب سلفية</h2>
 
-                <label className="block mb-2">نوع السلفة:</label>
+                <label className="block mb-2">نوع السلفية:</label>
                 <select
                   value={advanceData.type}
                   onChange={(e) => {
