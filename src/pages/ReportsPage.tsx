@@ -172,7 +172,7 @@ function ReportsPage() {
         leaveWarning: '/pdf/leave-warning-report',
         salaryIncrease: '/pdf/salary-increase-report',
         department: '/pdf/department-report',
-        employee: '/pdf/employee-report',
+        employee: '/pdf/employee-detailed-report',
       };
 
       const response = await fetch(`${API_BASE}${endpoints[type]}?${params}`, {
