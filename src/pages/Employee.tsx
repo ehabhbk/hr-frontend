@@ -115,8 +115,10 @@ export default function Employee() {
     installments: 1,
     note: "",
     attachment: null,
+    installments_detail: [],
   });
   const [advanceAttachmentPreview, setAdvanceAttachmentPreview] = useState(null);
+  const [payingInstallmentId, setPayingInstallmentId] = useState(null);
   const token = localStorage.getItem("token");
 
   const [incentiveData, setIncentiveData] = useState({
@@ -355,6 +357,10 @@ export default function Employee() {
   };
 
   const submitAdvance = () => {
+    if (employee?.status === 'terminated') {
+      toast.error("عذراً لا يمكن لهذا الموظف طلب سلفة لأنه مفصول");
+      return;
+    }
     if (!advanceData.amount || advanceData.amount <= 0) {
       toast.error("يرجى إدخال مبلغ السلفة");
       return;
@@ -368,6 +374,19 @@ export default function Employee() {
         toast.error(`المبلغ أكبر من راتبك في مدة التقسيط. يجب أن تكون مدة التقسيط ${requiredInstallments} شهر أو أكثر`);
         return;
       }
+      const totalInst = advanceData.installments_detail.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+      if (Math.abs(totalInst - amount) > 0.01) {
+        toast.error(`مجموع الأقساط (${totalInst}) يجب أن يساوي قيمة السلفة (${amount})`);
+        return;
+      }
+      const grossSal = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
+      for (let i = 0; i < advanceData.installments_detail.length; i++) {
+        const val = parseFloat(advanceData.installments_detail[i].amount) || 0;
+        if (grossSal > 0 && val > grossSal) {
+          toast.error(`القسط رقم ${i + 1} (${val}) أكبر من المرتب الشهري (${grossSal})`);
+          return;
+        }
+      }
     }
 
     setLoading(true);
@@ -377,6 +396,9 @@ export default function Employee() {
     formData.append("amount", advanceData.amount);
     formData.append("installments", advanceData.installments);
     formData.append("note", advanceData.note || "");
+    if (advanceData.type === "long" && advanceData.installments_detail.length > 0) {
+      formData.append("installments_detail", JSON.stringify(advanceData.installments_detail));
+    }
     if (advanceData.attachment) {
       formData.append("attachment", advanceData.attachment);
     }
@@ -389,13 +411,29 @@ export default function Employee() {
         toast.success("✅ تم تقديم طلب السلفة بنجاح - في انتظار الموافقة");
         refreshEmployee();
         setShowAdvanceModal(false);
-        setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null });
+        setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null, installments_detail: [] });
         setAdvanceAttachmentPreview(null);
       })
       .catch((err) => {
         toast.error(err?.response?.data?.message || "❌ فشل تقديم طلب السلفة");
       })
       .finally(() => setLoading(false));
+  };
+
+  const handlePayInstallment = (advanceId, installmentNo) => {
+    setPayingInstallmentId(`${advanceId}-${installmentNo}`);
+    api
+      .post(`/advances/requests/${advanceId}/pay-installment`, { installment_no: installmentNo }, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        toast.success(`✅ تم تأكيد دفع القسط رقم ${installmentNo}`);
+        refreshEmployee();
+      })
+      .catch((err) => {
+        toast.error(err?.response?.data?.message || "❌ فشل تأكيد الدفع");
+      })
+      .finally(() => setPayingInstallmentId(null));
   };
 
   const restoreEmployee = () => {
@@ -857,6 +895,57 @@ export default function Employee() {
               </div>
             )}
 
+            {/* بطاقة السلف - إدارة الأقساط */}
+            {employee.advances && employee.advances.filter(a => a.status === 'approved' && a.type === 'long' && a.remaining_amount > 0).length > 0 && (
+              <div className="bg-amber-50 shadow-lg rounded-xl p-6">
+                <h3 className="text-xl font-bold text-amber-800 mb-4">💰 السلف الطويلة - الأقساط</h3>
+                {employee.advances
+                  .filter(a => a.status === 'approved' && a.type === 'long' && a.remaining_amount > 0)
+                  .map(advance => (
+                    <div key={advance.id} className="bg-white rounded-lg p-4 mb-4 border border-amber-200">
+                      <div className="flex justify-between mb-3">
+                        <span className="font-bold text-amber-700">
+                          سلفة: {parseFloat(advance.amount).toLocaleString()} ج.س
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          متبقي: {parseFloat(advance.remaining_amount).toLocaleString()} ج.س
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {(advance.installments_detail || []).map((inst, i) => (
+                          <div key={i} className={`flex justify-between items-center p-2 rounded ${
+                            inst.paid ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'
+                          }`}>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium">القسط {inst.installment_no || (i + 1)}</span>
+                              <span className="text-sm">{parseFloat(inst.amount).toLocaleString()} ج.س</span>
+                              <span className="text-xs text-gray-400">{inst.month}/{inst.year}</span>
+                            </div>
+                            <div>
+                              {inst.paid ? (
+                                <span className="text-green-600 text-sm font-medium">✓ مدفوع</span>
+                              ) : (
+                                <button
+                                  onClick={() => handlePayInstallment(advance.id, inst.installment_no || (i + 1))}
+                                  disabled={payingInstallmentId === `${advance.id}-${inst.installment_no || (i + 1)}`}
+                                  className={`px-3 py-1 rounded text-xs text-white ${
+                                    payingInstallmentId === `${advance.id}-${inst.installment_no || (i + 1)}`
+                                      ? 'bg-gray-400'
+                                      : 'bg-amber-600 hover:bg-amber-700'
+                                  }`}
+                                >
+                                  {payingInstallmentId === `${advance.id}-${inst.installment_no || (i + 1)}` ? 'جاري...' : 'تأكيد الدفع'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
             {/* بطاقة الملاحظات */}
             {employee.notes && (
               <div className="bg-gray-50 shadow-lg rounded-xl p-6">
@@ -929,7 +1018,7 @@ export default function Employee() {
                 <button
                   onClick={() => setShowAdvanceModal(true)}
                   className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 text-lg"
-                  disabled={employee.status === "vacation"}
+                  disabled={employee.status === "vacation" || employee.status === "terminated"}
                 >
                   💰 طلب السلفية
                 </button>
@@ -1641,7 +1730,19 @@ export default function Employee() {
                 <label className="block mb-2">نوع السلفة:</label>
                 <select
                   value={advanceData.type}
-                  onChange={(e) => setAdvanceData({ ...advanceData, type: e.target.value })}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    if (newType === "long") {
+                      const amt = parseFloat(advanceData.amount || 0);
+                      const inst = advanceData.installments || 1;
+                      const detail = Array.from({ length: inst }, (_, i) => ({
+                        amount: amt > 0 ? (i === inst - 1 ? Math.round((amt - Math.floor(amt / inst) * (inst - 1)) * 100) / 100 : Math.round((amt / inst) * 100) / 100) : "",
+                      }));
+                      setAdvanceData({ ...advanceData, type: newType, installments_detail: detail });
+                    } else {
+                      setAdvanceData({ ...advanceData, type: newType, installments_detail: [] });
+                    }
+                  }}
                   className="w-full border rounded p-2 mb-4"
                 >
                   <option value="short">قصيرة (من الراتب)</option>
@@ -1652,10 +1753,30 @@ export default function Employee() {
                 <input
                   type="number"
                   value={advanceData.amount}
-                  onChange={(e) => setAdvanceData({ ...advanceData, amount: e.target.value })}
+                  onChange={(e) => {
+                    const newAmount = e.target.value;
+                    const parsed = parseFloat(newAmount);
+                    if (advanceData.type === "long" && !isNaN(parsed) && parsed > 0) {
+                      const inst = advanceData.installments || 1;
+                      const detail = Array.from({ length: inst }, (_, i) => ({
+                        amount: i === inst - 1
+                          ? Math.round((parsed - Math.floor(parsed / inst) * (inst - 1)) * 100) / 100
+                          : Math.round((parsed / inst) * 100) / 100,
+                      }));
+                      setAdvanceData({ ...advanceData, amount: newAmount, installments_detail: detail });
+                    } else {
+                      setAdvanceData({ ...advanceData, amount: newAmount });
+                    }
+                  }}
                   className="w-full border rounded p-2 mb-4"
                   placeholder="أدخل المبلغ"
                 />
+
+                {employee?.status === 'terminated' && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 p-3 rounded mb-4 text-sm">
+                    عذراً، لا يمكن لهذا الموظف طلب سلفة لأنه مفصول
+                  </div>
+                )}
 
                 {advanceData.type === "long" && (
                   <>
@@ -1664,9 +1785,43 @@ export default function Employee() {
                       type="number"
                       min="1"
                       value={advanceData.installments}
-                      onChange={(e) => setAdvanceData({ ...advanceData, installments: parseInt(e.target.value) || 1 })}
+                      onChange={(e) => {
+                        const inst = parseInt(e.target.value) || 1;
+                        const detail = Array.from({ length: inst }, (_, i) => ({
+                          amount: advanceData.installments_detail[i]?.amount || "",
+                        }));
+                        setAdvanceData({ ...advanceData, installments: inst, installments_detail: detail });
+                      }}
                       className="w-full border rounded p-2 mb-4"
                     />
+
+                    {/* Installment amounts */}
+                    {advanceData.installments_detail.map((inst, i) => {
+                      const grossSalary = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
+                      const instAmount = parseFloat(inst.amount) || 0;
+                      const exceedsSalary = grossSalary > 0 && instAmount > grossSalary;
+                      return (
+                        <div key={i} className="mb-3">
+                          <label className="block text-sm mb-1">قيمة القسط رقم {i + 1}:</label>
+                          <input
+                            type="number"
+                            min="0.01"
+                            value={inst.amount}
+                            onChange={(e) => {
+                              const detail = [...advanceData.installments_detail];
+                              detail[i] = { ...detail[i], amount: e.target.value };
+                              setAdvanceData({ ...advanceData, installments_detail: detail });
+                            }}
+                            className={`w-full border rounded p-2 ${exceedsSalary ? 'border-red-500' : ''}`}
+                            placeholder="أدخل قيمة القسط"
+                          />
+                          {exceedsSalary && (
+                            <p className="text-red-600 text-xs mt-1">القسط أكبر من المرتب الشهري ({grossSalary})</p>
+                          )}
+                        </div>
+                      );
+                    })}
+
                     {(() => {
                       const grossSalary = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
                       const amount = parseFloat(advanceData.amount || 0);
@@ -1675,6 +1830,16 @@ export default function Employee() {
                         if (advanceData.installments < requiredInstallments) {
                           return <p className="text-red-600 text-sm mb-2">المبلغ أكبر من راتبك في مدة التقسيط. يجب أن تكون مدة التقسيط {requiredInstallments} شهر أو أكثر</p>;
                         }
+                      }
+                      return null;
+                    })()}
+
+                    {/* Sum check */}
+                    {advanceData.installments_detail.length > 0 && (() => {
+                      const totalInst = advanceData.installments_detail.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+                      const advAmount = parseFloat(advanceData.amount || 0);
+                      if (advAmount > 0 && Math.abs(totalInst - advAmount) > 0.01) {
+                        return <p className="text-orange-600 text-sm mb-2">مجموع الأقساط ({totalInst}) يجب أن يساوي قيمة السلفة ({advAmount})</p>;
                       }
                       return null;
                     })()}
@@ -1720,7 +1885,7 @@ export default function Employee() {
                   <button
                     onClick={() => {
                       setShowAdvanceModal(false);
-                      setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null });
+                      setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null, installments_detail: [] });
                       setAdvanceAttachmentPreview(null);
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"

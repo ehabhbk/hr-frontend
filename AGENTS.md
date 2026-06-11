@@ -5,7 +5,7 @@
 
 ## Constraints & Preferences
 - السلفة القصيرة: الحد المسموح فقط نسبة من إجمالي المرتب (%)، بدون حد أقصى بالجنيه وبدون نسبة خصم
-- السلفة الطويلة: حد أقصى بالجنيه فقط، بدون نسبة من المرتب
+- السلفة الطويلة: حد أقصى بالجنيه فقط، بدون نسبة من المرتب — إدخال قيمة كل قسط يدوياً لكل شهر، تأكيد دفع كل قسط يدوي
 - طلب السلفية: إلزامي إرفاق ملف (jpg/png/pdf) — يظهر في طلبات السلفيات وفي تقرير الموظف
 - جهاز K40 الحالي لا يدعم enrollment عن بعد (سيتم استبداله)
 - قاعدة البيانات MySQL (MariaDB)، المكتبة المستخدمة `jmrashed/zkteco` فقط
@@ -13,6 +13,7 @@
 - رفع ملف (صورة/PDF) في طلب الإجازة
 - عرض نوع الإجازة بالعربية في طلبات الإجازات وتقرير الموظف
 - إظهار نوع الإجازة + المتبقي بالأيام في حالة الموظف، والعودة التلقائية إلى "نشط" بعد انتهاء الإجازة
+- أولوية الخصم في المرتب: تأمين → قسط السلفة → خصومات الحضور (إذا المبلغ لا يكفي، يُخصم بقدر المتاح والباقي محمول للشهر التالي)
 
 ## Progress
 
@@ -62,6 +63,18 @@
   - إضافة صلاحية `requests.view` لصفحة الطلبات (مع شاشة منع الوصول)
   - ربط `requests.approve` / `requests.reject` بأزرار الموافقة/الرفض
 - **مودال الإنذار**: إضافة اختيار نوع الإنذار (كتابي/نهائي) مع راديو بوتون، إرسال `type` مع API، وعرض الوسم في قائمة الإنذارات
+- **نظام السلف الطويلة بالأقساط**: 
+  - إضافة عمود `installments_detail` (JSON) لجدول `advances_requests`
+  - واجهة إدخال قيمة كل قسط يدوياً في مودال طلب السلفية
+  - نقطة نهاية `POST /advances/requests/{id}/pay-installment` لتأكيد دفع القسط يدوياً
+  - واجهة إدارة الأقساط مع زر "تأكيد الدفع" لكل قسط غير مدفوع في صفحة الموظف
+  - إضافة `advances` لـ eager loading في `EmployeesController@show`
+- **إصلاح كشف المرتبات**: 
+  - `salaryReport` يستخدم `installments_detail` لمطابقة الشهر/السنة بدلاً من `monthly_installment`
+  - أولوية الخصم: تأمين ← قسط السلفة ← خصومات الحضور
+  - إذا المبلغ لا يكفي يُخصم المتاح والباقي محمول للشهر التالي
+- **إصلاح JSON decode**: إضافة `json_decode` لـ `installments_detail` القادم عبر multipart form data
+- **إصلاح Reports**: إضافة `installments_detail, paid_installments_count, total_paid_amount, total_remaining_amount` إلى `employeeDetailedReport`
 
 ### In Progress
 - (none)
@@ -77,11 +90,15 @@
 - `active_leave` تعتمد فقط على `to_date >= today && from_date <= today` — عندما تنتهي الإجازة يعود null وتظهر الحالة "نشط" تلقائياً
 - صورة الموظف: استخدام `getStorageUrl(employee.profile_photo)` بدلاً من `employee.profile_photo_url` لأن `APP_URL=http://localhost`
 - في Carbon 3.x، `diffInDays` ترجع signed value (تستخدم `%r%a`), لذا نستخدم `DateTime::diff->days` لحساب `remaining_days`
+- استخدام `installments_detail` JSON column بدلاً من جدول منفصل للأقساط — أسهل للتعديل على النظام الحالي
+- `syncFromDetail()` في `AdvanceRequest` model — يُحدّث `installments`, `paid_installments`, `remaining_amount` من مصفوفة JSON
+- أولوية الخصم للمرتب: تأمين ← قسط السلفة ← خصومات الحضور (إذا المبلغ لا يكفي، يُخصم بقدر المتاح)
 
 ## Next Steps
 - اختبار رفع الملف لطلب الإجازة (API + UI)
 - اختبار رفع الملف لطلب السلفية (API + UI)
 - اختبار المزامنة بعد الإصلاحات كاملة
+- اختبار نظام السلف الطويلة: إنشاء طلب → موافقة → ظهور الأقساط → دفع قسط → ظهور في كشف المرتبات
 - عند استبدال جهاز K40 بجهاز يدعم enrollment عن بعد، تفعيل `startEnroll()` تلقائياً
 
 ## Critical Context
@@ -100,6 +117,7 @@
 - `app/Services/ZKTecoService.php`
 - `app/Models/Leave.php`
 - `app/Models/AdvanceRequest.php`
+- `app/Models/EmployeeAsset.php`
 - `frontend/src/pages/Employee.tsx`
 - `frontend/src/pages/RequestsPage.tsx`
 - `frontend/src/pages/ReportsPage.tsx`
