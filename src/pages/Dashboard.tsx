@@ -2,106 +2,62 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import {
-  UserGroupIcon,
-  BuildingOfficeIcon,
-  ExclamationTriangleIcon,
-  UserMinusIcon,
-  CalendarIcon,
-  ClockIcon,
-  BanknotesIcon,
-  CheckCircleIcon,
-  DocumentIcon,
-  Cog6ToothIcon
-} from "@heroicons/react/24/outline";
-import api from "../services/api";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+import { Doughnut } from "react-chartjs-2";
+import api, { getStorageUrl } from "../services/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { listDevices, syncDevice, syncAttendance } from "../services/fingerprintApi";
+
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+const formatCurrency = (v) => {
+  if (!v || v === 0) return "0";
+  return new Intl.NumberFormat("ar-SD").format(v);
+};
+
+const GRADIENTS = {
+  total: "from-indigo-500 to-purple-600",
+  departments: "from-blue-500 to-cyan-500",
+  terminated: "from-red-500 to-rose-600",
+  vacation: "from-teal-500 to-emerald-500",
+  absent: "from-orange-500 to-red-500",
+  nocheck: "from-gray-500 to-slate-600",
+  late: "from-yellow-500 to-amber-600",
+  salary: "from-green-500 to-emerald-600",
+  gross: "from-emerald-500 to-teal-600",
+  advances: "from-violet-500 to-purple-600",
+  ideal: "from-amber-500 to-yellow-500",
+  base: "from-sky-500 to-blue-600",
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // Check permissions
-  const permissions = React.useMemo(() => {
-    try {
-      const perms = localStorage.getItem("permissions");
-      return perms ? JSON.parse(perms) : [];
-    } catch {
-      return [];
-    }
-  }, []);
-
-// Permission checks
-  const canViewEmployees = permissions.includes('*') || permissions.includes('employees.view');
-  const canViewDepartments = permissions.includes('*') || permissions.includes('departments.view');
-  const canViewAttendance = permissions.includes('*') || permissions.includes('attendance.view');
-  const canViewPayroll = permissions.includes('*') || permissions.includes('payroll.view') || permissions.includes('reports.salary');
-  const canSyncDevices = permissions.includes('*') || permissions.includes('devices.manage') || permissions.includes('attendance.sync');
-  const canManageDevices = permissions.includes('*') || permissions.includes('devices.manage');
-  const canCreateEmployee = permissions.includes('*') || permissions.includes('employees.create');
-  const canViewReports = permissions.includes('*') || permissions.includes('reports.view');
-  const canViewBank = permissions.includes('*') || permissions.includes('bank.view');
-  const canViewSettings = permissions.includes('*') || permissions.includes('settings.view');
-
-  const [dashboardData, setDashboardData] = useState(null);
-  const [employeeCount, setEmployeeCount] = useState(0);
-  const [departmentCount, setDepartmentCount] = useState(0);
-  const [employeesWithWarningsCount, setEmployeesWithWarningsCount] = useState(0);
-  const [terminatedCount, setTerminatedCount] = useState(0);
-
+  const [data, setData] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    api.get("/dashboard")
-      .then((res) => setDashboardData(res.data))
-      .catch((err) => console.error(err));
-  }, []);
-
-  useEffect(() => {
-    api.get("/employees", {
+    api.get("/dashboard", {
       headers: { Authorization: `Bearer ${token}` },
-    })
-    .then((res) => {
-      setEmployeeCount(res.data.data.length);
-      const employeesWithWarnings = res.data.data.filter(
-        (emp) => (emp.warnings_count || 0) > 0
-      ).length;
-      setEmployeesWithWarningsCount(employeesWithWarnings);
-      const terminated = res.data.data.filter((emp) => emp.status === "terminated").length;
-      setTerminatedCount(terminated);
-    })
-    .catch((err) => console.error(err));
-
-    api.get("/departments", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    .then((res) => setDepartmentCount(res.data.data.length))
-    .catch((err) => console.error(err));
+    }).then((res) => setData(res.data)).catch(console.error);
   }, [token]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await listDevices();
-        const arr = Array.isArray(data) ? data : data?.data || [];
+        const d = await listDevices();
+        const arr = Array.isArray(d) ? d : d?.data || [];
         if (cancelled) return;
         setDevices(arr);
-        if (!selectedDeviceId && arr?.[0]?.id) {
-          setSelectedDeviceId(String(arr[0].id));
-        }
-      } catch {
-        // ignore (devices feature optional)
-      }
+        if (!selectedDeviceId && arr?.[0]?.id) setSelectedDeviceId(String(arr[0].id));
+      } catch { }
     })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, []);
 
   const handleQuickSync = async () => {
@@ -109,10 +65,10 @@ export default function Dashboard() {
     try {
       if (selectedDeviceId) {
         const res = await syncDevice(selectedDeviceId);
-        toast.success(res?.message || "تمت المزامنة ✅");
+        toast.success(res?.message || "تمت المزامنة");
       } else {
         const res = await syncAttendance();
-        toast.success(res?.message || "تمت المزامنة ✅");
+        toast.success(res?.message || "تمت المزامنة");
       }
     } catch (e) {
       toast.error(e?.message || "فشل المزامنة");
@@ -121,24 +77,54 @@ export default function Dashboard() {
     }
   };
 
-  return (
-    <div className="flex min-h-screen bg-gray-100" dir="rtl">
-      {/* Sidebar */}
-      <Sidebar />
+  const s = data?.stats || {};
+  const pie = data?.pie_charts || {};
 
-      {/* Main Content */}
+  const makeChartData = (chartData) => ({
+    labels: chartData?.map((d) => d.label) || [],
+    datasets: [
+      {
+        data: chartData?.map((d) => d.value) || [],
+        backgroundColor: chartData?.map((d) => d.color) || [],
+        borderWidth: 2,
+        borderColor: "#fff",
+      },
+    ],
+  });
+
+  const chartOptions = {
+    responsive: true,
+    cutout: "60%",
+    plugins: {
+      legend: {
+        position: "bottom",
+        labels: { font: { size: 11, family: "Tahoma" }, usePointStyle: true, padding: 12 },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.label}: ${ctx.parsed}`,
+        },
+      },
+    },
+  };
+
+  return (
+    <div className="flex min-h-screen bg-gray-50" dir="rtl">
+      <Sidebar />
       <div className="flex-1 flex flex-col main-content">
         <Topbar title="لوحة التحكم" />
 
-        {/* محتوى الصفحة */}
-        <main className="flex-1 p-6">
-          {/* مزامنة جهاز البصمة - إظهار فقط لمن عنده الصلاحية */}
-          {canSyncDevices && (
-          <div className="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="text-indigo-800 font-semibold">مزامنة جهاز البصمة</div>
-            <div className="flex flex-col md:flex-row gap-3 md:items-center">
+        <main className="flex-1 p-5 space-y-6">
+
+          {/* Sync bar */}
+          <div className="bg-white shadow-sm rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100">
+            <span className="text-indigo-800 font-semibold text-sm flex items-center gap-2">
+              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+              مزامنة جهاز البصمة
+            </span>
+            <div className="flex flex-wrap gap-2 items-center">
               <select
-                className="border rounded-lg px-3 py-2"
+                className="border rounded-lg px-3 py-1.5 text-sm"
                 value={selectedDeviceId}
                 onChange={(e) => setSelectedDeviceId(e.target.value)}
                 disabled={!devices?.length || syncing}
@@ -147,262 +133,237 @@ export default function Dashboard() {
                   <option value="">لا يوجد أجهزة</option>
                 ) : (
                   devices.map((d) => (
-                    <option key={d.id} value={String(d.id)}>
-                      {d.name || `Device #${d.id}`}
-                    </option>
+                    <option key={d.id} value={String(d.id)}>{d.name || `جهاز #${d.id}`}</option>
                   ))
                 )}
               </select>
-              <button
-                onClick={handleQuickSync}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold disabled:opacity-60"
-                type="button"
-                disabled={syncing}
+              <button onClick={handleQuickSync} disabled={syncing}
+                className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 text-sm font-semibold disabled:opacity-50"
               >
                 {syncing ? "جارٍ المزامنة..." : "مزامنة الآن"}
               </button>
-{canManageDevices && (
-                <button
-                  onClick={() => navigate("/fingerprint-devices")}
-                  className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
-                  type="button"
-                  disabled={syncing}
-                >
-                  إدارة الأجهزة
-                </button>
-                )}
-                {canManageDevices && (
-                <button
-                  onClick={() => navigate("/attendance-logs")}
-                  className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
-                  type="button"
-                  disabled={syncing}
-                >
-                  عرض السجلات
-                </button>
-                )}
+              <button onClick={() => navigate("/attendance-logs")}
+                className="border border-gray-300 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50"
+              >
+                سجل الحضور
+              </button>
             </div>
           </div>
-          )}
 
-          {/* بطاقات الملخص */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            {canViewEmployees && (
-              <div
-                onClick={() => navigate("/employees")}
-                className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
-              >
-                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                  <UserGroupIcon className="h-6 w-6 text-indigo-600" />
-                  عدد الموظفين
-                </h2>
-                <p className="text-2xl font-bold text-indigo-600 mt-2">{employeeCount}</p>
-              </div>
-            )}
-
-            {canViewDepartments && (
-              <div
-                onClick={() => navigate("/departments")}
-                className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:shadow-lg transition"
-              >
-                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                  <BuildingOfficeIcon className="h-6 w-6 text-green-600" />
-                  عدد الأقسام
-                </h2>
-                <p className="text-2xl font-bold text-green-600 mt-2">{departmentCount}</p>
-              </div>
-            )}
-
-            {canViewEmployees && (
-              <div className="bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                  <UserMinusIcon className="h-6 w-6 text-red-600" />
-                  عدد الموظفين المفصولين
-                </h2>
-                <p className="text-2xl font-bold text-red-600 mt-2">{terminatedCount}</p>
-              </div>
-            )}
-
-            {canViewEmployees && (
-              <div className="bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                  <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
-                  عدد الموظفين الحاصلين على إنذارات
-                </h2>
-                <p className="text-2xl font-bold text-yellow-600 mt-2">{employeesWithWarningsCount}</p>
-              </div>
-            )}
+          {/* ===== STAT CARDS ROW 1 ===== */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard gradient={GRADIENTS.total} icon="👥" label="إجمالي الموظفين" value={s.total_employees} />
+            <StatCard gradient={GRADIENTS.departments} icon="🏢" label="عدد الأقسام" value={s.total_departments} />
+            <StatCard gradient={GRADIENTS.terminated} icon="🚫" label="مفصولون" value={s.terminated_employees} />
+            <StatCard gradient={GRADIENTS.vacation} icon="🌴" label="في إجازة الآن" value={s.on_leave_now} />
           </div>
 
-          {/* Dashboard API Stats - show based on permissions */}
-          {dashboardData && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              {canViewEmployees && (
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md rounded-lg p-6">
-                  <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                    <CalendarIcon className="h-5 w-5" />
-                    التعيينات هذا الشهر
-                  </h2>
-                  <p className="text-3xl font-bold mt-2">{dashboardData.stats.new_hires_this_month}</p>
-                </div>
-              )}
+          {/* ===== STAT CARDS ROW 2 ===== */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard gradient={GRADIENTS.absent} icon="❌" label="غياب اليوم" value={s.absences_today} />
+            <StatCard gradient={GRADIENTS.nocheck} icon="⏳" label="غير مداومين اليوم" value={s.not_clocked_today} />
+            <StatCard gradient={GRADIENTS.late} icon="⏰" label="متأخرون اليوم" value={s.late_today} />
+            <StatCard gradient={GRADIENTS.base} icon="💰" label="المرتبات الأساسية" value={formatCurrency(s.total_base_salaries)} />
+          </div>
 
-              {canViewAttendance && (
-                <>
-                  <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-md rounded-lg p-6">
-                    <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                      <CheckCircleIcon className="h-5 w-5" />
-                      الحاضرون اليوم
-                    </h2>
-                    <p className="text-3xl font-bold mt-2">{dashboardData.attendance.present_today}</p>
-                    <p className="text-xs opacity-75 mt-1">
-                      معدل الحضور: {dashboardData.attendance.attendance_rate}%
-                    </p>
-                  </div>
+          {/* ===== STAT CARDS ROW 3 ===== */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard gradient={GRADIENTS.gross} icon="💵" label="إجمالي المرتبات" value={formatCurrency(s.total_gross_salaries)} />
+            <StatCard gradient={GRADIENTS.advances} icon="💳" label="سلف الشهر الجاري" value={formatCurrency(s.advances_this_month)} />
+            <StatCard gradient={GRADIENTS.total} icon="⚠️" label="إنذارات هذا الشهر" value={s.warnings_this_month} />
+            <StatCard gradient={GRADIENTS.terminated} icon="⚠️" label="إنذارات هذه السنة" value={s.warnings_this_year} />
+          </div>
 
-                  <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md rounded-lg p-6">
-                    <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                      <ClockIcon className="h-5 w-5" />
-                      المتأخرون اليوم
-                    </h2>
-                    <p className="text-3xl font-bold mt-2">{dashboardData.attendance.late_today}</p>
-                  </div>
-                </>
-              )}
+          {/* ===== STAT CARDS ROW 4 ===== */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard gradient={GRADIENTS.vacation} icon="📋" label="طلبات إجازات الشهر" value={s.leaves_this_month} />
+            <StatCard gradient={GRADIENTS.departments} icon="📋" label="طلبات إجازات السنة" value={s.leaves_this_year} />
+            <StatCard gradient={GRADIENTS.attendance_rate ? "from-green-500 to-teal-500" : "from-gray-400 to-gray-500"} icon="📊" label="نسبة الحضور" value={s.attendance_rate != null ? `${s.attendance_rate}%` : "-"} />
+            <StatCard gradient={GRADIENTS.ideal} icon="🏆" label="معدل الحضور" value={s.attendance_rate != null ? `${s.attendance_rate}%` : "-"} />
+          </div>
 
-              {canViewPayroll && (
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md rounded-lg p-6">
-                  <h2 className="text-sm font-medium flex items-center gap-2 opacity-90">
-                    <BanknotesIcon className="h-5 w-5" />
-                    إجمالي المرتبات
-                  </h2>
-                  <p className="text-2xl font-bold mt-2">
-                    {new Intl.NumberFormat('ar-SD').format(dashboardData.payroll.total_gross)}
-                  </p>
-                  <p className="text-xs opacity-75">جنيه سوداني</p>
-                </div>
-              )}
+          {/* ===== PIE CHARTS + IDEAL EMPLOYEE + ACTIVITIES ===== */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* COL 1: Pie charts */}
+            <div className="space-y-6">
+              <PieCard title="الحضور والغياب" data={pie.attendance} options={chartOptions} makeChartData={makeChartData} />
+              <PieCard title="الإجازات (معتمدة)" data={pie.leaves} options={chartOptions} makeChartData={makeChartData} />
             </div>
-          )}
 
-          {/* Pending Requests - show based on permissions */}
-          {dashboardData && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">الطلبات المعلقة</h2>
-                <div className="space-y-4">
-                  <div 
-                    className="flex items-center justify-between p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100"
-                    onClick={() => navigate("/employees")}
-                  >
-                    <span className="text-gray-700">إجازات معلقة</span>
-                    <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm">
-                      {dashboardData.pending.leaves}
-                    </span>
+            <div className="space-y-6">
+              <PieCard title="السلفيات هذا الشهر" data={pie.advances} options={chartOptions} makeChartData={makeChartData} formatter={formatCurrency} />
+              <PieCard title="الإنذارات" data={pie.warnings} options={chartOptions} makeChartData={makeChartData} />
+            </div>
+
+            {/* COL 3: Ideal employee + Pending + Activities */}
+            <div className="space-y-6">
+              {/* Ideal employee */}
+              {data?.ideal_employee && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                  <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <span className="text-lg">🏆</span> الموظف المثالي لهذا الشهر
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={getStorageUrl(data.ideal_employee.profile_photo) || "/default-avatar.svg"}
+                      alt={data.ideal_employee.name}
+                      className="w-16 h-16 rounded-full border-2 border-amber-400 object-cover shadow"
+                      onError={(e) => { (e.target).src = "/default-avatar.svg"; }}
+                    />
+                    <div>
+                      <p className="font-bold text-gray-800">{data.ideal_employee.name}</p>
+                      <p className="text-xs text-gray-500">{data.ideal_employee.position || "-"}</p>
+                      <p className="text-xs text-gray-500">{data.ideal_employee.department || "-"}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {data.ideal_employee.stars && (
+                          <span className="text-amber-500 text-sm">
+                            {"★".repeat(data.ideal_employee.stars.total)}
+                            {"☆".repeat(30 - data.ideal_employee.stars.total)}
+                          </span>
+                        )}
+                        <span className="text-amber-600 font-bold text-sm">
+                          {data.ideal_employee.combined_score}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div 
-                    className="flex items-center justify-between p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100"
-                    onClick={() => navigate("/employees")}
-                  >
-                    <span className="text-gray-700">سلف معلقة</span>
-                    <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
-                      {dashboardData.pending.advances}
-                    </span>
+                  <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
+                    <div className={`p-2 rounded-lg ${data.ideal_employee.attendance_score >= 70 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      حضور<br /><strong>{data.ideal_employee.attendance_score}</strong>
+                    </div>
+                    <div className={`p-2 rounded-lg ${data.ideal_employee.leave_score >= 70 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      إجازات<br /><strong>{data.ideal_employee.leave_score}</strong>
+                    </div>
+                    <div className={`p-2 rounded-lg ${data.ideal_employee.warning_score >= 70 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      إنذارات<br /><strong>{data.ideal_employee.warning_score}</strong>
+                    </div>
                   </div>
-                  <div 
-                    className="flex items-center justify-between p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100"
-                    onClick={() => navigate("/reports")}
-                  >
-                    <span className="text-gray-700">إنذارات هذا الشهر</span>
-                    <span className="bg-red-500 text-white px-3 py-1 rounded-full text-sm">
-                      {dashboardData.pending.warnings}
-                    </span>
+                </div>
+              )}
+
+              {/* Pending requests */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="text-lg">📌</span> الطلبات المعلقة
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm text-gray-700">إجازات معلقة</span>
+                    <span className="bg-blue-500 text-white px-3 py-0.5 rounded-full text-xs font-bold">{data?.pending?.leaves || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm text-gray-700">سلف معلقة</span>
+                    <span className="bg-green-500 text-white px-3 py-0.5 rounded-full text-xs font-bold">{data?.pending?.advances || 0}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">النشاطات الأخيرة</h2>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {dashboardData.recent_activities?.slice(0, 5).map((activity, i) => (
-                    <div key={i} className="flex items-start gap-3 p-2 border-b border-gray-100">
-                      <span className="text-lg">
-                        {activity.type === 'leave' ? '🏖️' : '⚠️'}
+              {/* Recent activities */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="text-lg">🕐</span> النشاطات الأخيرة
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {data?.recent_activities?.slice(0, 7).map((act, i) => (
+                    <div key={i} className="flex items-start gap-3 p-2 border-b border-gray-50 last:border-0">
+                      <span className="text-base mt-0.5">
+                        {act.type === "leave" ? "🏖️" : act.type === "warning" ? "⚠️" : "💳"}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-700 truncate">{activity.message}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          activity.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                          activity.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          'bg-gray-100 text-gray-700'
+                        <p className="text-xs text-gray-700 truncate">{act.message}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          act.status === "pending" ? "bg-yellow-100 text-yellow-700" :
+                          act.status === "approved" ? "bg-green-100 text-green-700" :
+                          act.status === "active" ? "bg-red-100 text-red-700" :
+                          "bg-gray-100 text-gray-600"
                         }`}>
-                          {activity.status === 'pending' ? 'معلق' :
-                           activity.status === 'approved' ? 'موافق' : 'مرفوض'}
+                          {act.status === "pending" ? "معلق" :
+                           act.status === "approved" ? "موافق" :
+                           act.status === "active" ? "نشط" : act.status}
+                        </span>
+                        <span className="text-[10px] text-gray-400 mr-1">
+                          {act.date ? new Date(act.date).toLocaleString("ar-EG") : ""}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className="bg-white shadow-md rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">الأقسام</h2>
-                <div className="space-y-3">
-                  {dashboardData.department_stats?.slice(0, 5).map((dept) => (
-                    <div key={dept.id} className="flex items-center justify-between">
-                      <span className="text-gray-700">{dept.name}</span>
-                      <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm">
-                        {dept.employee_count} موظف
-                      </span>
-                    </div>
-                  ))}
-                </div>
+          {/* ===== DEPARTMENT STATS ===== */}
+          {data?.department_stats?.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                <span className="text-lg">🏢</span> إحصائيات الأقسام
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {data.department_stats.map((dept) => (
+                  <div key={dept.id} className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 text-center border border-gray-200">
+                    <p className="text-sm font-bold text-gray-800 truncate">{dept.name}</p>
+                    <p className="text-lg font-bold text-indigo-600">{dept.employee_count}</p>
+                    <p className="text-[10px] text-gray-500">موظف</p>
+                    <p className="text-xs text-green-600 font-semibold mt-1">{formatCurrency(dept.total_salary)}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {canCreateEmployee && (
-            <button
-              onClick={() => navigate("/add-employee")}
-              className="bg-indigo-600 text-white p-4 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-            >
-              <UserGroupIcon className="h-5 w-5" />
-              إضافة موظف
-            </button>
-            )}
-            {canViewReports && (
-            <button
-              onClick={() => navigate("/reports")}
-              className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
-            >
-              <DocumentIcon className="h-5 w-5" />
-              التقارير
-            </button>
-            )}
-            {canViewBank && (
-            <button
-              onClick={() => navigate("/bank-exports")}
-              className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
-            >
-              <BanknotesIcon className="h-5 w-5" />
-              التصدير البنكي
-            </button>
-            )}
-            {canViewSettings && (
-            <button
-              onClick={() => navigate("/settings")}
-              className="bg-gray-600 text-white p-4 rounded-lg hover:bg-gray-700 transition flex items-center justify-center gap-2"
-            >
-              <Cog6ToothIcon className="h-5 w-5" />
-              الإعدادات
-            </button>
-            )}
-          </div>
         </main>
 
         <ToastContainer position="top-right" autoClose={3000} />
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ gradient, icon, label, value }) {
+  return (
+    <div className={`bg-gradient-to-br ${gradient} rounded-xl p-4 text-white shadow-md hover:shadow-lg transform transition hover:scale-105`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl">{icon}</span>
+        <span className="text-3xl font-extrabold tracking-tight">{value ?? "-"}</span>
+      </div>
+      <p className="text-xs font-medium opacity-90">{label}</p>
+    </div>
+  );
+}
+
+function PieCard({ title, data, options, makeChartData, formatter }) {
+  if (!data || data.every((d) => d.value === 0)) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 className="text-sm font-bold text-gray-700 mb-3">{title}</h3>
+        <p className="text-xs text-gray-400 text-center py-6">لا توجد بيانات</p>
+      </div>
+    );
+  }
+
+  const chartData = makeChartData(data);
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+      <h3 className="text-sm font-bold text-gray-700 mb-3">{title}</h3>
+      <div className="flex items-center gap-4">
+        <div className="w-36 h-36 flex-shrink-0">
+          <Doughnut data={chartData} options={options} />
+        </div>
+        <div className="flex-1 space-y-1.5">
+          {data.map((item, i) => (
+            <div key={i} className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </span>
+              <span className="font-bold text-gray-700">
+                {formatter ? formatter(item.value) : item.value}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

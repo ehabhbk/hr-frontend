@@ -83,6 +83,13 @@
 - (none)
 
 ### Recently Added
+- **إعادة تصميم لوحة التحكم**:
+  - `DashboardController.php` — API جديد بكل الإحصائيات: إجمالي الموظفين، الأقسام، المفصولين، في إجازة، غياب اليوم، غير مداومين، متأخرين، المرتبات الأساسية والإجمالية، سلف الشهر، إنذارات الشهر/السنة، إجازات الشهر/السنة
+  - إضافة 4 رسوم بيانية دائرية (Doughnut) باستخدام Chart.js: الحضور والغياب، الإجازات، السلفيات، الإنذارات
+  - بطاقة الموظف المثالي مع تقييمه (نجوم + درجة مركبة)
+  - بطاقات متدرجة الألوان (Gradient) جذابة مع تأثير hover
+  - إزالة أزرار التصدير البنكي والإعدادات والتقارير من لوحة التحكم
+  - إضافة النشاطات الأخيرة (إجازات + إنذارات + سلف) والطلبات المعلقة
 - **نظام الغياب التلقائي**:
   - `AttendanceRecordController::calculateAbsencesForPeriod()` — يحتسب الغياب لكل موظف له وردية: إذا لم يبصم في يوم عمل من أيام ورديته وليس في إجازة، يُنشئ `AttendanceRecord` مع `is_absent=true`, `absence_days=1`, `absence_deduction=hourly_rate * daily_hours`
   - `AttendanceRecordController::calculateAbsences()` — نقطة نهاية API `POST /attendance-records/calculate-absences` للاحتساب اليدوي
