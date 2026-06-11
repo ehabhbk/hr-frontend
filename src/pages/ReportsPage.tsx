@@ -1003,12 +1003,13 @@ function FilterBar({ children, onExportPDF, onExportExcel, exporting }) {
 }
 
 function SalaryReport({ data, loading, month, setMonth, year, setYear, departments, selectedDepartment, setSelectedDepartment, employees, selectedEmployee, setSelectedEmployee, formatCurrency, onExportPDF, onExportExcel, exporting }) {
+  const hiddenAllowanceNames = ['بدل نقل', 'بدل سكن', 'بدل أخرى', 'بدل bonus'];
   const allAllowanceTypes = [];
   const allIncentiveTypes = [];
-  
+
   data.forEach(emp => {
     (emp.allowances || []).forEach(a => {
-      if (!allAllowanceTypes.find(t => t.name === a.name)) {
+      if (!hiddenAllowanceNames.includes(a.name) && !allAllowanceTypes.find(t => t.name === a.name)) {
         allAllowanceTypes.push({ name: a.name, type: a.type });
       }
     });
