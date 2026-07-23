@@ -666,8 +666,8 @@ export default function Employee() {
                   <span className="font-semibold">{formatDateDisplay(employee.hire_date)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">الهاتف:</span>
-                  <span className="font-semibold">{employee.phone || "غير محدد"}</span>
+                  <span className="text-gray-600">📞 واتساب:</span>
+                  <span className="font-semibold" dir="ltr">{employee.phone ? `${employee.phone_country_code || '+249'}${employee.phone}` : "غير محدد"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">البريد:</span>

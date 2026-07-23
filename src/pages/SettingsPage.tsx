@@ -194,6 +194,7 @@ function SettingsPage() {
     api_url: "",
     api_key: "",
     phone_number: "",
+    notify_phone: "",
     notify_on_warning: true,
     notify_on_leave: true,
     notify_on_advance: true,
@@ -2410,6 +2411,17 @@ function WhatsAppTab({ whatsapp, setWhatsapp, saveWhatsApp, testWhatsApp, loadin
                 className="w-full border rounded px-3 py-2"
                 placeholder="249xxxxxxxxx"
               />
+            </div>
+            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+              <label className="block text-sm mb-1 font-bold text-blue-800">رقم إشعارات الإدارة (رقم واحد يتلقى كل الأحداث)</label>
+              <input
+                type="text"
+                value={whatsapp.notify_phone}
+                onChange={(e) => setWhatsapp({ ...whatsapp, notify_phone: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+                placeholder="249xxxxxxxxx"
+              />
+              <p className="text-xs text-blue-600 mt-1">سيتم إرسال إشعارات التعيين، الفصل، الإنذار، الإجازة، السلفة، التأخر، الغياب، الحافز، الخصم إلى هذا الرقم</p>
             </div>
           </div>
           <div className="flex gap-3 mt-4">
