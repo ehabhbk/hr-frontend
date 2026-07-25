@@ -9,7 +9,11 @@ import {
   ClipboardDocumentListIcon,
   BellIcon,
   BanknotesIcon,
-  ClipboardDocumentCheckIcon
+  ClipboardDocumentCheckIcon,
+  Bars3Icon,
+  XMarkIcon,
+  DocumentTextIcon,
+  MegaphoneIcon,
 } from "@heroicons/react/24/outline";
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
@@ -18,36 +22,29 @@ function getPermissions() {
   try {
     const savedPerms = localStorage.getItem("permissions");
     if (savedPerms) {
-      const perms = JSON.parse(savedPerms);
-      console.log('Sidebar reading permissions:', perms, 'savedPerms raw:', savedPerms);
-      return perms;
-    } else {
-      console.log('Sidebar: no permissions in localStorage');
+      return JSON.parse(savedPerms);
     }
-  } catch (e) {
-    console.error('Failed to read permissions:', e);
-  }
+  } catch {}
   return [];
 }
 
 function hasPermission(perm) {
   const perms = getPermissions();
-  return perms.includes('*') || perms.includes(perm);
+  return perms.includes("*") || perms.includes(perm);
 }
 
-export default function Sidebar({ sticky = false, onCollapseChange }) {
+export default function Sidebar({ sticky = false, onCollapseChange = undefined }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [permVersion, setPermVersion] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setPermVersion(v => v + 1);
-    };
-    window.addEventListener('storage', handleStorageChange);
+    const handleStorageChange = () => setPermVersion((v) => v + 1);
+    window.addEventListener("storage", handleStorageChange);
     const interval = setInterval(handleStorageChange, 1000);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);
     };
   }, []);
@@ -61,15 +58,18 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   });
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '5rem' : '16rem');
+    if (window.innerWidth >= 768) {
+      document.documentElement.style.setProperty(
+        "--sidebar-width",
+        isCollapsed ? "5rem" : "16rem"
+      );
+    }
   }, [isCollapsed]);
 
   const handleToggle = () => {
     setIsCollapsed((prev) => {
       const newState = !prev;
-      if (onCollapseChange) {
-        onCollapseChange(newState);
-      }
+      if (onCollapseChange) onCollapseChange(newState);
       return newState;
     });
   };
@@ -79,11 +79,9 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await api.get('/notifications/unread-count');
+        const res = await api.get("/notifications/unread-count");
         setUnreadCount(res.data.count);
-      } catch {
-        // ignore
-      }
+      } catch {}
     };
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000);
@@ -93,81 +91,50 @@ export default function Sidebar({ sticky = false, onCollapseChange }) {
   useEffect(() => {
     try {
       localStorage.setItem("sidebarCollapsed", isCollapsed ? "1" : "0");
-      document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '5rem' : '16rem');
-    } catch {
-      // ignore
-    }
+      if (window.innerWidth >= 768) {
+        document.documentElement.style.setProperty(
+          "--sidebar-width",
+          isCollapsed ? "5rem" : "16rem"
+        );
+      }
+    } catch {}
   }, [isCollapsed]);
 
-const items = useMemo(
-    () => {
-      const perms = getPermissions();
-      const isAdmin = perms.includes('*');
-      
-      console.log('=== Sidebar Permission Check ===');
-      console.log('perms from localStorage:', perms);
-      console.log('isAdmin (*):', isAdmin);
-      console.log('==================================');
-      
-      // Admin sees all items
-      if (isAdmin) {
-        console.log('Returning ALL items (admin)');
-        return [
-          { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
-          { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
-          { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
-          { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
-          { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
-          { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
-          { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
-          { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
-          { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
-        ];
-      }
-      
-      // For non-admin: filter based on permissions
-      const allItems = [
-        { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
-        { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
-        { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
-        { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
-        { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
-        { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
-        { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
-        { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
-        { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
-      ];
-      
-      const filtered = allItems.filter(item => hasPermission(item.permission));
-      console.log('Filtered items:', filtered.map(i => i.label));
-      console.log('==================================');
-      
-      return filtered;
-    },
-    [permVersion]
-  );
+  const items = useMemo(() => {
+    const perms = getPermissions();
+    const isAdmin = perms.includes("*");
+    const allItems = [
+      { label: "لوحة التحكم", icon: Squares2X2Icon, path: "/dashboard", permission: "menu.dashboard" },
+      { label: "الموظفين", icon: UserGroupIcon, path: "/employees", permission: "menu.employees" },
+      { label: "الأقسام", icon: BuildingOfficeIcon, path: "/departments", permission: "menu.departments" },
+      { label: "أجهزة البصمة", icon: FingerPrintIcon, path: "/fingerprint-devices", permission: "menu.fingerprint" },
+      { label: "سجل الحضور", icon: ClipboardDocumentListIcon, path: "/attendance-logs", permission: "menu.attendance" },
+      { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
+      { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
+      { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
+      { label: "السجلات", icon: DocumentTextIcon, path: "/activity-logs", permission: "menu.logs" },
+      { label: "الإعلانات", icon: MegaphoneIcon, path: "/announcements", permission: "menu.announcements" },
+      { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
+    ];
+    return isAdmin ? allItems : allItems.filter((item) => hasPermission(item.permission));
+  }, [permVersion]);
 
   const isActive = (path) => location.pathname === path;
 
-  return (
-    <aside
-      className={[
-        "bg-indigo-800 text-white flex flex-col transition-all duration-200 fixed top-0 right-0 h-screen z-50",
-        isCollapsed ? "w-20" : "w-64",
-      ].join(" ")}
-    >
+  const closeMobile = () => setMobileOpen(false);
+
+  const NavContent = ({ collapsed, onNavigate }) => (
+    <>
       <div className="p-6 border-b border-indigo-700 flex items-center justify-between">
         <div className="flex-1">
-          {!isCollapsed ? (
+          {!collapsed ? (
             <div className="text-center">
               <h2 className="text-xl font-bold">Jawda HR</h2>
               <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <span className="text-xl font-bold" title="Jawda HR">
-                JH
-              </span>
+              <span className="text-xl font-bold" title="Jawda HR">JH</span>
             </div>
           )}
         </div>
@@ -179,13 +146,13 @@ const items = useMemo(
           <BellIcon className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-3">
+      <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
         {items.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.path);
@@ -193,22 +160,24 @@ const items = useMemo(
             <button
               key={it.label}
               type="button"
-              onClick={() => navigate(it.path)}
+              onClick={() => {
+                navigate(it.path);
+                if (onNavigate) onNavigate();
+              }}
               className={[
                 "flex items-center px-3 py-2 rounded w-full",
-                isCollapsed ? "justify-center" : "gap-2 text-right",
+                collapsed ? "justify-center" : "gap-2 text-right",
                 active ? "bg-indigo-700" : "hover:bg-indigo-700",
               ].join(" ")}
-              title={isCollapsed ? it.label : undefined}
+              title={collapsed ? it.label : undefined}
             >
               <Icon className="h-5 w-5" />
-              {!isCollapsed && <span>{it.label}</span>}
+              {!collapsed && <span>{it.label}</span>}
             </button>
           );
         })}
       </nav>
 
-      {/* Toggle at bottom */}
       <div className="p-4 border-t border-indigo-700">
         <button
           type="button"
@@ -216,16 +185,63 @@ const items = useMemo(
           className={[
             "w-full rounded px-3 py-2 hover:bg-indigo-700 transition",
             "flex items-center",
-            isCollapsed ? "justify-center" : "justify-between",
+            collapsed ? "justify-center" : "justify-between",
           ].join(" ")}
-          aria-label={isCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
-          title={isCollapsed ? "توسيع" : "تصغير"}
         >
-          {!isCollapsed && <span className="text-sm">تصغير القائمة</span>}
-          <span className="text-white/90">{isCollapsed ? "⟫" : "⟪"}</span>
+          {!collapsed && <span className="text-sm">تصغير القائمة</span>}
+          <span className="text-white/90">{collapsed ? "⟫" : "⟪"}</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-4 right-4 z-[60] md:hidden bg-indigo-800 text-white p-2 rounded-lg shadow-lg"
+        aria-label="فتح القائمة"
+      >
+        <Bars3Icon className="h-6 w-6" />
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[60] md:hidden"
+          onClick={closeMobile}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={[
+          "bg-indigo-800 text-white flex flex-col transition-all duration-300 fixed top-0 h-screen z-[70]",
+          "md:hidden",
+          mobileOpen ? "right-0 w-64" : "-right-64 w-64",
+        ].join(" ")}
+      >
+        <div className="absolute top-4 left-4">
+          <button
+            onClick={closeMobile}
+            className="p-1 rounded hover:bg-indigo-700"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
+        <NavContent collapsed={false} onNavigate={closeMobile} />
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={[
+          "bg-indigo-800 text-white hidden md:flex flex-col transition-all duration-200 fixed top-0 right-0 h-screen z-50",
+          isCollapsed ? "w-20" : "w-64",
+        ].join(" ")}
+      >
+        <NavContent collapsed={isCollapsed} />
+      </aside>
+    </>
   );
 }
-

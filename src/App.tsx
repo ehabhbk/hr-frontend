@@ -18,6 +18,9 @@ import ReportsPage from "./pages/ReportsPage";
 import BankExportPage from "./pages/BankExportPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import RequestsPage from "./pages/RequestsPage";
+import ActivityLogs from "./pages/ActivityLogs";
+import AnnouncementsPage from "./pages/AnnouncementsPage";
+import BulkImportPage from "./pages/BulkImportPage";
 import api from "./services/api";
 
 function App() {
@@ -249,6 +252,36 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfileSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* سجل النشاطات */}
+        <Route
+          path="/activity-logs"
+          element={
+            <ProtectedRoute>
+              <ActivityLogs />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* الإعلانات الداخلية */}
+        <Route
+          path="/announcements"
+          element={
+            <ProtectedRoute>
+              <AnnouncementsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* استيراد الموظفين */}
+        <Route
+          path="/bulk-import"
+          element={
+            <ProtectedRoute>
+              <BulkImportPage />
             </ProtectedRoute>
           }
         />

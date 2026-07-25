@@ -22,3 +22,9 @@ code {
   margin-right: var(--sidebar-width);
   transition: margin-right 0.2s ease;
 }
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-right: 0 !important;
+  }
+}

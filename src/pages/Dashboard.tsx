@@ -121,6 +121,38 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Expiring Contracts Alert */}
+          {data?.expiring_contracts?.length > 0 && (
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-5">
+              <h3 className="text-base font-bold text-orange-800 mb-3 flex items-center gap-2">
+                <span className="text-xl">📅</span> عقود تنتهي خلال 30 يوم
+              </h3>
+              <div className="space-y-2">
+                {data.expiring_contracts.map((emp) => (
+                  <div
+                    key={emp.id}
+                    onClick={() => navigate(`/employee/${emp.id}`)}
+                    className="flex items-center justify-between p-3 bg-white rounded-xl cursor-pointer hover:shadow-md transition"
+                  >
+                    <div>
+                      <p className="font-bold text-gray-800 text-sm">{emp.name}</p>
+                      <p className="text-xs text-gray-500">تاريخ الانتهاء: {emp.contract_end_date}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      emp.days_remaining <= 7
+                        ? "bg-red-100 text-red-700"
+                        : emp.days_remaining <= 14
+                        ? "bg-orange-100 text-orange-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {emp.days_remaining} يوم متبقي
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ===== ROW 1: MAIN CARDS ===== */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card bg={GRADIENTS[0]} icon="👥" label="إجمالي الموظفين" value={s.total_employees} />
