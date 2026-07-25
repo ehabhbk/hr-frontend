@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { ToastContainer, toast } from "react-toastify";
@@ -16,6 +17,7 @@ const TYPE_COLORS = {
 };
 
 export default function AttendanceLogs() {
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
   // Check permissions
@@ -38,6 +40,9 @@ export default function AttendanceLogs() {
   const [employees, setEmployees] = useState([]);
   const [showExcuseModal, setShowExcuseModal] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editForm, setEditForm] = useState({ check_in_time: "", check_out_time: "", notes: "" });
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [excuseReason, setExcuseReason] = useState("");
 
@@ -331,6 +336,47 @@ export default function AttendanceLogs() {
     }
   };
 
+  const openEditModal = (log) => {
+    setEditingRecord(log);
+    const existingCheckIn = log.type?.startsWith('attendance') && log.timestamp
+      ? new Date(log.timestamp + (log.timestamp.includes('T') ? '' : 'Z')).toISOString().slice(11, 16)
+      : "";
+    const existingCheckOut = log.type?.startsWith('checkout') && log.timestamp
+      ? new Date(log.timestamp + (log.timestamp.includes('T') ? '' : 'Z')).toISOString().slice(11, 16)
+      : "";
+    setEditForm({
+      check_in_time: log.type?.startsWith('attendance') ? existingCheckIn : "",
+      check_out_time: log.type?.startsWith('checkout') ? existingCheckOut : "",
+      notes: log.notes || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingRecord) return;
+    const recordId = editingRecord.record_id;
+    const payload: any = {};
+    if (editingRecord.type?.startsWith('attendance') && editForm.check_in_time) {
+      payload.check_in_time = editForm.check_in_time;
+    }
+    if (editingRecord.type?.startsWith('checkout') && editForm.check_out_time) {
+      payload.check_out_time = editForm.check_out_time;
+    }
+    if (editForm.notes !== undefined) {
+      payload.notes = editForm.notes;
+    }
+    try {
+      await api.put(`/attendance-records/${recordId}`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("تم تعديل السجل بنجاح");
+      setShowEditModal(false);
+      loadLogs();
+    } catch (e) {
+      toast.error(e.response?.data?.message || "فشل في التعديل");
+    }
+  };
+
   useEffect(() => {
     loadDevices();
     loadEmployees();
@@ -540,6 +586,13 @@ export default function AttendanceLogs() {
 
             <div className="flex gap-2 md:mr-auto">
               <button
+                onClick={() => navigate("/calendar")}
+                className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 font-semibold"
+                type="button"
+              >
+                📅 تقويم الحضور
+              </button>
+              <button
                 onClick={() => setShowManualModal(true)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold"
                 type="button"
@@ -667,20 +720,30 @@ export default function AttendanceLogs() {
                             {row.deduction_amount > 0 ? Number(row.deduction_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
                           </td>
                           <td className="p-3">
-                            {canExcuse && ((row.has_delay || row.is_absent || row.check_out_type === 'early') && !row.excused) && (
-                              <button
-                                onClick={() => {
-                                  setSelectedRecord(row);
-                                  setShowExcuseModal(true);
-                                }}
-                                className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
-                              >
-                                {row.is_absent ? 'عذر غياب' : 'قبول عذر'}
-                              </button>
-                            )}
-                            {row.excused && (
-                              <span className="text-xs text-green-600">✓ معطل</span>
-                            )}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {!row.is_absent && row.type !== 'absence' && (
+                                <button
+                                  onClick={() => openEditModal(row)}
+                                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                                >
+                                  تعديل
+                                </button>
+                              )}
+                              {canExcuse && ((row.has_delay || row.is_absent || row.check_out_type === 'early') && !row.excused) && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedRecord(row);
+                                    setShowExcuseModal(true);
+                                  }}
+                                  className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                                >
+                                  {row.is_absent ? 'عذر غياب' : 'قبول عذر'}
+                                </button>
+                              )}
+                              {row.excused && (
+                                <span className="text-xs text-green-600">✓ معطل</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -945,6 +1008,68 @@ export default function AttendanceLogs() {
               <div className="flex justify-between mt-4">
                 <button onClick={printWeeklyReport} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">🖨️ طباعة</button>
                 <button onClick={() => setShowWeeklyModal(false)} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">إغلاق</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEditModal && editingRecord && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold mb-4">تعديل وقت {editingRecord.type?.startsWith('attendance') ? 'الحضور' : 'الانصراف'}</h3>
+              <p className="text-gray-600 mb-4">
+                الموظف: {editingRecord.employee_name}<br />
+                التاريخ: {editingRecord.timestamp ? new Date(editingRecord.timestamp + (editingRecord.timestamp.includes('T') ? '' : 'Z')).toLocaleDateString('ar-EG') : '-'}
+              </p>
+
+              <div className="space-y-4">
+                {editingRecord.type?.startsWith('attendance') && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">وقت الحضور الجديد</label>
+                    <input
+                      type="time"
+                      value={editForm.check_in_time}
+                      onChange={(e) => setEditForm(f => ({ ...f, check_in_time: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                )}
+                {editingRecord.type?.startsWith('checkout') && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">وقت الانصراف الجديد</label>
+                    <input
+                      type="time"
+                      value={editForm.check_out_time}
+                      onChange={(e) => setEditForm(f => ({ ...f, check_out_time: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">ملاحظات</label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2"
+                    rows={2}
+                    placeholder="ملاحظات اختيارية..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => { setShowEditModal(false); setEditingRecord(null); }}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  حفظ التعديل
+                </button>
               </div>
             </div>
           </div>

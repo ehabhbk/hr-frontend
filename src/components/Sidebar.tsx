@@ -14,6 +14,8 @@ import {
   XMarkIcon,
   DocumentTextIcon,
   MegaphoneIcon,
+  AcademicCapIcon,
+  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
@@ -114,6 +116,8 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
       { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
       { label: "السجلات", icon: DocumentTextIcon, path: "/activity-logs", permission: "menu.logs" },
       { label: "الإعلانات", icon: MegaphoneIcon, path: "/announcements", permission: "menu.announcements" },
+      { label: "الدورات والشهادات", icon: AcademicCapIcon, path: "/training", permission: "menu.employees" },
+      { label: " المصروفات", icon: CurrencyDollarIcon, path: "/expenses", permission: "menu.expenses" },
       { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
     ];
     return isAdmin ? allItems : allItems.filter((item) => hasPermission(item.permission));
@@ -152,7 +156,7 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
         </button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-3 overflow-hidden">
         {items.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.path);
@@ -240,7 +244,7 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
           isCollapsed ? "w-20" : "w-64",
         ].join(" ")}
       >
-        <NavContent collapsed={isCollapsed} />
+        <NavContent collapsed={isCollapsed} onNavigate={() => {}} />
       </aside>
     </>
   );

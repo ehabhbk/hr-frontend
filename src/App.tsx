@@ -21,6 +21,11 @@ import RequestsPage from "./pages/RequestsPage";
 import ActivityLogs from "./pages/ActivityLogs";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import BulkImportPage from "./pages/BulkImportPage";
+import AttendanceExcusesPage from "./pages/AttendanceExcusesPage";
+import CalendarPage from "./pages/CalendarPage";
+import OffboardingPage from "./pages/OffboardingPage";
+import TrainingPage from "./pages/TrainingPage";
+import ExpensesPage from "./pages/ExpensesPage";
 import api from "./services/api";
 
 function App() {
@@ -282,6 +287,56 @@ function App() {
           element={
             <ProtectedRoute>
               <BulkImportPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* عروض الحضور */}
+        <Route
+          path="/attendance-excuses"
+          element={
+            <ProtectedRoute>
+              <AttendanceExcusesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* تقويم الحضور */}
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <CalendarPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* سير خروج الموظفين */}
+        <Route
+          path="/offboarding"
+          element={
+            <ProtectedRoute>
+              <OffboardingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* الدورات والشهادات */}
+        <Route
+          path="/training"
+          element={
+            <ProtectedRoute>
+              <TrainingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* مصروفات الموظفين */}
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <ExpensesPage />
             </ProtectedRoute>
           }
         />
