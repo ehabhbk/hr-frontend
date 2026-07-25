@@ -164,9 +164,9 @@ export default function Dashboard() {
           {/* ===== ROW 2 ===== */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card bg={GRADIENTS[4]} icon="❌" label="غياب اليوم" value={s.absences_today} />
-            <Card bg={GRADIENTS[5]} icon="⏳" label="غير مداومين اليوم" value={s.not_clocked_today} />
+            <Card bg="from-green-600 to-emerald-600" icon="🟢" label="المداومون الآن" value={s.currently_working} />
+            <Card bg="from-gray-500 to-slate-600" icon="⏳" label="الغير مداومون اليوم" value={s.not_clocked_today} />
             <Card bg={GRADIENTS[6]} icon="⏰" label="متأخرون اليوم" value={s.late_today} />
-            <Card bg={GRADIENTS[7]} icon="💰" label="المرتبات الأساسية" value={`${fmt(s.total_base_salaries)} ج`} />
           </div>
 
           {/* ===== ROW 3 ===== */}
