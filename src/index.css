@@ -28,3 +28,12 @@ code {
     margin-right: 0 !important;
   }
 }
+
+/* Hide scrollbar for sidebar nav */
+nav::-webkit-scrollbar {
+  display: none;
+}
+nav {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}

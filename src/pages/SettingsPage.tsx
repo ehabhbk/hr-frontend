@@ -18,6 +18,8 @@ const ALL_TABS = [
   { key: "settlements", label: "التسوية والمعاشات", icon: "📋", permission: "settings.settlements" },
   { key: "whatsapp", label: "واتساب", icon: "📱", permission: "settings.whatsapp" },
   { key: "roles", label: "الصلاحيات", icon: "🔐", permission: "roles.view" },
+  { key: "geofences", label: "المناطق الجغرافية", icon: "📍", permission: "settings.geofences" },
+  { key: "backups", label: "النسخ الاحتياطي", icon: "💾", permission: "settings.backups" },
 ];
 
 function getPermissions() {
@@ -147,6 +149,7 @@ function SettingsPage() {
     absence_deduction_days: 1,
     termination_after_days: 30,
     absence_rules_enabled: true,
+    fingerprint_mode: 'auto_in_out',
   });
 
   const [leaveSettings, setLeaveSettings] = useState({
@@ -246,6 +249,10 @@ function SettingsPage() {
   const [employeeSettlement, setEmployeeSettlement] = useState(null);
   const [allSettlements, setAllSettlements] = useState([]);
   const [settlementTotals, setSettlementTotals] = useState(null);
+
+  const [geofences, setGeofences] = useState<any[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [geofenceForm, setGeofenceForm] = useState({ name: '', latitude: '', longitude: '', radius: '100' });
 
   const [loadingStates, setLoadingStates] = useState({
     saveOrg: false,
@@ -377,7 +384,47 @@ function SettingsPage() {
       setShiftAssignments(assignments);
     }
 
+    api.get("/geofences").then(res => setGeofences(res.data?.data || res.data || [])).catch(() => {});
+    api.get("/backups").then(res => setBackups(res.data?.data || res.data || [])).catch(() => {});
+
     setLoading(false);
+  }
+
+  async function saveGeofence() {
+    if (!geofenceForm.name || !geofenceForm.latitude || !geofenceForm.longitude) { toast.error("الرجاء ملء جميع الحقول"); return; }
+    try {
+      await api.post("/geofences", { ...geofenceForm, latitude: parseFloat(geofenceForm.latitude), longitude: parseFloat(geofenceForm.longitude), radius: parseInt(geofenceForm.radius) });
+      toast.success("تم إنشاء المنطقة الجغرافية");
+      setGeofenceForm({ name: '', latitude: '', longitude: '', radius: '100' });
+      api.get("/geofences").then(res => setGeofences(res.data?.data || res.data || []));
+    } catch { toast.error("فشل الحفظ"); }
+  }
+
+  async function deleteGeofence(id: number) {
+    if (!confirm("هل أنت متأكد من الحذف؟")) return;
+    try {
+      await api.delete(`/geofences/${id}`);
+      toast.success("تم الحذف");
+      setGeofences(prev => prev.filter(g => g.id !== id));
+    } catch { toast.error("فشل الحذف"); }
+  }
+
+  async function createBackup() {
+    toast.info("جاري إنشاء النسخة الاحتياطية...");
+    try {
+      await api.post("/backups");
+      toast.success("تم إنشاء النسخة الاحتياطية بنجاح");
+      api.get("/backups").then(res => setBackups(res.data?.data || res.data || []));
+    } catch { toast.error("فشل إنشاء النسخة الاحتياطية"); }
+  }
+
+  async function deleteBackup(id: number) {
+    if (!confirm("هل أنت متأكد من الحذف؟")) return;
+    try {
+      await api.delete(`/backups/${id}`);
+      toast.success("تم الحذف");
+      setBackups(prev => prev.filter(b => b.id !== id));
+    } catch { toast.error("فشل الحذف"); }
   }
 
   async function saveOrg() {
@@ -696,6 +743,23 @@ function SettingsPage() {
     }
   }
 
+  async function saveEmployeeRotation(employeeId, rotationShiftIds, rotationStartDate) {
+    try {
+      await api.put(`/employees/${employeeId}`, {
+        rotation_shift_ids: JSON.stringify(rotationShiftIds),
+        rotation_start_date: rotationStartDate || null,
+      });
+      setEmployees(prev => prev.map(emp =>
+        emp.id === employeeId
+          ? { ...emp, rotation_shift_ids: JSON.stringify(rotationShiftIds), rotation_start_date: rotationStartDate }
+          : emp
+      ));
+      toast.success("تم حفظ إعدادات التناوب");
+    } catch (err) {
+      toast.error("فشل حفظ إعدادات التناوب");
+    }
+  }
+
   const [gradeKey, setGradeKey] = useState("");
   const [gradeDays, setGradeDays] = useState(0);
 
@@ -829,6 +893,7 @@ function SettingsPage() {
                 assignEmployee={assignEmployee}
                 unassignEmployee={confirmUnassign}
                 loadingStates={loadingStates}
+                saveEmployeeRotation={saveEmployeeRotation}
               />
             )}
             {activeTab === "financials" && (
@@ -879,6 +944,78 @@ function SettingsPage() {
               />
             )}
             {activeTab === "roles" && <RolesTab roles={roles} setRoles={setRoles} />}
+            {activeTab === "geofences" && (
+              <div className="bg-white rounded-lg shadow-sm p-6" dir="rtl">
+                <h3 className="text-xl font-bold mb-4">📍 المناطق الجغرافية</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                  <input className="border rounded px-3 py-2" placeholder="الاسم" value={geofenceForm.name} onChange={e => setGeofenceForm({...geofenceForm, name: e.target.value})} />
+                  <input className="border rounded px-3 py-2" placeholder="خط العرض" value={geofenceForm.latitude} onChange={e => setGeofenceForm({...geofenceForm, latitude: e.target.value})} />
+                  <input className="border rounded px-3 py-2" placeholder="خط الطول" value={geofenceForm.longitude} onChange={e => setGeofenceForm({...geofenceForm, longitude: e.target.value})} />
+                  <div className="flex gap-2">
+                    <input className="border rounded px-3 py-2 flex-1" placeholder="النصف القطر (م)" value={geofenceForm.radius} onChange={e => setGeofenceForm({...geofenceForm, radius: e.target.value})} />
+                    <button onClick={saveGeofence} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">إضافة</button>
+                  </div>
+                </div>
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50">
+                    <th className="p-3 text-right">الاسم</th>
+                    <th className="p-3 text-right">خط العرض</th>
+                    <th className="p-3 text-right">خط الطول</th>
+                    <th className="p-3 text-right">النصف القطر</th>
+                    <th className="p-3 text-right">حذف</th>
+                  </tr></thead>
+                  <tbody>
+                    {geofences.map((g: any) => (
+                      <tr key={g.id} className="border-t hover:bg-gray-50">
+                        <td className="p-3 font-medium">{g.name}</td>
+                        <td className="p-3">{g.latitude}</td>
+                        <td className="p-3">{g.longitude}</td>
+                        <td className="p-3">{g.radius} م</td>
+                        <td className="p-3"><button onClick={() => deleteGeofence(g.id)} className="text-red-500 hover:text-red-700">🗑️</button></td>
+                      </tr>
+                    ))}
+                    {geofences.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-400">لا توجد مناطق جغرافية</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {activeTab === "backups" && (
+              <div className="bg-white rounded-lg shadow-sm p-6" dir="rtl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold">💾 النسخ الاحتياطي</h3>
+                  <button onClick={createBackup} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">إنشاء نسخة احتياطية</button>
+                </div>
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50">
+                    <th className="p-3 text-right">اسم الملف</th>
+                    <th className="p-3 text-right">الحجم</th>
+                    <th className="p-3 text-right">الحالة</th>
+                    <th className="p-3 text-right">التاريخ</th>
+                    <th className="p-3 text-right">إجراءات</th>
+                  </tr></thead>
+                  <tbody>
+                    {backups.map((b: any) => {
+                      const size = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : b.size > 1024 ? (b.size / 1024).toFixed(1) + ' KB' : b.size + ' B';
+                      return (
+                        <tr key={b.id} className="border-t hover:bg-gray-50">
+                          <td className="p-3 font-medium">{b.filename}</td>
+                          <td className="p-3">{size}</td>
+                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs ${b.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{b.status === 'success' ? 'ناجحة' : 'فاشلة'}</span></td>
+                          <td className="p-3 text-xs">{b.created_at}</td>
+                          <td className="p-3">
+                            <div className="flex gap-2">
+                              <a href={`/api/backups/${b.id}/download`} className="text-indigo-600 hover:text-indigo-800">📥</a>
+                              <button onClick={() => deleteBackup(b.id)} className="text-red-500 hover:text-red-700">🗑️</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {backups.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-400">لا توجد نسخ احتياطية</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -1408,6 +1545,44 @@ function AttendanceTab({ attendance, setAttendance, saveAttendance, shifts, load
           </div>
         </div>
 
+        <div className="bg-blue-50 p-5 rounded-lg">
+          <h3 className="font-bold mb-4 text-right text-blue-800 flex items-center gap-2">
+            <span>🔐</span> إعداد البصمة
+          </h3>
+          <div className="space-y-3">
+            <label className="block text-sm font-medium mb-2 text-right">طريقة معالجة البصمة</label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAttendance({ ...attendance, fingerprint_mode: 'auto_in_out' })}
+                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                  (attendance.fingerprint_mode || 'auto_in_out') === 'auto_in_out'
+                    ? 'bg-blue-100 border-blue-500 text-blue-700'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                }`}
+              >
+                <div className="font-bold">تلقائي ذكي</div>
+                <div className="text-xs mt-1 opacity-75">أول بصمة = دخول، ثانية = خروج (تناوبي)</div>
+              </button>
+              <button
+                onClick={() => setAttendance({ ...attendance, fingerprint_mode: 'legacy' })}
+                className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                  attendance.fingerprint_mode === 'legacy'
+                    ? 'bg-blue-100 border-blue-500 text-blue-700'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                }`}
+              >
+                <div className="font-bold">كلاسيكي</div>
+                <div className="text-xs mt-1 opacity-75">أول سجل يومياً = دخول، آخر = خروج</div>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-right">
+              {(attendance.fingerprint_mode || 'auto_in_out') === 'auto_in_out'
+                ? '✅ الوضع الذكي: ي relied على ترتيب البصمات فقط. مناسب للأجهزة التي لا ت区分 بين الدخول والخروج.'
+                : '📋 الوضع الكلاسيكي: يعتمد على ترتيب البصمات اليومية فقط.'}
+            </p>
+          </div>
+        </div>
+
         <div className="bg-purple-50 p-5 rounded-lg">
           <h3 className="font-bold mb-4 text-right text-purple-800 flex items-center gap-2">
             <span>📊</span> ملخص الإعدادات
@@ -1428,6 +1603,10 @@ function AttendanceTab({ attendance, setAttendance, saveAttendance, shifts, load
             <div className="flex justify-between p-3 bg-white rounded">
               <span className="font-bold text-purple-800">{attendance.late_deduction_percent}%</span>
               <span className="text-gray-600">نسبة الخصم</span>
+            </div>
+            <div className="flex justify-between p-3 bg-white rounded">
+              <span className="font-bold text-purple-800">{(attendance.fingerprint_mode || 'auto_in_out') === 'auto_in_out' ? 'تلقائي ذكي' : 'كلاسيكي'}</span>
+              <span className="text-gray-600">وضع البصمة</span>
             </div>
           </div>
         </div>
@@ -1784,7 +1963,7 @@ function AdvancesTab({
   );
 }
 
-function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee }) {
+function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee, saveEmployeeRotation }) {
   const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
   const [editingShiftId, setEditingShiftId] = useState(null);
 
@@ -2139,6 +2318,71 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
                 </button>
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-amber-50 p-4 rounded-lg mt-4">
+        <h3 className="font-bold mb-4 text-right flex items-center gap-2">
+          <span>🔄</span> إعدادات التناوب
+        </h3>
+        <p className="text-sm text-gray-600 mb-4 text-right">اختر ورديات متعددة لكل موظف لإنشاء دورة تناوب. يقوم النظام بتغيير وردية الموظف تلقائياً كل يوم حسب الدورة المحددة.</p>
+        
+        {employees.filter(e => e.status === 'active').length === 0 ? (
+          <p className="text-gray-500 text-center py-4">لا يوجد موظفين نشطين</p>
+        ) : (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            {employees.filter(e => e.status === 'active').map(emp => {
+              let currentRotation = [];
+              try { currentRotation = JSON.parse(emp.rotation_shift_ids || '[]'); } catch { currentRotation = []; }
+              
+              return (
+                <div key={emp.id} className="bg-white p-3 rounded-lg border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm">{emp.name}</span>
+                    {currentRotation.length > 0 && (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        {currentRotation.length} ورديات
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {shifts.map(shift => (
+                      <label key={shift.id} className="flex items-center gap-1 cursor-pointer text-xs bg-gray-50 px-2 py-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={currentRotation.includes(shift.id)}
+                          onChange={(e) => {
+                            let updated;
+                            if (e.target.checked) {
+                              updated = [...currentRotation, shift.id];
+                            } else {
+                              updated = currentRotation.filter(id => id !== shift.id);
+                            }
+                            saveEmployeeRotation(emp.id, updated, emp.rotation_start_date);
+                          }}
+                          className="rounded"
+                        />
+                        <span>{shift.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {currentRotation.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-600">تاريخ البدء:</label>
+                      <input
+                        type="date"
+                        value={emp.rotation_start_date ? emp.rotation_start_date.substring(0, 10) : ''}
+                        onChange={(e) => {
+                          saveEmployeeRotation(emp.id, currentRotation, e.target.value);
+                        }}
+                        className="border rounded px-2 py-1 text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

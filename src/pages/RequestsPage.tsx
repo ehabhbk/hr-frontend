@@ -11,6 +11,9 @@ const TABS = [
   { key: "leaves", label: "طلبات الإجازات", icon: "🏖️" },
   { key: "advances", label: "طلبات السلفيات", icon: "💰" },
   { key: "resignations", label: "طلبات الاستقالة", icon: "🚪" },
+  { key: "travels", label: "طلبات السفر", icon: "✈️" },
+  { key: "overtime", label: "طلبات الأوفرتايم", icon: "⏰" },
+  { key: "complaints", label: "الشكاوى والاقتراحات", icon: "💬" },
 ];
 
 const typeLabels = {
@@ -50,19 +53,28 @@ export default function RequestsPage() {
   const canViewLeaves = permissions.includes('*') || permissions.includes('requests.leaves');
   const canViewAdvances = permissions.includes('*') || permissions.includes('requests.advances');
   const canViewResignations = permissions.includes('*') || permissions.includes('requests.resignations');
+  const canViewTravels = permissions.includes('*') || permissions.includes('requests.travels');
+  const canViewOvertime = permissions.includes('*') || permissions.includes('requests.overtime');
+  const canViewComplaints = permissions.includes('*') || permissions.includes('requests.complaints');
 
   const availableTabs = React.useMemo(
     () => TABS.filter(t => {
       if (t.key === 'leaves') return canViewLeaves;
       if (t.key === 'advances') return canViewAdvances;
       if (t.key === 'resignations') return canViewResignations;
+      if (t.key === 'travels') return canViewTravels;
+      if (t.key === 'overtime') return canViewOvertime;
+      if (t.key === 'complaints') return canViewComplaints;
       return false;
     }),
-    [canViewLeaves, canViewAdvances, canViewResignations]
+    [canViewLeaves, canViewAdvances, canViewResignations, canViewTravels, canViewOvertime, canViewComplaints]
   );
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [advanceRequests, setAdvanceRequests] = useState([]);
   const [resignationRequests, setResignationRequests] = useState([]);
+  const [travelRequests, setTravelRequests] = useState([]);
+  const [overtimeRequests, setOvertimeRequests] = useState([]);
+  const [complaintRequests, setComplaintRequests] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
@@ -103,6 +115,14 @@ export default function RequestsPage() {
     if (leavesRes) setLeaveRequests(leavesRes.data?.data || leavesRes.data || []);
     if (advancesRes) setAdvanceRequests(advancesRes.data?.data || advancesRes.data || []);
     if (resignationsRes) setResignationRequests(resignationsRes.data?.data || resignationsRes.data || []);
+    const [travelsRes, overtimeRes, complaintsRes] = await Promise.all([
+      api.get("/travel-requests").catch(() => null),
+      api.get("/overtime-requests").catch(() => null),
+      api.get("/complaints").catch(() => null),
+    ]);
+    if (travelsRes) setTravelRequests(travelsRes.data?.data || travelsRes.data || []);
+    if (overtimeRes) setOvertimeRequests(overtimeRes.data?.data || overtimeRes.data || []);
+    if (complaintsRes) setComplaintRequests(complaintsRes.data?.data || complaintsRes.data || []);
     setLoading(false);
   }
 
@@ -130,6 +150,30 @@ export default function RequestsPage() {
     return data;
   }, [resignationRequests, filters]);
 
+  const filteredTravels = useMemo(() => {
+    let data = travelRequests;
+    if (filters.employee_id) data = data.filter(r => String(r.employee_id) === String(filters.employee_id));
+    if (filters.from_date) data = data.filter(r => r.created_at && r.created_at.slice(0, 10) >= filters.from_date);
+    if (filters.to_date) data = data.filter(r => r.created_at && r.created_at.slice(0, 10) <= filters.to_date);
+    return data;
+  }, [travelRequests, filters]);
+
+  const filteredOvertime = useMemo(() => {
+    let data = overtimeRequests;
+    if (filters.employee_id) data = data.filter(r => String(r.employee_id) === String(filters.employee_id));
+    if (filters.from_date) data = data.filter(r => r.date && r.date >= filters.from_date);
+    if (filters.to_date) data = data.filter(r => r.date && r.date <= filters.to_date);
+    return data;
+  }, [overtimeRequests, filters]);
+
+  const filteredComplaints = useMemo(() => {
+    let data = complaintRequests;
+    if (filters.employee_id) data = data.filter(r => String(r.employee_id) === String(filters.employee_id));
+    if (filters.from_date) data = data.filter(r => r.created_at && r.created_at.slice(0, 10) >= filters.from_date);
+    if (filters.to_date) data = data.filter(r => r.created_at && r.created_at.slice(0, 10) <= filters.to_date);
+    return data;
+  }, [complaintRequests, filters]);
+
   const leaveStats = useMemo(() => ({
     total: filteredLeaves.length,
     pending: filteredLeaves.filter(r => r.status === "pending").length,
@@ -151,7 +195,28 @@ export default function RequestsPage() {
     rejected: filteredResignations.filter(r => r.status === "rejected").length,
   }), [filteredResignations]);
 
-  const currentStats = activeTab === "leaves" ? leaveStats : activeTab === "advances" ? advanceStats : resignationStats;
+  const travelStats = useMemo(() => ({
+    total: filteredTravels.length,
+    pending: filteredTravels.filter(r => r.status === "pending").length,
+    approved: filteredTravels.filter(r => r.status === "approved").length,
+    rejected: filteredTravels.filter(r => r.status === "rejected").length,
+  }), [filteredTravels]);
+
+  const overtimeStats = useMemo(() => ({
+    total: filteredOvertime.length,
+    pending: filteredOvertime.filter(r => r.status === "pending").length,
+    approved: filteredOvertime.filter(r => r.status === "approved").length,
+    rejected: filteredOvertime.filter(r => r.status === "rejected").length,
+  }), [filteredOvertime]);
+
+  const complaintStats = useMemo(() => ({
+    total: filteredComplaints.length,
+    pending: filteredComplaints.filter(r => r.status === "pending").length,
+    approved: filteredComplaints.filter(r => r.status === "approved").length,
+    rejected: filteredComplaints.filter(r => r.status === "rejected").length,
+  }), [filteredComplaints]);
+
+  const currentStats = activeTab === "leaves" ? leaveStats : activeTab === "advances" ? advanceStats : activeTab === "resignations" ? resignationStats : activeTab === "travels" ? travelStats : activeTab === "overtime" ? overtimeStats : complaintStats;
 
   async function handleLeaveStatus(id, status) {
     setActionLoading(id);
@@ -200,6 +265,45 @@ export default function RequestsPage() {
       toast.success(`تم ${status === "approved" ? "الموافقة على" : "رفض"} طلب الاستقالة ✅`);
       fetchRequests();
     } catch (err) {
+      toast.error("فشل تحديث الحالة ❌");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleTravelStatus(id, action) {
+    setActionLoading(id);
+    try {
+      await api.post(`/travel-requests/${id}/${action}`);
+      toast.success(`تم ${action === "approve" ? "الموافقة على" : "رفض"} طلب السفر ✅`);
+      fetchRequests();
+    } catch {
+      toast.error("فشل تحديث الحالة ❌");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleOvertimeStatus(id, action) {
+    setActionLoading(id);
+    try {
+      await api.post(`/overtime-requests/${id}/${action}`);
+      toast.success(`تم ${action === "approve" ? "الموافقة على" : "رفض"} طلب الأوفرتايم ✅`);
+      fetchRequests();
+    } catch {
+      toast.error("فشل تحديث الحالة ❌");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleComplaintUpdate(id, status) {
+    setActionLoading(id);
+    try {
+      await api.put(`/complaints/${id}`, { status });
+      toast.success("تم تحديث حالة الشكوى ✅");
+      fetchRequests();
+    } catch {
       toast.error("فشل تحديث الحالة ❌");
     } finally {
       setActionLoading(null);
@@ -393,8 +497,8 @@ export default function RequestsPage() {
               </button>
               <h3 className="font-bold flex items-center gap-2">
                 <span>📋</span>
-                {activeTab === "leaves" ? "جميع طلبات الإجازات" : activeTab === "advances" ? "جميع طلبات السلفيات" : "جميع طلبات الاستقالة"}
-                <span className="text-gray-400 text-sm font-normal">({activeTab === "leaves" ? filteredLeaves.length : activeTab === "advances" ? filteredAdvances.length : filteredResignations.length})</span>
+                {activeTab === "leaves" ? "جميع طلبات الإجازات" : activeTab === "advances" ? "جميع طلبات السلفيات" : activeTab === "resignations" ? "جميع طلبات الاستقالة" : activeTab === "travels" ? "جميع طلبات السفر" : activeTab === "overtime" ? "جميع طلبات الأوفرتايم" : "جميع الشكاوى والاقتراحات"}
+                <span className="text-gray-400 text-sm font-normal">({activeTab === "leaves" ? filteredLeaves.length : activeTab === "advances" ? filteredAdvances.length : activeTab === "resignations" ? filteredResignations.length : activeTab === "travels" ? filteredTravels.length : activeTab === "overtime" ? filteredOvertime.length : filteredComplaints.length})</span>
               </h3>
             </div>
 
@@ -547,7 +651,7 @@ export default function RequestsPage() {
                     </tbody>
                   </table>
                 </div>
-              ) : (
+              ) : activeTab === "resignations" ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
                     <thead>
@@ -603,6 +707,184 @@ export default function RequestsPage() {
                     </tbody>
                   </table>
                 </div>
+              ) : activeTab === "travels" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border p-3 text-right">#</th>
+                        <th className="border p-3 text-right">الموظف</th>
+                        <th className="border p-3 text-right">الوجهة</th>
+                        <th className="border p-3 text-right">من</th>
+                        <th className="border p-3 text-right">إلى</th>
+                        <th className="border p-3 text-right">التكلفة</th>
+                        <th className="border p-3 text-right">الحالة</th>
+                        <th className="border p-3 text-center">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTravels.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+                        </tr>
+                      ) : (
+                        filteredTravels.map((r, i) => (
+                          <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td className="border p-3">{i + 1}</td>
+                            <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                            <td className="border p-3">{r.destination || "-"}</td>
+                            <td className="border p-3">{formatDateDisplay(r.from_date)}</td>
+                            <td className="border p-3">{formatDateDisplay(r.to_date)}</td>
+                            <td className="border p-3">{r.cost ? parseFloat(r.cost).toLocaleString() + " ج.س" : "-"}</td>
+                            <td className="border p-3">{getStatusBadge(r.status)}</td>
+                            <td className="border p-3 text-center">
+                              {r.status === "pending" && (canApproveRequests || canRejectRequests) && (
+                                <div className="flex gap-2 justify-center">
+                                  {canRejectRequests && (
+                                    <button
+                                      onClick={() => handleTravelStatus(r.id, "reject")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "رفض"}
+                                    </button>
+                                  )}
+                                  {canApproveRequests && (
+                                    <button
+                                      onClick={() => handleTravelStatus(r.id, "approve")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "موافقة"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : activeTab === "overtime" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border p-3 text-right">#</th>
+                        <th className="border p-3 text-right">الموظف</th>
+                        <th className="border p-3 text-right">التاريخ</th>
+                        <th className="border p-3 text-right">الساعات</th>
+                        <th className="border p-3 text-right">المبلغ</th>
+                        <th className="border p-3 text-right">الحالة</th>
+                        <th className="border p-3 text-center">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOvertime.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد طلبات</td>
+                        </tr>
+                      ) : (
+                        filteredOvertime.map((r, i) => (
+                          <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td className="border p-3">{i + 1}</td>
+                            <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                            <td className="border p-3">{formatDateDisplay(r.date)}</td>
+                            <td className="border p-3">{r.hours || "-"}</td>
+                            <td className="border p-3">{r.amount ? parseFloat(r.amount).toLocaleString() + " ج.س" : "-"}</td>
+                            <td className="border p-3">{getStatusBadge(r.status)}</td>
+                            <td className="border p-3 text-center">
+                              {r.status === "pending" && (canApproveRequests || canRejectRequests) && (
+                                <div className="flex gap-2 justify-center">
+                                  {canRejectRequests && (
+                                    <button
+                                      onClick={() => handleOvertimeStatus(r.id, "reject")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "رفض"}
+                                    </button>
+                                  )}
+                                  {canApproveRequests && (
+                                    <button
+                                      onClick={() => handleOvertimeStatus(r.id, "approve")}
+                                      disabled={actionLoading === r.id}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                    >
+                                      {actionLoading === r.id ? "..." : "موافقة"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : activeTab === "complaints" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border p-3 text-right">#</th>
+                        <th className="border p-3 text-right">النوع</th>
+                        <th className="border p-3 text-right">الموظف</th>
+                        <th className="border p-3 text-right">الموضوع</th>
+                        <th className="border p-3 text-right">الوصف</th>
+                        <th className="border p-3 text-right">الحالة</th>
+                        <th className="border p-3 text-center">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredComplaints.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="border p-4 text-center text-gray-500">لا توجد شكاوى أو اقتراحات</td>
+                        </tr>
+                      ) : (
+                        filteredComplaints.map((r, i) => (
+                          <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td className="border p-3">{i + 1}</td>
+                            <td className="border p-3">
+                              <span className={`px-2 py-1 rounded text-xs ${r.type === "complaint" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}`}>
+                                {r.type === "complaint" ? "شكوى" : "اقتراح"}
+                              </span>
+                            </td>
+                            <td className="border p-3 font-medium">{r.employee?.name || r.employee_id}</td>
+                            <td className="border p-3">{r.subject || "-"}</td>
+                            <td className="border p-3 max-w-xs truncate">{r.description || "-"}</td>
+                            <td className="border p-3">{getStatusBadge(r.status)}</td>
+                            <td className="border p-3 text-center">
+                              {r.status === "pending" && canApproveRequests && (
+                                <div className="flex gap-2 justify-center">
+                                  <button
+                                    onClick={() => handleComplaintUpdate(r.id, "rejected")}
+                                    disabled={actionLoading === r.id}
+                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:bg-red-400"
+                                  >
+                                    {actionLoading === r.id ? "..." : "رفض"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleComplaintUpdate(r.id, "approved")}
+                                    disabled={actionLoading === r.id}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs disabled:bg-green-400"
+                                  >
+                                    {actionLoading === r.id ? "..." : "موافق"}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">لا توجد بيانات</div>
               )}
             </div>
           </div>

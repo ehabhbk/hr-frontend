@@ -377,6 +377,8 @@ export default function Employees() {
       attendance_device_id: employee.attendance_device_id || "",
       work_shift_id: employee.work_shift_id || "",
       device_user_id: employee.device_user_id || "",
+      rotation_shift_ids: employee.rotation_shift_ids || "[]",
+      rotation_start_date: employee.rotation_start_date || "",
       hire_date: employee.hire_date || "",
       base_salary: employee.base_salary || "",
       address: employee.address || "",
@@ -505,7 +507,7 @@ export default function Employees() {
         "file_number", "name", "email", "phone", "phone_country_code",
         "gender", "birth_date", "id_number", "marital_status",
         "position", "position_grade", "position_allowance", "department_id",
-        "attendance_device_id", "work_shift_id", "hire_date", "base_salary", "address", "notes", "status",
+        "attendance_device_id", "work_shift_id", "rotation_shift_ids", "rotation_start_date", "hire_date", "base_salary", "address", "notes", "status",
         "insurance_type", "insurance_amount", "bank_name", "bank_account",
       ];
 
@@ -619,8 +621,8 @@ export default function Employees() {
               <option value="terminated">مفصول</option>
               <option value="warning">إنذار</option>
               <option value="vacation">في إجازة</option> {/* الحالة الجديدة */}
-            </select>
-          </div>
+                    </select>
+                  </div>
 
           <div className="flex items-center gap-4">
             <span className="text-indigo-800 font-bold text-lg flex items-center gap-2">

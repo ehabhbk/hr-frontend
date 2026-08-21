@@ -42,7 +42,7 @@ export default function AttendanceLogs() {
   const [showManualModal, setShowManualModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
-  const [editForm, setEditForm] = useState({ check_in_time: "", check_out_time: "", notes: "" });
+  const [editForm, setEditForm] = useState({ fingerprint_time: "", edit_type: "attendance", notes: "" });
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [excuseReason, setExcuseReason] = useState("");
 
@@ -65,6 +65,7 @@ export default function AttendanceLogs() {
   const [showWeeklyModal, setShowWeeklyModal] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const loadDevices = async () => {
     try {
@@ -266,6 +267,7 @@ export default function AttendanceLogs() {
       const params = {};
       if (filters.from_date) params.from_date = filters.from_date;
       if (filters.to_date) params.to_date = filters.to_date;
+      if (filters.employee_id) params.employee_id = filters.employee_id;
 
       const token = localStorage.getItem("token");
       
@@ -338,15 +340,20 @@ export default function AttendanceLogs() {
 
   const openEditModal = (log) => {
     setEditingRecord(log);
-    const existingCheckIn = log.type?.startsWith('attendance') && log.timestamp
-      ? new Date(log.timestamp + (log.timestamp.includes('T') ? '' : 'Z')).toISOString().slice(11, 16)
-      : "";
-    const existingCheckOut = log.type?.startsWith('checkout') && log.timestamp
-      ? new Date(log.timestamp + (log.timestamp.includes('T') ? '' : 'Z')).toISOString().slice(11, 16)
-      : "";
+    const ts = log.timestamp;
+    const timeStr = ts ? new Date(ts + (ts.includes('T') ? '' : 'Z')).toISOString().slice(11, 16) : "";
+    
+    let detectedType = "attendance";
+    if (log.type?.startsWith('checkout_early')) detectedType = "checkout_early";
+    else if (log.type?.startsWith('checkout_late')) detectedType = "checkout_late";
+    else if (log.type?.startsWith('checkout')) detectedType = "checkout";
+    else if (log.type?.startsWith('attendance_late')) detectedType = "attendance_late";
+    else if (log.type?.startsWith('attendance_early')) detectedType = "attendance_early";
+    else if (log.type?.startsWith('attendance')) detectedType = "attendance";
+    
     setEditForm({
-      check_in_time: log.type?.startsWith('attendance') ? existingCheckIn : "",
-      check_out_time: log.type?.startsWith('checkout') ? existingCheckOut : "",
+      fingerprint_time: timeStr,
+      edit_type: detectedType,
       notes: log.notes || "",
     });
     setShowEditModal(true);
@@ -356,11 +363,30 @@ export default function AttendanceLogs() {
     if (!editingRecord) return;
     const recordId = editingRecord.record_id;
     const payload: any = {};
-    if (editingRecord.type?.startsWith('attendance') && editForm.check_in_time) {
-      payload.check_in_time = editForm.check_in_time;
+    const isCheckIn = ["attendance", "attendance_late", "attendance_early"].includes(editForm.edit_type);
+    const isCheckOut = ["checkout", "checkout_late", "checkout_early"].includes(editForm.edit_type);
+    const wasCheckIn = editingRecord.type?.startsWith("attendance") || editingRecord.type === "attendance";
+    const wasCheckOut = editingRecord.type?.startsWith("checkout") || editingRecord.type === "checkout";
+    
+    if (isCheckIn && editForm.fingerprint_time) {
+      payload.check_in_time = editForm.fingerprint_time;
+      if (editForm.edit_type === "attendance_late") payload.check_in_type = "late";
+      else if (editForm.edit_type === "attendance_early") payload.check_in_type = "early";
+      else payload.check_in_type = "on_time";
+      if (wasCheckOut) {
+        payload.check_out_time = "";
+        payload.check_out_type = "";
+      }
     }
-    if (editingRecord.type?.startsWith('checkout') && editForm.check_out_time) {
-      payload.check_out_time = editForm.check_out_time;
+    if (isCheckOut && editForm.fingerprint_time) {
+      payload.check_out_time = editForm.fingerprint_time;
+      if (editForm.edit_type === "checkout_late") payload.check_out_type = "late";
+      else if (editForm.edit_type === "checkout_early") payload.check_out_type = "early";
+      else payload.check_out_type = "on_time";
+      if (wasCheckIn) {
+        payload.check_in_time = "";
+        payload.check_in_type = "";
+      }
     }
     if (editForm.notes !== undefined) {
       payload.notes = editForm.notes;
@@ -620,14 +646,14 @@ export default function AttendanceLogs() {
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-semibold"
                 type="button"
               >
-                تصدير PDF
+                تصدير / طباعة
               </button>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-4 text-sm">
             <span className="text-indigo-800 font-bold">
-              عدد السجلات: <span className="font-extrabold">{logs.length}</span>
+              عدد السجلات: <span className="font-extrabold">{typeFilter === "all" ? logs.length : logs.filter(r => r.type === typeFilter).length}</span>
             </span>
             {devices.filter(d => d.last_sync_at).length > 0 && (
               <span className="text-gray-600">
@@ -637,13 +663,30 @@ export default function AttendanceLogs() {
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs text-gray-500">دليل الأنواع:</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['attendance'].bg} ${TYPE_COLORS['attendance'].text} ${TYPE_COLORS['attendance'].border}`}>حضور</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['attendance_early'].bg} ${TYPE_COLORS['attendance_early'].text} ${TYPE_COLORS['attendance_early'].border}`}>حضور مبكر</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['attendance_late'].bg} ${TYPE_COLORS['attendance_late'].text} ${TYPE_COLORS['attendance_late'].border}`}>حضور متأخر</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['checkout'].bg} ${TYPE_COLORS['checkout'].text} ${TYPE_COLORS['checkout'].border}`}>انصراف</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['checkout_early'].bg} ${TYPE_COLORS['checkout_early'].text} ${TYPE_COLORS['checkout_early'].border}`}>انصراف مبكر</span>
-            <span className={`px-2 py-0.5 rounded text-xs border ${TYPE_COLORS['checkout_late'].bg} ${TYPE_COLORS['checkout_late'].text} ${TYPE_COLORS['checkout_late'].border}`}>انصراف متأخر</span>
+            <span className="text-xs text-gray-500 ml-1">تصفية:</span>
+            {[
+              { key: "all", label: "الكل", bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
+              { key: "attendance", label: "حضور", ...TYPE_COLORS['attendance'] },
+              { key: "attendance_late", label: "حضور متأخر", ...TYPE_COLORS['attendance_late'] },
+              { key: "attendance_early", label: "حضور مبكر", ...TYPE_COLORS['attendance_early'] },
+              { key: "checkout", label: "انصراف", ...TYPE_COLORS['checkout'] },
+              { key: "checkout_early", label: "انصراف مبكر", ...TYPE_COLORS['checkout_early'] },
+              { key: "checkout_late", label: "انصراف متأخر", ...TYPE_COLORS['checkout_late'] },
+              { key: "absence", label: "غياب", ...TYPE_COLORS['absence'] },
+            ].map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setTypeFilter(f.key)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                  typeFilter === f.key
+                    ? `${f.bg} ${f.text} ${f.border} ring-2 ring-offset-1 ring-indigo-400`
+                    : `${f.bg} ${f.text} ${f.border} opacity-60 hover:opacity-100`
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -697,7 +740,7 @@ export default function AttendanceLogs() {
                     </tr>
                   </thead>
                   <tbody>
-                    {logs.map((row, idx) => {
+                    {logs.filter(row => typeFilter === "all" || row.type === typeFilter).map((row, idx) => {
                       const typeInfo = getTypeInfo(row);
                       const dateTime = formatDateTime(row.timestamp);
                       return (
@@ -1016,35 +1059,41 @@ export default function AttendanceLogs() {
         {showEditModal && editingRecord && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-bold mb-4">تعديل وقت {editingRecord.type?.startsWith('attendance') ? 'الحضور' : 'الانصراف'}</h3>
+              <h3 className="text-lg font-bold mb-4">تعديل البصمة</h3>
               <p className="text-gray-600 mb-4">
                 الموظف: {editingRecord.employee_name}<br />
                 التاريخ: {editingRecord.timestamp ? new Date(editingRecord.timestamp + (editingRecord.timestamp.includes('T') ? '' : 'Z')).toLocaleDateString('ar-EG') : '-'}
               </p>
 
               <div className="space-y-4">
-                {editingRecord.type?.startsWith('attendance') && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">وقت الحضور الجديد</label>
-                    <input
-                      type="time"
-                      value={editForm.check_in_time}
-                      onChange={(e) => setEditForm(f => ({ ...f, check_in_time: e.target.value }))}
-                      className="w-full border rounded-lg px-3 py-2"
-                    />
-                  </div>
-                )}
-                {editingRecord.type?.startsWith('checkout') && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">وقت الانصراف الجديد</label>
-                    <input
-                      type="time"
-                      value={editForm.check_out_time}
-                      onChange={(e) => setEditForm(f => ({ ...f, check_out_time: e.target.value }))}
-                      className="w-full border rounded-lg px-3 py-2"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">وقت البصمة</label>
+                  <input
+                    type="time"
+                    value={editForm.fingerprint_time}
+                    onChange={(e) => setEditForm(f => ({ ...f, fingerprint_time: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">النوع</label>
+                  <select
+                    value={editForm.edit_type}
+                    onChange={(e) => setEditForm(f => ({ ...f, edit_type: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2"
+                  >
+                    <optgroup label="حضور">
+                      <option value="attendance">حضور</option>
+                      <option value="attendance_early">حضور مبكر</option>
+                      <option value="attendance_late">حضور متأخر</option>
+                    </optgroup>
+                    <optgroup label="انصراف">
+                      <option value="checkout">انصراف</option>
+                      <option value="checkout_early">انصراف مبكر</option>
+                      <option value="checkout_late">انصراف متأخر</option>
+                    </optgroup>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">ملاحظات</label>
                   <textarea

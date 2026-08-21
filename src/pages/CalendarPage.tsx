@@ -52,7 +52,7 @@ export default function CalendarPage() {
       const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
       const params: any = { month: monthStr };
       if (selectedEmployee !== "all") params.employee_id = selectedEmployee;
-      const res = await api.get("/attendance-records", { params });
+      const res = await api.get("/attendance-records", { params: { ...params, per_page: 500 } });
       const records = res.data?.data?.data || res.data?.data || [];
       const map: Record<string, any> = {};
       records.forEach((r: any) => {
@@ -73,10 +73,10 @@ export default function CalendarPage() {
       if (dayOfWeek === 5 || dayOfWeek === 6) return "rest";
       return "";
     }
-    if (record.is_on_leave || record.active_leave) return "leave";
     if (record.is_absent) return "absent";
-    if (record.is_late) return "late";
-    return "present";
+    if (record.check_in_type === "late") return "late";
+    if (record.check_in_time) return "present";
+    return "";
   };
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));

@@ -12,10 +12,8 @@ import {
   ClipboardDocumentCheckIcon,
   Bars3Icon,
   XMarkIcon,
-  DocumentTextIcon,
   MegaphoneIcon,
   AcademicCapIcon,
-  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import api from "../services/api";
@@ -77,12 +75,17 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
   };
 
   const [unreadCount, setUnreadCount] = useState(0);
+  const [smartAlertsCount, setSmartAlertsCount] = useState(0);
 
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await api.get("/notifications/unread-count");
-        setUnreadCount(res.data.count);
+        const [notiRes, alertsRes] = await Promise.all([
+          api.get("/notifications/unread-count").catch(() => null),
+          api.get("/smart-alerts/unread-count").catch(() => null),
+        ]);
+        setUnreadCount(notiRes?.data?.count || 0);
+        setSmartAlertsCount(alertsRes?.data?.count || 0);
       } catch {}
     };
     fetchNotifications();
@@ -114,10 +117,8 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
       { label: "الطلبيات", icon: ClipboardDocumentCheckIcon, path: "/requests", permission: "menu.requests" },
       { label: "التصدير البنكي", icon: BanknotesIcon, path: "/bank-exports", permission: "menu.bank" },
       { label: "التقارير", icon: ChartBarIcon, path: "/reports", permission: "menu.reports" },
-      { label: "السجلات", icon: DocumentTextIcon, path: "/activity-logs", permission: "menu.logs" },
       { label: "الإعلانات", icon: MegaphoneIcon, path: "/announcements", permission: "menu.announcements" },
       { label: "الدورات والشهادات", icon: AcademicCapIcon, path: "/training", permission: "menu.employees" },
-      { label: " المصروفات", icon: CurrencyDollarIcon, path: "/expenses", permission: "menu.expenses" },
       { label: "الإعدادات", icon: Cog6ToothIcon, path: "/settings", permission: "menu.settings" },
     ];
     return isAdmin ? allItems : allItems.filter((item) => hasPermission(item.permission));
@@ -148,15 +149,15 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
           title="الإشعارات"
         >
           <BellIcon className="h-5 w-5" />
-          {unreadCount > 0 && (
+          {(unreadCount + smartAlertsCount) > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
+              {(unreadCount + smartAlertsCount) > 9 ? "9+" : unreadCount + smartAlertsCount}
             </span>
           )}
         </button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-3 overflow-hidden">
+      <nav className="flex-1 p-4 space-y-3 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {items.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.path);

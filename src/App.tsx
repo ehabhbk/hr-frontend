@@ -26,6 +26,16 @@ import CalendarPage from "./pages/CalendarPage";
 import OffboardingPage from "./pages/OffboardingPage";
 import TrainingPage from "./pages/TrainingPage";
 import ExpensesPage from "./pages/ExpensesPage";
+import TravelRequestsPage from "./pages/TravelRequestsPage";
+import ComplaintsPage from "./pages/ComplaintsPage";
+import DocumentsPage from "./pages/DocumentsPage";
+import GeofencesPage from "./pages/GeofencesPage";
+import OvertimePage from "./pages/OvertimePage";
+import IdpPlansPage from "./pages/IdpPlansPage";
+import Reviews360Page from "./pages/Reviews360Page";
+import OkrGoalsPage from "./pages/OkrGoalsPage";
+import SmartAlertsPage from "./pages/SmartAlertsPage";
+import BackupsPage from "./pages/BackupsPage";
 import api from "./services/api";
 
 function App() {
@@ -340,6 +350,36 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* السفر والبعثات */}
+        <Route path="/travel-requests" element={<ProtectedRoute><TravelRequestsPage /></ProtectedRoute>} />
+
+        {/* الشكاوى والاقتراحات */}
+        <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
+
+        {/* الوثائق المركزية */}
+        <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
+
+        {/* المناطق الجغرافية */}
+        <Route path="/geofences" element={<ProtectedRoute><GeofencesPage /></ProtectedRoute>} />
+
+        {/* الأوفرتايم */}
+        <Route path="/overtime" element={<ProtectedRoute><OvertimePage /></ProtectedRoute>} />
+
+        {/* خطط التطوير الفردي */}
+        <Route path="/idp-plans" element={<ProtectedRoute><IdpPlansPage /></ProtectedRoute>} />
+
+        {/* تقييم 360 درجة */}
+        <Route path="/reviews-360" element={<ProtectedRoute><Reviews360Page /></ProtectedRoute>} />
+
+        {/* أهداف OKR */}
+        <Route path="/okr-goals" element={<ProtectedRoute><OkrGoalsPage /></ProtectedRoute>} />
+
+        {/* التنبيهات الذكية */}
+        <Route path="/smart-alerts" element={<ProtectedRoute><SmartAlertsPage /></ProtectedRoute>} />
+
+        {/* النسخ الاحتياطي */}
+        <Route path="/backups" element={<ProtectedRoute><BackupsPage /></ProtectedRoute>} />
 
         {/* إعادة التوجيه الافتراضية */}
         <Route path="*" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

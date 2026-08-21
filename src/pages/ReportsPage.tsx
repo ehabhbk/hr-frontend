@@ -23,6 +23,8 @@ import {
   DocumentChartBarIcon,
   UserCircleIcon,
   IdentificationIcon,
+  FlagIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 
 const ALL_TABS = [
@@ -36,6 +38,9 @@ const ALL_TABS = [
   { key: "department", label: "تقارير الأقسام", icon: BuildingOfficeIcon, color: "from-cyan-500 to-teal-600", gradient: "bg-gradient-to-r from-cyan-500 to-teal-600", permission: "reports.department" },
   { key: "history", label: "سجل التقارير", icon: ClockIcon, color: "from-gray-500 to-gray-700", gradient: "bg-gradient-to-r from-gray-500 to-gray-700", permission: "reports.history" },
   { key: "letters", label: "الخطابات", icon: DocumentTextIcon, color: "from-pink-500 to-rose-600", gradient: "bg-gradient-to-r from-pink-500 to-rose-600", permission: "reports.letters" },
+  { key: "reviews360", label: "تقييم 360°", icon: StarIcon, color: "from-rose-500 to-pink-600", gradient: "bg-gradient-to-r from-rose-500 to-pink-600", permission: "reports.reviews360" },
+  { key: "okr", label: "أهداف OKR", icon: FlagIcon, color: "from-indigo-500 to-purple-600", gradient: "bg-gradient-to-r from-indigo-500 to-purple-600", permission: "reports.okr" },
+  { key: "idp", label: "خطط التطوير", icon: BookOpenIcon, color: "from-emerald-500 to-teal-600", gradient: "bg-gradient-to-r from-emerald-500 to-emerald-600", permission: "reports.idp" },
 ];
 
 function getPermissions() {
@@ -157,6 +162,10 @@ function ReportsPage() {
     }
   });
   const [exporting, setExporting] = useState(false);
+  const [reviews360, setReviews360] = useState<any[]>([]);
+  const [okrGoals, setOkrGoals] = useState<any[]>([]);
+  const [idpPlans, setIdpPlans] = useState<any[]>([]);
+  const [reviews360Summary, setReviews360Summary] = useState<any>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -270,9 +279,107 @@ function ReportsPage() {
         return;
       }
 
-      const ws = XLSX.utils.json_to_sheet(result.data);
+      const toEN = (n) => {
+        if (n === null || n === undefined) return n;
+        return String(n).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+      };
+
+      const headerMap = {
+        salary: {
+          name: 'اسم الموظف',
+          employee_code: 'الرقم الوظيفي',
+          department: 'القسم',
+          job_title: 'المسمى الوظيفي',
+          base_salary: 'الراتب الأساسي',
+          position_allowance: 'بدل المنصب',
+          total_allowances: 'إجمالي البدلات',
+          total_incentives: 'إجمالي المكافآت',
+          gross_salary: 'الراتب الإجمالي',
+          insurance_type: 'نوع التأمين',
+          insurance_amount: 'مبلغ التأمين',
+          deductions: 'خصومات أخرى',
+          attendance_deductions: 'خصومات الحضور',
+          absent_days: 'أيام الغياب',
+          advance_deductions: 'خصومات السلف',
+          income_tax: 'ضريبة الدخل',
+          total_deductions: 'إجمالي الخصومات',
+          net_salary: 'الراتب الصافي',
+        },
+        incomeTax: {
+          name: 'اسم الموظف',
+          employee_code: 'الرقم الوظيفي',
+          department: 'القسم',
+          base_salary: 'الراتب الأساسي',
+          taxable_amount: 'المبلغ الخاضع للضريبة',
+          tax_amount: 'مبلغ الضريبة',
+        },
+        salaryIncrease: {
+          name: 'اسم الموظف',
+          employee_code: 'الرقم الوظيفي',
+          department: 'القسم',
+          job_title: 'المسمى الوظيفي',
+          old_salary: 'الراتب القديم',
+          new_salary: 'الراتب الجديد',
+          increase_amount: 'مبلغ الزيادة',
+          increase_percent: 'نسبة الزيادة',
+          effective_date: 'تاريخ السريان',
+          reason: 'السبب',
+          status: 'الحالة',
+        },
+        department: {
+          department: 'القسم',
+          employee_count: 'عدد الموظفين',
+          total_salary: 'إجمالي الرواتب',
+          avg_salary: 'متوسط الرواتب',
+        },
+        leaveWarning: {
+          name: 'اسم الموظف',
+          employee_code: 'الرقم الوظيفي',
+          department: 'القسم',
+          annual_leaves: 'إجازات سنوية',
+          sick_leaves: 'إجازات مرضية',
+          other_leaves: 'إجازات أخرى',
+          warnings: 'الإنذارات',
+        },
+        employee: {
+          name: 'اسم الموظف',
+          employee_code: 'الرقم الوظيفي',
+          department: 'القسم',
+          job_title: 'المسمى الوظيفي',
+          check_in: 'وقت الدخول',
+          check_out: 'وقت الخروج',
+          check_in_type: 'نوع الدخول',
+          check_out_type: 'نوع الخروج',
+          is_absent: 'غياب',
+          total_deduction: 'الخصم',
+          date: 'التاريخ',
+        },
+      };
+
+      const cols = headerMap[type] || {};
+      
+      const flatData = result.data.map(row => {
+        const flat = {};
+        for (const [key, label] of Object.entries(cols)) {
+          let val = row[key];
+          if (typeof val === 'object' && val !== null) {
+            val = JSON.stringify(val);
+          }
+          flat[label] = toEN(val);
+        }
+        return flat;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(flatData);
+      
+      ws['!cols'] = Object.keys(cols).map(() => ({ wch: 20 }));
+      ws['!views'] = [{ RTL: true }];
+      
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Report');
+      
+      wb.Workbook = wb.Workbook || {};
+      wb.Workbook.Views = [{ RTL: true }];
       
       const monthName = MONTHS.find(m => m.value === month)?.label || month;
       const fileNames = {
@@ -323,6 +430,10 @@ function ReportsPage() {
       setEmployees(empRes.data?.data || empRes.data || []);
       setDepartments(deptRes.data?.data || deptRes.data || []);
       setSummary(summaryRes.data || null);
+      api.get("/reviews-360").then(res => setReviews360(res.data?.data || res.data || [])).catch(() => {});
+      api.get("/reviews-360/summary?employee_id=" + selectedEmployee).then(res => setReviews360Summary(res.data)).catch(() => {});
+      api.get("/okr-goals").then(res => setOkrGoals(res.data?.data || res.data || [])).catch(() => {});
+      api.get("/idp-plans").then(res => setIdpPlans(res.data?.data || res.data || [])).catch(() => {});
     } catch (err) {
       console.error("Failed to load initial data:", err);
       toast.error("فشل في تحميل البيانات");
@@ -901,6 +1012,123 @@ function ReportsPage() {
                 exportLetterExcel={exportLetterExcel}
                 LETTER_TYPES={LETTER_TYPES}
               />
+            )}
+            {activeTab === "reviews360" && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-bold mb-4">تقييم 360 درجة</h2>
+                {reviews360Summary && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-gray-600">عدد التقييمات: <span className="font-bold">{reviews360Summary.total_reviews}</span></p>
+                    <p className="text-sm text-gray-600">المتوسط العام: <span className="font-bold">{reviews360Summary.overall_average?.toFixed(1)}</span></p>
+                  </div>
+                )}
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50">
+                    <th className="p-3 text-right">المقيّم</th>
+                    <th className="p-3 text-right">النوع</th>
+                    <th className="p-3 text-right">التواصل</th>
+                    <th className="p-3 text-right">الفريق</th>
+                    <th className="p-3 text-right">القيادة</th>
+                    <th className="p-3 text-right">الفني</th>
+                    <th className="p-3 text-right">حل المشاكل</th>
+                    <th className="p-3 text-right">الفترة</th>
+                  </tr></thead>
+                  <tbody>
+                    {reviews360.map((r: any) => (
+                      <tr key={r.id} className="border-t hover:bg-gray-50">
+                        <td className="p-3">{r.reviewer?.full_name || r.reviewer?.name || "-"}</td>
+                        <td className="p-3">{r.reviewer_type === 'manager' ? 'مدير' : r.reviewer_type === 'peer' ? 'زميل' : r.reviewer_type === 'subordinate' ? 'مرؤوس' : 'ذاتي'}</td>
+                        <td className="p-3">{r.communication_score || "-"}</td>
+                        <td className="p-3">{r.teamwork_score || "-"}</td>
+                        <td className="p-3">{r.leadership_score || "-"}</td>
+                        <td className="p-3">{r.technical_score || "-"}</td>
+                        <td className="p-3">{r.problem_solving_score || "-"}</td>
+                        <td className="p-3">{r.review_period}</td>
+                      </tr>
+                    ))}
+                    {reviews360.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-gray-400">لا توجد تقييمات بعد</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {activeTab === "okr" && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-bold mb-4">أهداف OKR</h2>
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50">
+                    <th className="p-3 text-right">العنوان</th>
+                    <th className="p-3 text-right">النوع</th>
+                    <th className="p-3 text-right">المستهدف</th>
+                    <th className="p-3 text-right">الحالي</th>
+                    <th className="p-3 text-right">التقدم</th>
+                    <th className="p-3 text-right">الفترة</th>
+                    <th className="p-3 text-right">الحالة</th>
+                  </tr></thead>
+                  <tbody>
+                    {okrGoals.map((g: any) => {
+                      const pct = g.target_value > 0 ? Math.round((g.current_value / g.target_value) * 100) : 0;
+                      const statusColors: Record<string, string> = { on_track: 'bg-green-100 text-green-700', at_risk: 'bg-yellow-100 text-yellow-700', completed: 'bg-blue-100 text-blue-700', missed: 'bg-red-100 text-red-700' };
+                      const statusLabels: Record<string, string> = { on_track: 'على المسار', at_risk: 'تحت المخاطرة', completed: 'مكتمل', missed: 'فائت' };
+                      return (
+                        <tr key={g.id} className="border-t hover:bg-gray-50">
+                          <td className="p-3 font-medium">{g.title}</td>
+                          <td className="p-3">{g.type === 'employee' ? 'موظف' : 'قسم'}</td>
+                          <td className="p-3">{g.target_value}</td>
+                          <td className="p-3">{g.current_value}</td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 bg-gray-200 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} /></div>
+                              <span className="text-xs">{pct}%</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-xs">{g.period_start} - {g.period_end}</td>
+                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs ${statusColors[g.status] || ''}`}>{statusLabels[g.status] || g.status}</span></td>
+                        </tr>
+                      );
+                    })}
+                    {okrGoals.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-gray-400">لا توجد أهداف بعد</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {activeTab === "idp" && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-bold mb-4">خطط التطوير الفردي</h2>
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50">
+                    <th className="p-3 text-right">الموظف</th>
+                    <th className="p-3 text-right">العنوان</th>
+                    <th className="p-3 text-right">مجال المهارة</th>
+                    <th className="p-3 text-right">التقدم</th>
+                    <th className="p-3 text-right">من</th>
+                    <th className="p-3 text-right">إلى</th>
+                    <th className="p-3 text-right">الحالة</th>
+                  </tr></thead>
+                  <tbody>
+                    {idpPlans.map((p: any) => {
+                      const statusColors: Record<string, string> = { active: 'bg-blue-100 text-blue-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-700' };
+                      const statusLabels: Record<string, string> = { active: 'نشطة', completed: 'مكتملة', cancelled: 'ملغاة' };
+                      return (
+                        <tr key={p.id} className="border-t hover:bg-gray-50">
+                          <td className="p-3">{p.employee?.name || "-"}</td>
+                          <td className="p-3 font-medium">{p.title}</td>
+                          <td className="p-3">{p.skill_area || "-"}</td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 bg-gray-200 rounded-full h-2"><div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${p.progress || 0}%` }} /></div>
+                              <span className="text-xs">{p.progress || 0}%</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-xs">{p.start_date}</td>
+                          <td className="p-3 text-xs">{p.target_date}</td>
+                          <td className="p-3"><span className={`px-2 py-1 rounded text-xs ${statusColors[p.status] || ''}`}>{statusLabels[p.status] || p.status}</span></td>
+                        </tr>
+                      );
+                    })}
+                    {idpPlans.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-gray-400">لا توجد خطط بعد</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
