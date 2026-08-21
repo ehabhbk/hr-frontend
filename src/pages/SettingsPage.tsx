@@ -114,6 +114,7 @@ function SettingsPage() {
   const [employees, setEmployees] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [shiftAssignments, setShiftAssignments] = useState({});
+  const [rotationGroups, setRotationGroups] = useState<any[]>([]);
 
   const [orgForm, setOrgForm] = useState({
     name: "",
@@ -386,6 +387,7 @@ function SettingsPage() {
 
     api.get("/geofences").then(res => setGeofences(res.data?.data || res.data || [])).catch(() => {});
     api.get("/backups").then(res => setBackups(res.data?.data || res.data || [])).catch(() => {});
+    api.get("/rotation-groups").then(res => setRotationGroups(res.data?.data || res.data || [])).catch(() => {});
 
     setLoading(false);
   }
@@ -760,6 +762,41 @@ function SettingsPage() {
     }
   }
 
+  async function createRotationGroup(data) {
+    try {
+      const res = await api.post("/rotation-groups", data);
+      setRotationGroups(prev => [...prev, res.data?.data || res.data]);
+      toast.success("تم إنشاء مجموعة التناوب");
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "فشل إنشاء مجموعة التناوب");
+      return false;
+    }
+  }
+
+  async function updateRotationGroup(id, data) {
+    try {
+      const res = await api.put(`/rotation-groups/${id}`, data);
+      const updated = res.data?.data || res.data;
+      setRotationGroups(prev => prev.map(g => g.id === id ? updated : g));
+      toast.success("تم تحديث مجموعة التناوب");
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "فشل تحديث مجموعة التناوب");
+      return false;
+    }
+  }
+
+  async function deleteRotationGroup(id) {
+    try {
+      await api.delete(`/rotation-groups/${id}`);
+      setRotationGroups(prev => prev.filter(g => g.id !== id));
+      toast.success("تم حذف مجموعة التناوب");
+    } catch (err) {
+      toast.error("فشل حذف مجموعة التناوب");
+    }
+  }
+
   const [gradeKey, setGradeKey] = useState("");
   const [gradeDays, setGradeDays] = useState(0);
 
@@ -894,6 +931,10 @@ function SettingsPage() {
                 unassignEmployee={confirmUnassign}
                 loadingStates={loadingStates}
                 saveEmployeeRotation={saveEmployeeRotation}
+                rotationGroups={rotationGroups}
+                createRotationGroup={createRotationGroup}
+                updateRotationGroup={updateRotationGroup}
+                deleteRotationGroup={deleteRotationGroup}
               />
             )}
             {activeTab === "financials" && (
@@ -1963,9 +2004,13 @@ function AdvancesTab({
   );
 }
 
-function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee, saveEmployeeRotation }) {
+function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, deleteShift, confirmDeleteShift, employees, shiftAssignments, assignEmployee, unassignEmployee, saveEmployeeRotation, rotationGroups, createRotationGroup, updateRotationGroup, deleteRotationGroup }) {
   const [selectedShift, setSelectedShift] = useState(shifts[0]?.id || "");
   const [editingShiftId, setEditingShiftId] = useState(null);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [groupForm, setGroupForm] = useState({ name: '', shift_id: '', start_date: '', employee_ids: [] });
+  const [groupPreview, setGroupPreview] = useState<any[]>([]);
 
   const DAYS = [
     { value: 0, label: "الأحد" },
@@ -2323,63 +2368,161 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
       </div>
 
       <div className="bg-amber-50 p-4 rounded-lg mt-4">
-        <h3 className="font-bold mb-4 text-right flex items-center gap-2">
-          <span>🔄</span> إعدادات التناوب
-        </h3>
-        <p className="text-sm text-gray-600 mb-4 text-right">اختر ورديات متعددة لكل موظف لإنشاء دورة تناوب. يقوم النظام بتغيير وردية الموظف تلقائياً كل يوم حسب الدورة المحددة.</p>
-        
-        {employees.filter(e => e.status === 'active').length === 0 ? (
-          <p className="text-gray-500 text-center py-4">لا يوجد موظفين نشطين</p>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-right flex items-center gap-2">
+            <span>🔄</span> مجموعات التناوب
+          </h3>
+          <button
+            onClick={() => {
+              setShowGroupForm(true);
+              setEditingGroupId(null);
+              setGroupForm({ name: '', shift_id: shifts[0]?.id || '', start_date: '', employee_ids: [] });
+            }}
+            className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-700"
+          >
+            + مجموعة جديدة
+          </button>
+        </div>
+        <p className="text-sm text-gray-600 mb-4 text-right">أنشئ مجموعة من الموظفين يتناوبون على نفس الوردية بالترتيب. اليوم الأول للموظف الأول، الثاني للثاني، وهكذا.</p>
+
+        {showGroupForm && (
+          <div className="bg-white p-4 rounded-lg border mb-4">
+            <h4 className="font-bold text-right mb-3">{editingGroupId ? 'تعديل مجموعة التناوب' : 'مجموعة تناوب جديدة'}</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="text-xs text-gray-600 block text-right mb-1">اسم المجموعة</label>
+                <input
+                  type="text"
+                  value={groupForm.name}
+                  onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+                  className="border rounded px-2 py-1.5 text-sm w-full"
+                  placeholder="مثال: فردوس وسلسبيل"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block text-right mb-1">الوردية</label>
+                <select
+                  value={groupForm.shift_id}
+                  onChange={(e) => setGroupForm({ ...groupForm, shift_id: parseInt(e.target.value) })}
+                  className="border rounded px-2 py-1.5 text-sm w-full"
+                >
+                  <option value="">اختر وردية</option>
+                  {shifts.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.start_time} - {s.end_time})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block text-right mb-1">تاريخ البدء</label>
+                <input
+                  type="date"
+                  value={groupForm.start_date}
+                  onChange={(e) => setGroupForm({ ...groupForm, start_date: e.target.value })}
+                  className="border rounded px-2 py-1.5 text-sm w-full"
+                />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="text-xs text-gray-600 block text-right mb-1">الموظفون بالترتيب (اسحب لتغيير الترتيب)</label>
+              <div className="flex flex-wrap gap-1">
+                {employees.filter(e => e.status === 'active').map(emp => (
+                  <label key={emp.id} className="flex items-center gap-1 cursor-pointer text-xs bg-gray-50 px-2 py-1 rounded border">
+                    <input
+                      type="checkbox"
+                      checked={groupForm.employee_ids.includes(emp.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setGroupForm({ ...groupForm, employee_ids: [...groupForm.employee_ids, emp.id] });
+                        } else {
+                          setGroupForm({ ...groupForm, employee_ids: groupForm.employee_ids.filter(id => id !== emp.id) });
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span>{emp.name}</span>
+                  </label>
+                ))}
+              </div>
+              {groupForm.employee_ids.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1 text-right">الترتيب: {groupForm.employee_ids.map(id => employees.find(e => e.id === id)?.name).filter(Boolean).join(' → ')}</p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowGroupForm(false); setEditingGroupId(null); }}
+                className="bg-gray-300 text-gray-700 px-3 py-1.5 rounded text-sm"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={async () => {
+                  if (!groupForm.name || !groupForm.shift_id || !groupForm.start_date || groupForm.employee_ids.length < 2) {
+                    toast.error("الرجاء ملء جميع الحقول واختيار موظفين على الأقل");
+                    return;
+                  }
+                  let success;
+                  if (editingGroupId) {
+                    success = await updateRotationGroup(editingGroupId, groupForm);
+                  } else {
+                    success = await createRotationGroup(groupForm);
+                  }
+                  if (success) {
+                    setShowGroupForm(false);
+                    setEditingGroupId(null);
+                    setGroupForm({ name: '', shift_id: '', start_date: '', employee_ids: [] });
+                  }
+                }}
+                className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-700"
+              >
+                {editingGroupId ? 'تحديث' : 'إنشاء'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {rotationGroups.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">لا توجد مجموعات تناوب بعد</p>
         ) : (
-          <div className="space-y-3 max-h-[500px] overflow-y-auto">
-            {employees.filter(e => e.status === 'active').map(emp => {
-              let currentRotation = [];
-              try { currentRotation = JSON.parse(emp.rotation_shift_ids || '[]'); } catch { currentRotation = []; }
-              
+          <div className="space-y-3">
+            {rotationGroups.map(group => {
+              const shift = shifts.find(s => s.id === group.shift_id);
+              const empNames = (group.employee_ids || []).map(id => employees.find(e => e.id === id)?.name || `#${id}`);
               return (
-                <div key={emp.id} className="bg-white p-3 rounded-lg border">
+                <div key={group.id} className="bg-white p-3 rounded-lg border">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">{emp.name}</span>
-                    {currentRotation.length > 0 && (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                        {currentRotation.length} ورديات
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {shifts.map(shift => (
-                      <label key={shift.id} className="flex items-center gap-1 cursor-pointer text-xs bg-gray-50 px-2 py-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={currentRotation.includes(shift.id)}
-                          onChange={(e) => {
-                            let updated;
-                            if (e.target.checked) {
-                              updated = [...currentRotation, shift.id];
-                            } else {
-                              updated = currentRotation.filter(id => id !== shift.id);
-                            }
-                            saveEmployeeRotation(emp.id, updated, emp.rotation_start_date);
-                          }}
-                          className="rounded"
-                        />
-                        <span>{shift.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {currentRotation.length > 0 && (
+                    <span className="font-bold text-sm">{group.name}</span>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-600">تاريخ البدء:</label>
-                      <input
-                        type="date"
-                        value={emp.rotation_start_date ? emp.rotation_start_date.substring(0, 10) : ''}
-                        onChange={(e) => {
-                          saveEmployeeRotation(emp.id, currentRotation, e.target.value);
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        {empNames.length} موظف
+                      </span>
+                      <button
+                        onClick={() => {
+                          setEditingGroupId(group.id);
+                          setGroupForm({
+                            name: group.name,
+                            shift_id: group.shift_id,
+                            start_date: group.start_date?.substring(0, 10) || '',
+                            employee_ids: group.employee_ids || [],
+                          });
+                          setShowGroupForm(true);
                         }}
-                        className="border rounded px-2 py-1 text-xs"
-                      />
+                        className="text-blue-600 text-xs hover:underline"
+                      >تعديل</button>
+                      <button
+                        onClick={() => { if (confirm('هل أنت متأكد من حذف هذه المجموعة؟')) deleteRotationGroup(group.id); }}
+                        className="text-red-600 text-xs hover:underline"
+                      >حذف</button>
                     </div>
-                  )}
+                  </div>
+                  <div className="text-xs text-gray-600 text-right mb-1">
+                    <span className="font-medium">الوردية:</span> {shift?.name || '-'} ({shift?.start_time} - {shift?.end_time})
+                  </div>
+                  <div className="text-xs text-gray-600 text-right mb-1">
+                    <span className="font-medium">تاريخ البدء:</span> {group.start_date}
+                  </div>
+                  <div className="text-xs text-gray-600 text-right">
+                    <span className="font-medium">الترتيب:</span> {empNames.join(' → ')}
+                  </div>
                 </div>
               );
             })}
