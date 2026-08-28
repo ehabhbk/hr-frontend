@@ -2277,7 +2277,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
   const [editingShiftId, setEditingShiftId] = useState(null);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState(null);
-  const [groupForm, setGroupForm] = useState({ name: '', shift_id: '', start_date: '', employee_ids: [] });
+  const [groupForm, setGroupForm] = useState({ name: '', shift_id: '', start_date: '', rotation_days: 1, employee_ids: [] });
   const [groupPreview, setGroupPreview] = useState<any[]>([]);
 
   const DAYS = [
@@ -2644,14 +2644,14 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
             onClick={() => {
               setShowGroupForm(true);
               setEditingGroupId(null);
-              setGroupForm({ name: '', shift_id: shifts[0]?.id || '', start_date: '', employee_ids: [] });
+              setGroupForm({ name: '', shift_id: shifts[0]?.id || '', start_date: '', rotation_days: 1, employee_ids: [] });
             }}
             className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-700"
           >
             + مجموعة جديدة
           </button>
         </div>
-        <p className="text-sm text-gray-600 mb-4 text-right">أنشئ مجموعة من الموظفين يتناوبون على نفس الوردية بالترتيب. اليوم الأول للموظف الأول، الثاني للثاني، وهكذا.</p>
+        <p className="text-sm text-gray-600 mb-4 text-right">أنشئ مجموعة من الموظفين يتناوبون على نفس الوردية بالترتيب. كل موظف يعمل عدد الأيام المحدد ثم يأتي التالي. مثال (يوم بيوم): اليوم سلسبيل وغداً فردوس، أو (يومين بيومين): سلسبيل اليوم وغداً ثم فردوس بعد غد وبعده.</p>
 
         {showGroupForm && (
           <div className="bg-white p-4 rounded-lg border mb-4">
@@ -2688,6 +2688,22 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
                   onChange={(e) => setGroupForm({ ...groupForm, start_date: e.target.value })}
                   className="border rounded px-2 py-1.5 text-sm w-full"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block text-right mb-1">عدد أيام التناوب (لكل موظف)</label>
+                <select
+                  value={groupForm.rotation_days}
+                  onChange={(e) => setGroupForm({ ...groupForm, rotation_days: parseInt(e.target.value) })}
+                  className="border rounded px-2 py-1.5 text-sm w-full"
+                >
+                  <option value={1}>يوم بيوم (1)</option>
+                  <option value={2}>يومين بيومين (2)</option>
+                  <option value={3}>ثلاثة أيام (3)</option>
+                  <option value={4}>أربعة أيام (4)</option>
+                  <option value={5}>خمسة أيام (5)</option>
+                  <option value={6}>ستة أيام (6)</option>
+                  <option value={7}>أسبوع (7)</option>
+                </select>
               </div>
             </div>
             <div className="mb-3">
@@ -2737,7 +2753,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
                   if (success) {
                     setShowGroupForm(false);
                     setEditingGroupId(null);
-                    setGroupForm({ name: '', shift_id: '', start_date: '', employee_ids: [] });
+                    setGroupForm({ name: '', shift_id: '', start_date: '', rotation_days: 1, employee_ids: [] });
                   }
                 }}
                 className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-700"
@@ -2770,6 +2786,7 @@ function ShiftsTab({ shifts, shiftForm, setShiftForm, saveShift, updateShift, de
                             name: group.name,
                             shift_id: group.shift_id,
                             start_date: group.start_date?.substring(0, 10) || '',
+                            rotation_days: group.rotation_days || 1,
                             employee_ids: group.employee_ids || [],
                           });
                           setShowGroupForm(true);
