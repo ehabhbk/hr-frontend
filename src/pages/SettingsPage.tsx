@@ -20,6 +20,7 @@ const ALL_TABS = [
   { key: "roles", label: "الصلاحيات", icon: "🔐", permission: "roles.view" },
   { key: "geofences", label: "المناطق الجغرافية", icon: "📍", permission: "settings.geofences" },
   { key: "backups", label: "النسخ الاحتياطي", icon: "💾", permission: "settings.backups" },
+  { key: "pdf_settings", label: "إعدادات التقارير والخطابات", icon: "📄", permission: "settings.organization" },
 ];
 
 function getPermissions() {
@@ -115,6 +116,16 @@ function SettingsPage() {
   const [shifts, setShifts] = useState([]);
   const [shiftAssignments, setShiftAssignments] = useState({});
   const [rotationGroups, setRotationGroups] = useState<any[]>([]);
+  const [pdfSettings, setPdfSettings] = useState<any>({
+    margin_top: 15, margin_bottom: 15, margin_left: 15, margin_right: 15,
+    logo_width: 55, logo_height: 55, logo_position: 'center',
+    stamp_width: 55, stamp_height: 55, stamp_position: 'center',
+    font_size: 12, line_height: 2,
+    show_header: true, show_footer: true, show_stamp: true, show_signatures: true,
+    show_gm_signature: true, show_hr_signature: true, show_finance_signature: false,
+    header_text: '', footer_text: '',
+    gm_title: 'المدير العام', hr_title: 'مدير الموارد البشرية', finance_title: 'المدير المالي',
+  });
 
   const [orgForm, setOrgForm] = useState({
     name: "",
@@ -128,9 +139,15 @@ function SettingsPage() {
     foundation_year: "",
     currency: "SDG",
     currency_symbol: "جنيه",
+    general_manager_name: "",
+    hr_manager_name: "",
+    finance_manager_name: "",
   });
   const [logoFile, setLogoFile] = useState(null);
   const [stampFile, setStampFile] = useState(null);
+  const [gmSigFile, setGmSigFile] = useState(null);
+  const [hrSigFile, setHrSigFile] = useState(null);
+  const [financeSigFile, setFinanceSigFile] = useState(null);
 
   const currencyOptions = [
     { value: "SDG", label: "جنيه سوداني (SDG)", symbol: "جنيه", icon: "💵" },
@@ -266,6 +283,7 @@ function SettingsPage() {
     saveTax: false,
     saveWhatsApp: false,
     saveSettlements: false,
+    savePdfSettings: false,
     handleWarningStatus: false,
     calculateSettlement: false,
   });
@@ -349,6 +367,9 @@ function SettingsPage() {
         foundation_year: orgData.foundation_year || "",
         currency: orgData.currency || "SDG",
         currency_symbol: orgData.currency_symbol || "جنيه",
+        general_manager_name: orgData.general_manager_name || "",
+        hr_manager_name: orgData.hr_manager_name || "",
+        finance_manager_name: orgData.finance_manager_name || "",
       });
     }
 
@@ -388,6 +409,7 @@ function SettingsPage() {
     api.get("/geofences").then(res => setGeofences(res.data?.data || res.data || [])).catch(() => {});
     api.get("/backups").then(res => setBackups(res.data?.data || res.data || [])).catch(() => {});
     api.get("/rotation-groups").then(res => setRotationGroups(res.data?.data || res.data || [])).catch(() => {});
+    api.get("/pdf-settings").then(res => { if (res.data?.data) setPdfSettings(res.data.data); }).catch(() => {});
 
     setLoading(false);
   }
@@ -446,6 +468,12 @@ function SettingsPage() {
       fd.append("currency_symbol", orgForm.currency_symbol);
       if (logoFile) fd.append("logo", logoFile);
       if (stampFile) fd.append("stamp", stampFile);
+      if (gmSigFile) fd.append("gm_signature", gmSigFile);
+      if (hrSigFile) fd.append("hr_signature", hrSigFile);
+      if (financeSigFile) fd.append("finance_signature", financeSigFile);
+      fd.append("general_manager_name", orgForm.general_manager_name);
+      fd.append("hr_manager_name", orgForm.hr_manager_name);
+      fd.append("finance_manager_name", orgForm.finance_manager_name);
       const res = await api.post("/organization", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -464,11 +492,14 @@ function SettingsPage() {
           foundation_year: d.foundation_year || "",
           currency: d.currency || "SDG",
           currency_symbol: d.currency_symbol || "جنيه",
+          general_manager_name: d.general_manager_name || "",
+          hr_manager_name: d.hr_manager_name || "",
+          finance_manager_name: d.finance_manager_name || "",
         });
       }
-      toast.success("تم حفظ بيانات المؤسسة بنجاح ✅");
+      toast.success("تم حفظ بيانات المؤسسة بنجاح");
     } catch (err) {
-      toast.error("فشل حفظ البيانات ❌");
+      toast.error("فشل حفظ البيانات");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveOrg: false }));
     }
@@ -478,9 +509,9 @@ function SettingsPage() {
     setLoadingStates(prev => ({ ...prev, saveAttendance: true }));
     try {
       await api.put("/settings/attendance", attendance);
-      toast.success("تم حفظ إعدادات الحضور والغياب ✅");
+      toast.success("تم حفظ إعدادات الحضور والغياب");
     } catch (err) {
-      toast.error("فشل حفظ الإعدادات ❌");
+      toast.error("فشل حفظ الإعدادات");
     } finally {
       setLoadingStates(prev => ({ ...prev, saveAttendance: false }));
     }
@@ -569,6 +600,18 @@ function SettingsPage() {
       toast.success("تم إرسال رسالة الاختبار");
     } catch (err) {
       toast.error("فشل إرسال الاختبار");
+    }
+  }
+
+  async function savePdfSettings() {
+    setLoadingStates(prev => ({ ...prev, savePdfSettings: true }));
+    try {
+      await api.put("/pdf-settings", pdfSettings);
+      toast.success("تم حفظ إعدادات التقارير والخطابات");
+    } catch (err) {
+      toast.error("فشل حفظ الإعدادات");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, savePdfSettings: false }));
     }
   }
 
@@ -880,6 +923,12 @@ function SettingsPage() {
                 setLogoFile={setLogoFile}
                 stampFile={stampFile}
                 setStampFile={setStampFile}
+                gmSigFile={gmSigFile}
+                setGmSigFile={setGmSigFile}
+                hrSigFile={hrSigFile}
+                setHrSigFile={setHrSigFile}
+                financeSigFile={financeSigFile}
+                setFinanceSigFile={setFinanceSigFile}
                 saveOrg={saveOrg}
                 loadingSave={loadingStates.saveOrg}
                 currencyOptions={currencyOptions}
@@ -1057,6 +1106,188 @@ function SettingsPage() {
                 </table>
               </div>
             )}
+            {activeTab === "pdf_settings" && (
+              <div className="bg-white rounded-lg shadow-sm p-6" dir="rtl">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <span className="text-2xl">📄</span> إعدادات التقارير والخطابات
+                </h3>
+
+                <div className="space-y-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">هوامش الصفحة (ملم)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { key: "margin_top", label: "العلوي" },
+                        { key: "margin_bottom", label: "السفلي" },
+                        { key: "margin_left", label: "الأيسر" },
+                        { key: "margin_right", label: "الأيمن" },
+                      ].map(({ key, label }) => (
+                        <div key={key}>
+                          <label className="block text-xs font-medium mb-1 text-right">{label}</label>
+                          <input type="number" min="5" max="40" value={pdfSettings[key]}
+                            onChange={(e) => setPdfSettings({ ...pdfSettings, [key]: Number(e.target.value) })}
+                            className="w-full border rounded-lg px-3 py-2 text-center" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">الشعار والختم</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">عرض الشعار (بكسل)</label>
+                        <input type="number" min="20" max="200" value={pdfSettings.logo_width}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, logo_width: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">ارتفاع الشعار (بكسل)</label>
+                        <input type="number" min="20" max="200" value={pdfSettings.logo_height}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, logo_height: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">موضع الشعار</label>
+                        <select value={pdfSettings.logo_position}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, logo_position: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2">
+                          <option value="center">وسط</option>
+                          <option value="right">يمين</option>
+                          <option value="left">يسار</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">عرض الختم (بكسل)</label>
+                        <input type="number" min="20" max="200" value={pdfSettings.stamp_width}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, stamp_width: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">ارتفاع الختم (بكسل)</label>
+                        <input type="number" min="20" max="200" value={pdfSettings.stamp_height}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, stamp_height: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">موضع الختم</label>
+                        <select value={pdfSettings.stamp_position}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, stamp_position: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2">
+                          <option value="center">وسط</option>
+                          <option value="right">يمين</option>
+                          <option value="left">يسار</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">النص والتنسيق</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">حجم الخط</label>
+                        <input type="number" min="8" max="20" value={pdfSettings.font_size}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, font_size: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">ارتفاع السطر</label>
+                        <input type="number" min="1" max="4" step="0.5" value={pdfSettings.line_height}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, line_height: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">نص الترويسة</label>
+                        <input type="text" value={pdfSettings.header_text}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, header_text: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اختياري" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">نص التذييل</label>
+                        <input type="text" value={pdfSettings.footer_text}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, footer_text: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اختياري" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">العناصر المرئية</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { key: "show_header", label: "الترويسة" },
+                        { key: "show_footer", label: "التذييل" },
+                        { key: "show_stamp", label: "الختم" },
+                        { key: "show_signatures", label: "التوقيعات" },
+                      ].map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={!!pdfSettings[key]}
+                            onChange={(e) => setPdfSettings({ ...pdfSettings, [key]: e.target.checked })}
+                            className="w-4 h-4" />
+                          <span className="text-sm">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-orange-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">التوقيعات والعناوين</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={!!pdfSettings.show_gm_signature}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, show_gm_signature: e.target.checked })}
+                          className="w-4 h-4" />
+                        <span className="text-sm">توقيع المدير العام</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={!!pdfSettings.show_hr_signature}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, show_hr_signature: e.target.checked })}
+                          className="w-4 h-4" />
+                        <span className="text-sm">توقيع مدير الموارد البشرية</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={!!pdfSettings.show_finance_signature}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, show_finance_signature: e.target.checked })}
+                          className="w-4 h-4" />
+                        <span className="text-sm">توقيع المدير المالي</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">لقب المدير العام</label>
+                        <input type="text" value={pdfSettings.gm_title}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, gm_title: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">لقب مدير الموارد البشرية</label>
+                        <input type="text" value={pdfSettings.hr_title}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, hr_title: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">لقب المدير المالي</label>
+                        <input type="text" value={pdfSettings.finance_title}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, finance_title: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center mt-4">
+                    <button onClick={savePdfSettings} disabled={loadingStates.savePdfSettings}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-400 flex items-center gap-2">
+                      {loadingStates.savePdfSettings ? (
+                        <><span className="animate-spin">⟳</span> جاري الحفظ...</>
+                      ) : (
+                        <>💾 حفظ إعدادات التقارير والخطابات</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -1109,7 +1340,7 @@ function SettingsPage() {
   );
 }
 
-function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, saveOrg, loadingSave, currencyOptions }) {
+function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stampFile, setStampFile, gmSigFile, setGmSigFile, hrSigFile, setHrSigFile, financeSigFile, setFinanceSigFile, saveOrg, loadingSave, currencyOptions }) {
   const [customCurrency, setCustomCurrency] = useState({ name: "", symbol: "", code: "" });
   const [showAddCurrency, setShowAddCurrency] = useState(false);
   const [currencies, setCurrencies] = useState(currencyOptions);
@@ -1413,8 +1644,45 @@ function OrganizationTab({ org, orgForm, setOrgForm, logoFile, setLogoFile, stam
         </div>
         <div className="mt-4 bg-orange-100 p-3 rounded-lg">
           <p className="text-sm text-orange-800">
-            <strong>💡 ملاحظة:</strong> هذه العملة ستُستخدم في جميع التقارير والعقود والمرتبات والسلفيات والضرائب.
+            <strong>ملاحظة:</strong> هذه العملة ستُستخدم في جميع التقارير والعقود والمرتبات والسلفيات والضرائب.
           </p>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 p-4 rounded-lg mt-4">
+        <h3 className="font-bold mb-4 text-right flex items-center gap-2">
+          <span>👥</span> أسماء المديرين (تظهر في الخطابات والتقارير)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">المدير العام</label>
+            <input type="text" value={orgForm.general_manager_name} onChange={(e) => setOrgForm({ ...orgForm, general_manager_name: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اسم المدير العام" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">مدير الموارد البشرية</label>
+            <input type="text" value={orgForm.hr_manager_name} onChange={(e) => setOrgForm({ ...orgForm, hr_manager_name: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اسم مدير الموارد البشرية" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">المدير المالي</label>
+            <input type="text" value={orgForm.finance_manager_name} onChange={(e) => setOrgForm({ ...orgForm, finance_manager_name: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اسم المدير المالي" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">توقيع المدير العام</label>
+            <input type="file" accept="image/*" onChange={(e) => setGmSigFile(e.target.files?.[0] || null)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            {org?.gm_signature && !gmSigFile && <p className="text-xs text-green-600 mt-1">✓ موجود</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">توقيع مدير الموارد البشرية</label>
+            <input type="file" accept="image/*" onChange={(e) => setHrSigFile(e.target.files?.[0] || null)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            {org?.hr_signature && !hrSigFile && <p className="text-xs text-green-600 mt-1">✓ موجود</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-right">توقيع المدير المالي</label>
+            <input type="file" accept="image/*" onChange={(e) => setFinanceSigFile(e.target.files?.[0] || null)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            {org?.finance_signature && !financeSigFile && <p className="text-xs text-green-600 mt-1">✓ موجود</p>}
+          </div>
         </div>
       </div>
 
