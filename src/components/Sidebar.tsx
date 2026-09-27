@@ -134,12 +134,12 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
         <div className="flex-1">
           {!collapsed ? (
             <div className="text-center">
-              <h2 className="text-xl font-bold">Jawda HR</h2>
+              <h2 className="text-xl font-bold">ITQAN HR</h2>
               <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <span className="text-xl font-bold" title="Jawda HR">JH</span>
+              <span className="text-xl font-bold" title="Onyx HR">JH</span>
             </div>
           )}
         </div>
@@ -193,7 +193,7 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
             collapsed ? "justify-center" : "justify-between",
           ].join(" ")}
         >
-          {!collapsed && <span className="text-sm">تصغير القائمة</span>}
+          {!collapsed && <span className="text-sm"> </span>}
           <span className="text-white/90">{collapsed ? "⟫" : "⟪"}</span>
         </button>
       </div>

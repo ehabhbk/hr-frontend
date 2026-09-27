@@ -66,14 +66,19 @@ export default function Login() {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-l from-blue-400 to-indigo-600" dir="rtl">
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <span className="text-4xl">🏢</span>
-          </div>
+          <div className="mx-auto w-20 h-30 mb-1 transform hover:scale-105 transition-transform duration-300">
+              <img 
+              
+                src="/ITQAN.png" 
+                alt="نظام إتقان" 
+                className=" object-contain  "
+              />
+            </div>
           <h1 className="text-2xl font-extrabold text-indigo-700 mb-1">
-            Jawda HR
+            ITQAN HR
           </h1>
           <p className="text-gray-600">
-            نظام جودة لإدارة الموارد البشرية
+            نظام إتقان لإدارة الموارد البشرية
           </p>
         </div>
 
