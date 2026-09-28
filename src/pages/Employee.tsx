@@ -35,6 +35,7 @@ export default function Employee() {
   const [, setOrganization] = useState({});
   const [, setLeaveSettings] = useState(null);
   const [, setAdvanceSettings] = useState(null);
+  const [advanceLimits, setAdvanceLimits] = useState({ minInstallments: 3, maxInstallments: 12 });
 
   console.log('Employee page - id from params:', id);
 
@@ -155,7 +156,15 @@ export default function Employee() {
     
     api
       .get(`/settings/advances`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setAdvanceSettings(res.data.data || {}))
+      .then((res) => {
+        const data = res.data.data || {};
+        setAdvanceSettings(data);
+        const longCfg = data.long_advance || {};
+        setAdvanceLimits({
+          minInstallments: parseInt(longCfg.min_installments) || 3,
+          maxInstallments: parseInt(longCfg.max_installments) || 12,
+        });
+      })
       .catch(() => {});
   }, [id, token]);
 
@@ -166,6 +175,22 @@ export default function Employee() {
     if (normalized.includes("warning")) return "bg-yellow-100";
     if (normalized.includes("vacation")) return "bg-green-100";
     return "bg-gray-100";
+  };
+
+  // clamps installments to the configured range and distributes the amount evenly
+  const buildInstallmentsDetail = (amountInput, requestedInstallments) => {
+    const amount = parseFloat(amountInput);
+    const min = Math.max(1, advanceLimits.minInstallments);
+    const max = Math.max(min, advanceLimits.maxInstallments);
+    const n = Math.max(min, Math.min(parseInt(requestedInstallments) || min, max));
+    if (isNaN(amount) || amount <= 0) {
+      return { installments: n, detail: Array.from({ length: n }, () => ({ amount: "" })) };
+    }
+    const per = Math.floor(amount / n * 100) / 100;
+    const detail = Array.from({ length: n }, (_, i) => ({
+      amount: i === n - 1 ? Math.round((amount - per * (n - 1)) * 100) / 100 : per,
+    }));
+    return { installments: n, detail };
   };
 
   // Fetch CV file when modal opens
@@ -366,6 +391,7 @@ export default function Employee() {
       return;
     }
 
+    let installmentsDetail = null;
     if (advanceData.type === "long") {
       const grossSalary = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
       const amount = parseFloat(advanceData.amount || 0);
@@ -375,18 +401,24 @@ export default function Employee() {
         return;
       }
       const totalInst = advanceData.installments_detail.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+      if (advanceData.installments_detail.length !== advanceData.installments) {
+        toast.error(`يجب إدخال ${advanceData.installments} قسط بقيمة كل قسط`);
+        return;
+      }
       if (Math.abs(totalInst - amount) > 0.01) {
         toast.error(`مجموع الأقساط (${totalInst}) يجب أن يساوي قيمة السلفة (${amount})`);
         return;
       }
-      const grossSal = parseFloat(employee.base_salary || 0) + parseFloat(employee.position_allowance || 0);
       for (let i = 0; i < advanceData.installments_detail.length; i++) {
         const val = parseFloat(advanceData.installments_detail[i].amount) || 0;
-        if (grossSal > 0 && val > grossSal) {
-          toast.error(`القسط رقم ${i + 1} (${val}) أكبر من المرتب الشهري (${grossSal})`);
+        if (grossSalary > 0 && val > grossSalary) {
+          toast.error(`القسط رقم ${i + 1} (${val}) أكبر من المرتب الشهري (${grossSalary})`);
           return;
         }
       }
+      installmentsDetail = JSON.stringify(
+        advanceData.installments_detail.map((d) => ({ amount: parseFloat(d.amount) || 0 }))
+      );
     }
 
     setLoading(true);
@@ -394,10 +426,10 @@ export default function Employee() {
     formData.append("employee_id", employee.id);
     formData.append("type", advanceData.type);
     formData.append("amount", advanceData.amount);
-    formData.append("installments", advanceData.installments);
+    formData.append("installments", String(advanceData.installments));
     formData.append("note", advanceData.note || "");
-    if (advanceData.type === "long" && advanceData.installments_detail.length > 0) {
-      formData.append("installments_detail", JSON.stringify(advanceData.installments_detail));
+    if (advanceData.type === "long" && installmentsDetail) {
+      formData.append("installments_detail", installmentsDetail);
     }
     if (advanceData.attachment) {
       formData.append("attachment", advanceData.attachment);
@@ -1733,12 +1765,8 @@ export default function Employee() {
                   onChange={(e) => {
                     const newType = e.target.value;
                     if (newType === "long") {
-                      const amt = parseFloat(advanceData.amount || 0);
-                      const inst = advanceData.installments || 1;
-                      const detail = Array.from({ length: inst }, (_, i) => ({
-                        amount: amt > 0 ? (i === inst - 1 ? Math.round((amt - Math.floor(amt / inst) * (inst - 1)) * 100) / 100 : Math.round((amt / inst) * 100) / 100) : "",
-                      }));
-                      setAdvanceData({ ...advanceData, type: newType, installments_detail: detail });
+                      const built = buildInstallmentsDetail(advanceData.amount, advanceData.installments);
+                      setAdvanceData({ ...advanceData, type: newType, installments: built.installments, installments_detail: built.detail });
                     } else {
                       setAdvanceData({ ...advanceData, type: newType, installments_detail: [] });
                     }
@@ -1755,15 +1783,9 @@ export default function Employee() {
                   value={advanceData.amount}
                   onChange={(e) => {
                     const newAmount = e.target.value;
-                    const parsed = parseFloat(newAmount);
-                    if (advanceData.type === "long" && !isNaN(parsed) && parsed > 0) {
-                      const inst = advanceData.installments || 1;
-                      const detail = Array.from({ length: inst }, (_, i) => ({
-                        amount: i === inst - 1
-                          ? Math.round((parsed - Math.floor(parsed / inst) * (inst - 1)) * 100) / 100
-                          : Math.round((parsed / inst) * 100) / 100,
-                      }));
-                      setAdvanceData({ ...advanceData, amount: newAmount, installments_detail: detail });
+                    if (advanceData.type === "long") {
+                      const built = buildInstallmentsDetail(newAmount, advanceData.installments);
+                      setAdvanceData({ ...advanceData, amount: newAmount, installments: built.installments, installments_detail: built.detail });
                     } else {
                       setAdvanceData({ ...advanceData, amount: newAmount });
                     }
@@ -1783,14 +1805,12 @@ export default function Employee() {
                     <label className="block mb-2">مدة التقسيط (أشهر):</label>
                     <input
                       type="number"
-                      min="1"
+                      min={advanceLimits.minInstallments}
+                      max={advanceLimits.maxInstallments}
                       value={advanceData.installments}
                       onChange={(e) => {
-                        const inst = parseInt(e.target.value) || 1;
-                        const detail = Array.from({ length: inst }, (_, i) => ({
-                          amount: advanceData.installments_detail[i]?.amount || "",
-                        }));
-                        setAdvanceData({ ...advanceData, installments: inst, installments_detail: detail });
+                        const built = buildInstallmentsDetail(advanceData.amount, e.target.value);
+                        setAdvanceData({ ...advanceData, installments: built.installments, installments_detail: built.detail });
                       }}
                       className="w-full border rounded p-2 mb-4"
                     />
@@ -1885,7 +1905,7 @@ export default function Employee() {
                   <button
                     onClick={() => {
                       setShowAdvanceModal(false);
-                      setAdvanceData({ type: "short", amount: "", installments: 1, note: "", attachment: null, installments_detail: [] });
+        setAdvanceData({ type: "short", amount: "", installments: advanceLimits.minInstallments, note: "", attachment: null, installments_detail: [] });
                       setAdvanceAttachmentPreview(null);
                     }}
                     className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
