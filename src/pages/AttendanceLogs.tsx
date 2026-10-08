@@ -16,6 +16,26 @@ const TYPE_COLORS = {
   'absence': { label: 'غياب', bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-400' },
 };
 
+// تنسيق المدة بالعربي: ساعات ودقائق وثوانٍ (مثال: 4 ساعات و34 دقيقة و18 ثانية)
+const arCount = (n, one, two, few, many) => {
+  if (n === 1) return one;
+  if (n === 2) return two;
+  if (n >= 3 && n <= 10) return `${n} ${few}`;
+  return `${n} ${many}`;
+};
+
+const formatHMS = (totalSeconds) => {
+  totalSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const parts = [];
+  if (h > 0) parts.push(arCount(h, 'ساعة', 'ساعتين', 'ساعات', 'ساعة'));
+  if (m > 0) parts.push(arCount(m, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'));
+  if (s > 0 || parts.length === 0) parts.push(arCount(s, 'ثانية', 'ثانيتين', 'ثوانٍ', 'ثانية'));
+  return parts.join(' و');
+};
+
 export default function AttendanceLogs() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -85,8 +105,11 @@ export default function AttendanceLogs() {
     }
   };
 
-  const loadLogs = async () => {
-    setLoading(true);
+  // التحديث التلقائي للسجل كل دقيقة (يكمل المزامنة التلقائية في الخادم)
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  const loadLogs = async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       const params = {};
       if (filters.from_date) params.from_date = filters.from_date;
@@ -102,13 +125,27 @@ export default function AttendanceLogs() {
       const records = recordsRes.data?.data?.data || recordsRes.data?.data || recordsRes.data || [];
       
 // Transform attendance records for display
+      // عرض حركات النطاق فقط: بصمة الحضور تظهر إن وقعت داخل النطاق،
+      // وبصمة الانصراف تظهر إن وقعت داخله — ولو كان سجلّها بتاريخ سابق
+      // (مثل انصراف اليوم لجلسة أمس). بلا نطاق تُعرض كل الحركات.
+      const rangeFrom = filters.from_date || null;
+      const rangeTo = filters.to_date || null;
+      const dayInRange = (ts) => {
+        if (!ts) return false;
+        const day = String(ts).slice(0, 10);
+        if (!rangeFrom && !rangeTo) return true;
+        if (rangeFrom && day < rangeFrom) return false;
+        if (rangeTo && day > rangeTo) return false;
+        return true;
+      };
+
       const processedLogs = Array.isArray(records) ? records.flatMap(r => {
         const logs = [];
-        const deviceName = r.device_name || r.employee?.attendance_device?.name || 
+        const deviceName = r.device_name || r.employee?.attendance_device?.name ||
                           r.employee?.attendanceDevice?.name || r.employee?.attendance_device?.host || '-';
-        
+
         // Check-in record
-        if (r.check_in_time) {
+        if (r.check_in_time && dayInRange(r.check_in_time)) {
           logs.push({
             id: `in-${r.id}`,
             record_id: r.id,
@@ -128,11 +165,12 @@ export default function AttendanceLogs() {
             is_manual: false,
             check_in_type: r.check_in_type,
             delay_minutes: r.check_in_delay_minutes || 0,
+            delay_seconds: r.check_in_delay_seconds ?? null,
           });
         }
         
         // Check-out record
-        if (r.check_out_time) {
+        if (r.check_out_time && dayInRange(r.check_out_time)) {
           logs.push({
             id: `out-${r.id}`,
             record_id: r.id,
@@ -152,11 +190,12 @@ export default function AttendanceLogs() {
             is_manual: false,
             check_out_type: r.check_out_type,
             early_minutes: r.check_out_early_minutes || 0,
+            early_seconds: r.check_out_early_seconds ?? null,
           });
         }
         
         // Absence record
-        if (!r.check_in_time && r.is_absent) {
+        if (!r.check_in_time && r.is_absent && dayInRange(r.date)) {
           logs.push({
             id: `abs-${r.id}`,
             record_id: r.id,
@@ -205,13 +244,16 @@ export default function AttendanceLogs() {
         const stored = res.data?.stored ?? 0;
         const skipped = res.data?.skipped ?? 0;
         
-        // Process device logs to calculate delays based on shifts
-        if (stored > 0) {
-          await api.post("/attendance-records/process-logs", {
-            device_id: deviceId
-          }, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+        // معالجة السجلات دائماً بعد المزامنة حتى تظهر البصمات فوراً
+        // (حتى بلا بصمات جديدة قد توجد بصمات معلَّقة غير معالَجة)
+        const procRes = await api.post("/attendance-records/process-logs", {
+          device_id: deviceId
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const unmatched = procRes.data?.unmatched || [];
+        if (unmatched.length > 0) {
+          toast.warning(`⚠️ بصمات بلا موظف (لا تظهر أسماؤها) — أرقام الجهاز: ${unmatched.map(u => u.device_user_id).join('، ')}. صحّح رقم البصمة في بطاقة الموظف ثم أعد المعالجة`);
         }
         
         if (stored > 0) {
@@ -226,9 +268,13 @@ export default function AttendanceLogs() {
           headers: { Authorization: `Bearer ${token}` }
         });
         // Process all device logs
-        await api.post("/attendance-records/process-logs", {}, {
+        const procAllRes = await api.post("/attendance-records/process-logs", {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        const unmatchedAll = procAllRes.data?.unmatched || [];
+        if (unmatchedAll.length > 0) {
+          toast.warning(`⚠️ بصمات بلا موظف (لا تظهر أسماؤها) — أرقام الجهاز: ${unmatchedAll.map(u => u.device_user_id).join('، ')}. صحّح رقم البصمة في بطاقة الموظف ثم أعد المعالجة`);
+        }
         toast.success(`تم المزامنة بنجاح`);
       }
       await loadLogs();
@@ -408,6 +454,12 @@ export default function AttendanceLogs() {
     loadEmployees();
     loadLogs();
   }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const t = setInterval(() => { loadLogs(true); }, 60000);
+    return () => clearInterval(t);
+  }, [autoRefresh, filters]);
 
   const getDeviceName = (log) => {
     if (log.device_name) return log.device_name;
@@ -699,6 +751,14 @@ export default function AttendanceLogs() {
           >
             {syncing ? "جارٍ المزامنة..." : "🔄 مزامنة جميع الأجهزة"}
           </button>
+          <button
+            onClick={() => setAutoRefresh(v => !v)}
+            className={`${autoRefresh ? "bg-amber-500 text-white" : "bg-white text-green-700"} px-4 py-2 rounded-lg hover:opacity-90 font-semibold`}
+            type="button"
+            title="تحديث السجل تلقائياً كل دقيقة (الخادم يزامن الأجهزة كل 5 دقائق)"
+          >
+            {autoRefresh ? "⏸ إيقاف التحديث التلقائي" : "▶ تحديث تلقائي"}
+          </button>
           {devices.map((d) => (
             <button
               key={d.id}
@@ -755,8 +815,8 @@ export default function AttendanceLogs() {
                           <td className="p-3">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${typeInfo.bg} ${typeInfo.text} ${typeInfo.border}`}>
                               {typeInfo.label}
-                              {row.delay_minutes > 0 && ` (${row.delay_minutes} د)`}
-                              {row.early_minutes > 0 && ` (${row.early_minutes} د)`}
+                              {row.delay_minutes > 0 && ` (${formatHMS(row.delay_seconds ?? row.delay_minutes * 60)})`}
+                              {row.early_minutes > 0 && ` (${formatHMS(row.early_seconds ?? row.early_minutes * 60)})`}
                             </span>
                           </td>
                           <td className="p-3 text-red-600 font-medium">
