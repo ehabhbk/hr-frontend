@@ -144,8 +144,13 @@ export default function AttendanceLogs() {
         const deviceName = r.device_name || r.employee?.attendance_device?.name ||
                           r.employee?.attendanceDevice?.name || r.employee?.attendance_device?.host || '-';
 
+        // انصراف اليوم يُعرض مع حضوره ولو كان بتاريخ سابق —
+        // حتى لا يظهر انصراف وحيد بلا حضوره (مثل أول بصمة لموظف جديد)
+        const outShown =
+          r.check_out_time && dayInRange(r.check_out_time);
+
         // Check-in record
-        if (r.check_in_time && dayInRange(r.check_in_time)) {
+        if (r.check_in_time && (dayInRange(r.check_in_time) || outShown)) {
           logs.push({
             id: `in-${r.id}`,
             record_id: r.id,
