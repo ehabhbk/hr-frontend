@@ -134,7 +134,7 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
         <div className="flex-1">
           {!collapsed ? (
             <div className="text-center">
-              <h2 className="text-xl font-bold">ITQAN HR</h2>
+              <h2 className="text-xl font-bold">SCARLET HR</h2>
               <p className="text-sm text-gray-300">إدارة الموارد البشرية</p>
             </div>
           ) : (

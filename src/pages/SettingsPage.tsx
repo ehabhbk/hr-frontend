@@ -125,6 +125,12 @@ function SettingsPage() {
     show_gm_signature: true, show_hr_signature: true, show_finance_signature: false,
     header_text: '', footer_text: '',
     gm_title: 'المدير العام', hr_title: 'مدير الموارد البشرية', finance_title: 'المدير المالي',
+    font_family: 'dejavusans',
+    header_color: '#1e3a5f', title_color: '#1e3a5f',
+    page_size: 'A4', page_orientation: 'P',
+    show_reference: true,
+    footer_left_text: '', footer_right_text: '',
+    rows_per_page: 25,
   });
 
   const [orgForm, setOrgForm] = useState({
@@ -1208,6 +1214,88 @@ function SettingsPage() {
                         <input type="text" value={pdfSettings.footer_text}
                           onChange={(e) => setPdfSettings({ ...pdfSettings, footer_text: e.target.value })}
                           className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اختياري" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-teal-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">الخط وحجم الصفحة</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">الخط</label>
+                        <select value={pdfSettings.font_family}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, font_family: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2">
+                          <option value="dejavusans">DejaVu Sans (شبيه Arial)</option>
+                          <option value="dejavuserif">DejaVu Serif (شبيه Times)</option>
+                          <option value="freeserif">Free Serif</option>
+                          <option value="freesans">Free Sans</option>
+                          <option value="aealarabiya">Aealarabiya (عربي)</option>
+                          <option value="aefurat">Aefurat (عربي)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">حجم الورق</label>
+                        <select value={pdfSettings.page_size}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, page_size: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2">
+                          <option value="A4">A4</option>
+                          <option value="Letter">Letter</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">اتجاه الصفحة</label>
+                        <select value={pdfSettings.page_orientation}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, page_orientation: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2">
+                          <option value="P">عمودي</option>
+                          <option value="L">أفقي</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">لون الترويسة</label>
+                        <input type="color" value={pdfSettings.header_color}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, header_color: e.target.value })}
+                          className="w-full h-10 border rounded-lg px-1 py-1 cursor-pointer" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">لون العناوين</label>
+                        <input type="color" value={pdfSettings.title_color}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, title_color: e.target.value })}
+                          className="w-full h-10 border rounded-lg px-1 py-1 cursor-pointer" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">عدد الصفوف في كل صفحة</label>
+                        <input type="number" min="5" max="100" value={pdfSettings.rows_per_page}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, rows_per_page: Number(e.target.value) })}
+                          className="w-full border rounded-lg px-3 py-2 text-center" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-cyan-50 p-4 rounded-lg">
+                    <h4 className="font-bold mb-3 text-right">التذييل المخصص والنصوص</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">نص أسفل اليمين</label>
+                        <input type="text" value={pdfSettings.footer_right_text}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, footer_right_text: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اختياري" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">نص أسفل اليسار</label>
+                        <input type="text" value={pdfSettings.footer_left_text}
+                          onChange={(e) => setPdfSettings({ ...pdfSettings, footer_left_text: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2 text-right" placeholder="اختياري" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-right">إظهار التاريخ والرقم المرجعي</label>
+                        <label className="flex items-center gap-2 cursor-pointer mt-2">
+                          <input type="checkbox" checked={!!pdfSettings.show_reference}
+                            onChange={(e) => setPdfSettings({ ...pdfSettings, show_reference: e.target.checked })}
+                            className="w-4 h-4" />
+                          <span className="text-sm">إظهار في الخطابات</span>
+                        </label>
                       </div>
                     </div>
                   </div>

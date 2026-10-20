@@ -646,6 +646,9 @@ function ReportsPage() {
         ...letterParams,
       });
       setLetterData(res.data);
+      if (res.data?.content?.body) {
+        setLetterParams({ ...letterParams, custom_body: res.data.content.body });
+      }
       toast.success("تم إنشاء الخطاب بنجاح ✅");
     } catch (err) {
       toast.error("فشل في إنشاء الخطاب ❌");
@@ -656,6 +659,9 @@ function ReportsPage() {
 
   function printLetter() {
     if (!letterData) return;
+    const editedBody = letterParams.custom_body
+      ? `<div>${letterParams.custom_body}</div>`
+      : "";
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -678,7 +684,11 @@ function ReportsPage() {
         </style>
       </head>
       <body>
-        ${document.getElementById("letter-content")?.innerHTML || ""}
+        <div class="header">
+          <h1>${letterData.title || letterData.type_label || "خطاب"}</h1>
+          <p>الرقم المرجعي: ${letterData.reference_number || ""}</p>
+        </div>
+        <div class="content">${editedBody || document.getElementById("letter-content")?.innerHTML || ""}</div>
       </body>
       </html>
     `);
@@ -699,7 +709,7 @@ function ReportsPage() {
       Object.keys(letterParams).forEach(key => {
         formData.append(key, letterParams[key]);
       });
-      
+
       const response = await fetch(`${API_BASE}/letters/export-pdf`, {
         method: 'POST',
         headers: {
@@ -2216,6 +2226,19 @@ function LettersSection({ employees, departments, letterType, setLetterType, sel
               <h1 className="text-2xl font-bold">{letterData.title}</h1>
             </div>
             <div dangerouslySetInnerHTML={{ __html: letterData.content?.body }} />
+          </div>
+          <div className="mt-8 border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="font-semibold text-slate-700 text-sm">✏️ تعديل نص الخطاب</label>
+              <span className="text-xs text-slate-400">يمكنك تعديل النص قبل التصدير — HTML مسموح به</span>
+            </div>
+            <textarea
+              value={letterParams.custom_body || letterData.content?.body || ""}
+              onChange={e => setLetterParams({ ...letterParams, custom_body: e.target.value })}
+              rows={12}
+              dir="rtl"
+              className="w-full border border-slate-300 rounded-lg p-3 font-mono text-sm text-slate-700 focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+            />
           </div>
         </div>
       )}

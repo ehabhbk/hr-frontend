@@ -69,16 +69,16 @@ export default function Login() {
           <div className="mx-auto w-20 h-30 mb-1 transform hover:scale-105 transition-transform duration-300">
               <img 
               
-                src="/ITQAN.png" 
-                alt="نظام إتقان" 
+                src="/scarlet.png" 
+                alt="نظام سكارلت" 
                 className=" object-contain  "
               />
             </div>
           <h1 className="text-2xl font-extrabold text-indigo-700 mb-1">
-            ITQAN HR
+            Scarlet HR
           </h1>
           <p className="text-gray-600">
-            نظام إتقان لإدارة الموارد البشرية
+            نظام سكارلت لإدارة الموارد البشرية
           </p>
         </div>
 
