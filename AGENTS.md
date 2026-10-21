@@ -8,7 +8,7 @@
 - السلفة الطويلة: حد أقصى بالجنيه فقط، بدون نسبة من المرتب — إدخال قيمة كل قسط يدوياً لكل شهر، تأكيد دفع كل قسط يدوي
 - طلب السلفية: إلزامي إرفاق ملف (jpg/png/pdf) — يظهر في طلبات السلفيات وفي تقرير الموظف
 - جهاز K40 الحالي لا يدعم enrollment عن بعد (سيتم استبداله)
-- قاعدة البيانات MySQL (MariaDB)، المكتبة المستخدمة `jmrashed/zkteco` فقط
+- قاعدة البيانات MySQL (MariaDB)، المكتبة الأساسية `0mithun/php-zkteco` (TCP/UDP) + `jmrashed/zkteco` كمكتبة ثانوية لدوال الوجه فقط (`enrollFaceTemplate`/`getFaceData`)
 - أنواع الإجازات: رسمية، مرضية، أمومة، حج، بدون مرتب — كل نوع يتقيد بالمدة القصوى
 - رفع ملف (صورة/PDF) في طلب الإجازة
 - عرض نوع الإجازة بالعربية في طلبات الإجازات وتقرير الموظف
@@ -83,6 +83,16 @@
 - (none)
 
 ### Recently Added
+- **هجرة مكتبة ZKTeco**:
+  - استبدال `jmrashed/zkteco` بـ `0mithun/php-zkteco` كمكتبة أساسية (TCP/UDP، `_command` عامة، `getAttendances`/`getUsers`) — jmrashed بقيت **لدوال الوجه فقط** عبر `connectFace()` في AttendanceDeviceController (`enrollFaceTemplate`, `getFaceData`)
+  - الملفات: `ZKTecoService.php`, `AttendanceDeviceController.php`, `AttendanceDeviceSettingController.php`, `EmployeesController.php`, `SyncAttendanceLogs.php`
+  - البروتوكول يُحدَّد من حقل `driver`: `tcp` → protocol tcp، وإلا udp (افتراضي K40)
+  - استبدال `enrollFingerprint()` بـ `setFingerprint($uid, [$fingerId => $tpl])` (يتولى حذف القالب القديم تلقائياً)
+- **مزامنة البصمات ذهاباً وإياباً** (صفحة أجهزة البصمة):
+  - `POST /attendance-device/{id}/pull-fingerprints` — جلب كل البصمات من الجهاز + مطابقة المستخدمين بالموظفين عبر `device_user_id` + حفظها في جدول `fingerprints` (updateOrCreate) + إرجاع إحصائيات وقائمة `unmatched`
+  - `POST /attendance-device/{id}/push-fingerprints` — رفع بصمات قاعدة البيانات النشطة إلى الجهاز لكل موظف ذو `device_user_id` (مع إنشاء المستخدم على الجهاز أولاً عبر `setUser`) + إرجاع `failures`
+  - `FingerprintDevices.tsx` — زرا "👇 جلب بصمات" (الآن يحفظ فعلاً في القاعدة) و "⬆️ رفع بصمات" مع نتائج مفصلة
+  - `fingerprintApi.js` — دالتان `pullFingerprints` و `pushFingerprints`
 - **إعادة تصميم لوحة التحكم**:
   - `DashboardController.php` — API جديد بكل الإحصائيات: إجمالي الموظفين، الأقسام، المفصولين، في إجازة، غياب اليوم، غير مداومين، متأخرين، المرتبات الأساسية والإجمالية، سلف الشهر، إنذارات الشهر/السنة، إجازات الشهر/السنة
   - إضافة 4 رسوم بيانية دائرية (Doughnut) باستخدام Chart.js: الحضور والغياب، الإجازات، السلفيات، الإنذارات
@@ -98,13 +108,25 @@
   - `ReportsController@salaryReport` — إضافة `absent_days` للتقرير
   - `AttendanceLogs.tsx` — زر "🚫 احتساب الغياب" مع دالة `handleCalculateAbsences`
   - أيام الوردية (week_days) بنظام JS: 0=الأحد, 1=الإثنين, ..., 6=السبت — يتطابق مع `date('w')` في PHP
+- **مزامنة سجل الحضور اللحظية** (بصمة الموظف تظهر فوراً في السجل):
+  - `app/Console/Commands/ListenAttendance.php` — أمر `php artisan attendance:listen` يستخدم `getRealTimeLogs` من 0mithun للاستماع للأحداث اللحظية من الأجهزة
+  - خيارات: `--device=` لجهاز محدد، `--window=30` مدة الاستماع لكل جهاز بالثواني (0 = لا نهائي لجهاز واحد) — مع عدة أجهزة يدور المستمع بينها بالتناوب
+  - عند وصول بصمة: حفظ فوري في `attendance_device_logs` (مع exists-check + catch للمفتاح الفريد لمنع التكرار مع `attendance:auto`) ثم معالجة `processFromDeviceLogs` لليوم الحالي و الجهاز مباشرة
+  - لا يستخدم `disableDevice` أثناء الاستماع حتى يبقى الموظفون قادرون على البصمة
+  - `AttendanceRecordController::processFromDeviceLogs` — أُضيف لها `Cache::lock('attendance:process-logs')` مع `block(15)` لمنع المعالجة المتزامنة (المستمع + المجدول + الزر اليدوي) — عند فشل الحصول على القفل تُرجع `processed=0` مع رسالة
+  - `routes/console.php` — `attendance:auto` بقي كل 5 دقائق كـ شبكة أمان (يغطي البصمات الفائتة عند توقف المستمع)
+  - `AttendanceLogs.tsx` — التحديث التلقائي أصبح كل 15 ثانية (كان 60) لعرض البصمات اللحظية فور وصولها
+  - التشغيل: `php artisan attendance:listen` كعملية مستمرة (Windows: schtasks، Linux: supervisor/screen) — بدون تشغيلها يعمل النظام بنفس المنطق القديم (5 دقائق)
 
 ### Blocked
 - فشل تشغيل `php artisan migrate` بسبب خطأ في جدول `roles` (موجود مسبقاً) — بعض التغييرات نفذت يدوياً
 - جهاز K40 الحالي لا يدعم `startEnroll()` عن بعد
 
 ## Key Decisions
-- استخدام `Jmrashed\Zkteco` بدلاً من `Rats\Zkteco`
+- **هجرة المكتبات**: `0mithun/php-zkteco` هي المكتبة الأساسية (TCP/UDP، أحداث لحظية، `_command` عامة) و`jmrashed/zkteco` محفوظة كمكتبة ثانوية **لدوال الوجه فقط** (`enrollFaceTemplate`/`getFaceData`) عبر `connectFace()` في AttendanceDeviceController
+- مطابقة البروتوكول من حقل `driver` في جدول الأجهزة: `tcp` → protocol tcp، وإلا udp
+- استبدال `enrollFingerprint()` (jmrashed) بـ `setFingerprint($uid, [$fingerId => $tpl])` (0mithun) — تتولى المكتبة حذف القالب القديم تلقائياً
+- استخدام `Jmrashed\Zkteco` بدلاً من `Rats\Zkteco` (تاريخي)
 - إزالة `exists()` check في sync والاكتفاء بـ `upsert()` + deduplication داخل الدفعة
 - تحويل بيانات البصمات لـ base64
 - تخزين ملفات السلفيات في `storage/app/public/advance-attachments/` والإجازات في `storage/app/public/leave-attachments/`
@@ -115,6 +137,7 @@
 - `syncFromDetail()` في `AdvanceRequest` model — يُحدّث `installments`, `paid_installments`, `remaining_amount` من مصفوفة JSON
 - أولوية الخصم للمرتب: تأمين ← قسط السلفة ← خصومات الحضور (إذا المبلغ لا يكفي، يُخصم بقدر المتاح)
 - نظام الغياب التلقائي: `calculateAbsencesForPeriod()` يُحتسب الغياب فقط في أيام الوردية (week_days) للموظفين المعينين في وردية، مع تجاهل أيام الإجازات المعتمدة. يستخدم `hourly_rate = gross_salary / 240` و `absence_deduction = hourly_rate * daily_hours`
+- مزامنة لحظية (hybrid): المستمع `attendance:listen` هو المسار الأساسي للعرض الفوري، و`attendance:auto` (كل 5 دقائق) شبكة أمان لما يفوته — والقفل `attendance:process-logs` يضمن ألا تعمل المعالجة مرتين بالتوازي
 
 ## Next Steps
 - اختبار رفع الملف لطلب الإجازة (API + UI)
@@ -122,11 +145,13 @@
 - اختبار المزامنة بعد الإصلاحات كاملة
 - اختبار نظام السلف الطويلة: إنشاء طلب → موافقة → ظهور الأقساط → دفع قسط → ظهور في كشف المرتبات
 - اختبار الغياب التلقائي: تعيين موظف في وردية أيامها السبت والثلاثاء، عدم بصمته يوم سبت → ظهوره غياب في سجل الحضور
+- اختبار المزامنة اللحظية: تشغيل `php artisan attendance:listen` ثم البصمة على الجهاز → ظهورها في سجل الحضور خلال ثوانٍ (مع تحديد "تحديث تلقائي" في الواجهة)
+- جدولة `attendance:listen` كخدمة مستمرة (Windows Task Scheduler عند بدء التشغيل / Linux supervisor)
 - عند استبدال جهاز K40 بجهاز يدعم enrollment عن بعد، تفعيل `startEnroll()` تلقائياً
 
 ## Critical Context
 - `ZKTecoService::startEnroll()` يستخدم `_command()` لإرسال الأمر `CMD_START_ENROLL = 97` — لا يعمل على K40
-- المكتبة `jmrashed/zkteco` لا تحتوي على دالة `startFingerprintEnroll` عالية المستوى
+- المكتبة `0mithun/php-zkteco` لا تحتوي على دالة `startFingerprintEnroll` عالية المستوى (ولم تكن في jmrashed أيضاً) — التسجيل التفاعلي عن بعد غير مدعوم على K40
 - `APP_URL=http://localhost` في `.env` لكن الخادم الفعلي `http://server/hr-app/public` — يسبب مشاكل في `Storage::url()`
 
 ## Relevant Files
@@ -136,7 +161,10 @@
 - `app/Http/Controllers/SettingsController.php`
 - `app/Http/Controllers/ReportsController.php`
 - `app/Http/Controllers/EmployeesController.php` (line ~389: active_leave detection + remaining_days)
-- `app/Http/Controllers/AttendanceRecordController.php` (line ~374: calculateAbsencesForPeriod)
+- `app/Http/Controllers/AttendanceRecordController.php` (line ~374: calculateAbsencesForPeriod, ~839: processFromDeviceLogs مع القفل)
+- `app/Console/Commands/ListenAttendance.php` (المستمع اللحظي attendance:listen)
+- `app/Console/Commands/SyncAttendanceLogs.php` + `AutoSyncAttendance.php` (attendance:sync / attendance:auto)
+- `routes/console.php` (الجدولة كل 5 دقائق)
 - `app/Services/ZKTecoService.php`
 - `app/Models/Leave.php`
 - `app/Models/AdvanceRequest.php`

@@ -1596,7 +1596,7 @@ export default function AddEmployee() {
 <body>
     <div class="header">
         <div class="logo">🏢</div>
-        <h1>نظام جودة HR</h1>
+        <h1>نظام سكارلت HR</h1>
         <p>عقد عمل توظيفي</p>
     </div>
 
@@ -1627,13 +1627,13 @@ export default function AddEmployee() {
     <div class="section salary-section">
         <h2>الراتب والمزايا المالية</h2>
         <div class="info-grid">
-            <div class="info-item"><span class="label">الراتب الأساسي:</span> ${formData.base_salary || "0"} ريال</div>
-            <div class="info-item"><span class="label">بدل الدرجة:</span> ${formData.position_allowance || "0"} ريال</div>
-            <div class="info-item"><span class="label">بدلات أخرى:</span> ${allowancesTotal} ريال</div>
-            <div class="info-item"><span class="label">الحوافز:</span> ${incentivesTotal} ريال</div>
+            <div class="info-item"><span class="label">الراتب الأساسي:</span> ${formData.base_salary || "0"} جنيه</div>
+            <div class="info-item"><span class="label">بدل الدرجة:</span> ${formData.position_allowance || "0"} جنيه</div>
+            <div class="info-item"><span class="label">بدلات أخرى:</span> ${allowancesTotal} جنيه</div>
+            <div class="info-item"><span class="label">الحوافز:</span> ${incentivesTotal} جنيه</div>
         </div>
         <div style="margin-top: 15px; text-align: center;">
-            <span class="total">الإجمالي: ${totalSalary} ريال/شهر</span>
+            <span class="total">الإجمالي: ${totalSalary} جنيه/شهر</span>
         </div>
     </div>
 
@@ -1667,7 +1667,7 @@ export default function AddEmployee() {
     </div>
 
     <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #888;">
-        <p>تم إنشاء هذا العقد بواسطة نظام جودة HR - ${new Date().toLocaleDateString('ar-SA')}</p>
+        <p>تم إنشاء هذا العقد بواسطة نظام سكارلت HR - ${new Date().toLocaleDateString('ar-SA')}</p>
     </div>
 </body>
 </html>`;

@@ -12,7 +12,8 @@ import {
   testDevice,
   updateDevice,
   setDeviceTime,
-  downloadFingerprints,
+  pullFingerprints,
+  pushFingerprints,
 } from "../services/fingerprintApi";
 import api from "../services/api";
 
@@ -211,16 +212,49 @@ export default function FingerprintDevices() {
     }
   };
 
-  const doDownloadFingerprints = async (d) => {
+  const doPullFingerprints = async (d) => {
     if (!d?.id) return;
     if (!window.confirm("هل تريد جلب البصمات من الجهاز وحفظها في قاعدة البيانات؟")) return;
     setBusyId(d.id);
     try {
-      const res = await downloadFingerprints(d.id);
-      const count = typeof res === 'object' ? Object.keys(res).length : 0;
-      toast.success(`✅ تم جلب بصمات ${count} مستخدم من الجهاز`);
+      const res = await pullFingerprints(d.id);
+      const saved = res?.fingerprints_saved ?? 0;
+      const matched = res?.users_matched ?? 0;
+      const unmatched = res?.unmatched || [];
+      if (saved === 0) {
+        toast.info("ℹ️ لم يتم العثور على بصمات جديدة في الجهاز");
+      } else {
+        toast.success(`✅ تم حفظ ${saved} بصمة لـ ${matched} موظف في قاعدة البيانات`);
+      }
+      if (unmatched.length > 0) {
+        toast.warning(`⚠️ ${unmatched.length} مستخدم في الجهاز بلا موظف مطابق: ${unmatched.join(", ")}`);
+      }
     } catch (e) {
       toast.error(e.message || "فشل في جلب البصمات");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doPushFingerprints = async (d) => {
+    if (!d?.id) return;
+    if (!window.confirm("هل تريد رفع بصمات قاعدة البيانات إلى الجهاز؟ (سيتم إنشاء المستخدمين تلقائياً)")) return;
+    setBusyId(d.id);
+    try {
+      const res = await pushFingerprints(d.id);
+      const pushed = res?.fingerprints_pushed ?? 0;
+      const employees = res?.employees_pushed ?? 0;
+      const failures = res?.failures || [];
+      if (pushed === 0) {
+        toast.info(res?.message || "ℹ️ لا توجد بصمات في قاعدة البيانات للرفع");
+      } else {
+        toast.success(`✅ ${res?.message || `تم رفع ${pushed} بصمة لـ ${employees} موظف`}`);
+      }
+      if (failures.length > 0) {
+        toast.warning(`⚠️ فشل رفع بصمات ${failures.length} موظف`);
+      }
+    } catch (e) {
+      toast.error(e.message || "فشل في رفع البصمات");
     } finally {
       setBusyId(null);
     }
@@ -367,12 +401,20 @@ export default function FingerprintDevices() {
                       🕐 ضبط وقت
                     </button>
                     <button
-                      onClick={() => doDownloadFingerprints(d)}
+                      onClick={() => doPullFingerprints(d)}
                       className="px-3 py-1.5 rounded bg-orange-600 text-white hover:bg-orange-700 text-sm"
                       type="button"
                       disabled={busyId === d.id}
                     >
                       👇 جلب بصمات
+                    </button>
+                    <button
+                      onClick={() => doPushFingerprints(d)}
+                      className="px-3 py-1.5 rounded bg-pink-600 text-white hover:bg-pink-700 text-sm"
+                      type="button"
+                      disabled={busyId === d.id}
+                    >
+                      ⬆️ رفع بصمات
                     </button>
                     {d.enabled ? (
                       <button

@@ -167,6 +167,22 @@ export async function uploadFingerprints(deviceId) {
   }
 }
 
+export async function pullFingerprints(deviceId) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/pull-fingerprints`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
+export async function pushFingerprints(deviceId) {
+  try {
+    return unwrap(await api.post(`/attendance-device/${deviceId}/push-fingerprints`));
+  } catch (e) {
+    throw normalizeError(e);
+  }
+}
+
 export async function enrollFingerprintAuto(deviceId, payload) {
   try {
     return unwrap(await api.post(`/attendance-device/${deviceId}/enroll-fingerprint`, payload));

@@ -457,7 +457,7 @@ export default function AttendanceLogs() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const t = setInterval(() => { loadLogs(true); }, 60000);
+    const t = setInterval(() => { loadLogs(true); }, 15000);
     return () => clearInterval(t);
   }, [autoRefresh, filters]);
 
@@ -755,7 +755,7 @@ export default function AttendanceLogs() {
             onClick={() => setAutoRefresh(v => !v)}
             className={`${autoRefresh ? "bg-amber-500 text-white" : "bg-white text-green-700"} px-4 py-2 rounded-lg hover:opacity-90 font-semibold`}
             type="button"
-            title="تحديث السجل تلقائياً كل دقيقة (الخادم يزامن الأجهزة كل 5 دقائق)"
+            title="تحديث السجل تلقائياً كل 15 ثانية — البصمة اللحظية تظهر فوراً عند تشغيل المستمع attendance:listen"
           >
             {autoRefresh ? "⏸ إيقاف التحديث التلقائي" : "▶ تحديث تلقائي"}
           </button>
