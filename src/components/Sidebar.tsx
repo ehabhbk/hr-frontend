@@ -139,7 +139,7 @@ export default function Sidebar({ sticky = false, onCollapseChange = undefined }
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <span className="text-xl font-bold" title="Onyx HR">JH</span>
+              <span className="text-xl font-bold" title="Scarlet HR">SH</span>
             </div>
           )}
         </div>
